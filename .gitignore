@@ -1,0 +1,44 @@
+# Rust build artifacts
+/target/
+**/target/
+
+# Cargo.lock for libraries (keep for binaries)
+# Cargo.lock
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+*.profraw
+*.profdata
+coverage/
+
+# Build outputs
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Log files
+*.log
+logs/
+
+# Snapshots
+snapshots/
+
+# Local configuration
+.env
+.env.local

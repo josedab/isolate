@@ -1,0 +1,79 @@
+[workspace]
+resolver = "2"
+members = [
+    "isolate-core",
+    "isolate-server",
+    "isolate-cli",
+    "isolate-python",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/josedab/isolate"
+authors = ["Isolate Contributors"]
+
+[workspace.dependencies]
+# Core dependencies
+wasmtime = "27"
+wasmtime-wasi = "27"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+tokio-util = "0.7"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# OpenTelemetry
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", features = ["tonic"] }
+tracing-opentelemetry = "0.28"
+
+# Metrics
+prometheus = "0.13"
+
+# gRPC
+tonic = "0.12"
+tonic-build = "0.12"
+prost = "0.13"
+prost-types = "0.13"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Async traits
+async-trait = "0.1"
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+dashmap = "6"
+bytes = "1.0"
+parking_lot = "0.12"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+url = "2.5"
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
+# Testing
+pretty_assertions = "1.0"
+tempfile = "3"
+
+# Python bindings
+pyo3 = { version = "0.22", features = ["extension-module"] }
