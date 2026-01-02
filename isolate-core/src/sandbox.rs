@@ -1,0 +1,496 @@
+//! Sandbox management and lifecycle.
+//!
+//! This module provides the main `Sandbox` type for creating and running
+//! isolated WASM code.
+
+use crate::capability::CapabilityEnforcer;
+use crate::config::{ModuleHash, SandboxConfig};
+use crate::engine::{CompiledModule, WasmEngine, WasmInstance};
+use crate::error::{Error, Result};
+use crate::metrics::SandboxMetrics;
+use crate::resource::{ResourceMeter, ResourceUsage};
+
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::Mutex;
+use uuid::Uuid;
+
+/// Unique identifier for a sandbox.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SandboxId(pub Uuid);
+
+impl SandboxId {
+    /// Create a new random sandbox ID.
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
+
+impl Default for SandboxId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for SandboxId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// State of a sandbox.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum SandboxState {
+    /// Sandbox is being created.
+    Creating,
+    /// Sandbox is ready to run.
+    Ready,
+    /// Sandbox is currently running.
+    Running,
+    /// Sandbox execution is paused.
+    Paused,
+    /// Sandbox has terminated.
+    Terminated,
+}
+
+impl std::fmt::Display for SandboxState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Creating => write!(f, "creating"),
+            Self::Ready => write!(f, "ready"),
+            Self::Running => write!(f, "running"),
+            Self::Paused => write!(f, "paused"),
+            Self::Terminated => write!(f, "terminated"),
+        }
+    }
+}
+
+/// Output from sandbox execution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Output {
+    /// Exit code (0 for success).
+    pub exit_code: i32,
+    /// Captured stdout.
+    #[serde(with = "serde_bytes")]
+    pub stdout: Vec<u8>,
+    /// Captured stderr.
+    #[serde(with = "serde_bytes")]
+    pub stderr: Vec<u8>,
+    /// Execution duration.
+    pub duration: Duration,
+    /// Resource usage.
+    pub resource_usage: ResourceUsage,
+}
+
+impl Output {
+    /// Check if the execution was successful (exit code 0).
+    pub fn success(&self) -> bool {
+        self.exit_code == 0
+    }
+
+    /// Get stdout as a string (lossy UTF-8 conversion).
+    pub fn stdout_str(&self) -> String {
+        String::from_utf8_lossy(&self.stdout).into_owned()
+    }
+
+    /// Get stderr as a string (lossy UTF-8 conversion).
+    pub fn stderr_str(&self) -> String {
+        String::from_utf8_lossy(&self.stderr).into_owned()
+    }
+}
+
+mod serde_bytes {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if serializer.is_human_readable() {
+            String::from_utf8_lossy(bytes).serialize(serializer)
+        } else {
+            bytes.serialize(serializer)
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            let s = String::deserialize(deserializer)?;
+            Ok(s.into_bytes())
+        } else {
+            Vec::<u8>::deserialize(deserializer)
+        }
+    }
+}
+
+/// A secure sandbox for executing WASM code.
+pub struct Sandbox {
+    /// Unique identifier.
+    id: SandboxId,
+    /// Current state.
+    state: SandboxState,
+    /// Configuration.
+    config: SandboxConfig,
+    /// WASM engine (shared).
+    engine: Arc<WasmEngine>,
+    /// Compiled module.
+    compiled: CompiledModule,
+    /// WASM instance (created on run).
+    instance: Mutex<Option<WasmInstance>>,
+    /// Capability enforcer.
+    enforcer: CapabilityEnforcer,
+    /// Resource meter.
+    meter: ResourceMeter,
+    /// Metrics collector.
+    metrics: SandboxMetrics,
+    /// Creation time.
+    created_at: Instant,
+}
+
+impl Sandbox {
+    /// Create a new sandbox with the given configuration.
+    pub async fn create(config: SandboxConfig) -> Result<Self> {
+        Self::create_with_engine(config, Arc::new(WasmEngine::new()?)).await
+    }
+
+    /// Create a new sandbox with a shared engine.
+    pub async fn create_with_engine(
+        config: SandboxConfig,
+        engine: Arc<WasmEngine>,
+    ) -> Result<Self> {
+        let start = Instant::now();
+        let id = SandboxId::new();
+
+        tracing::debug!(sandbox_id = %id, "Creating sandbox");
+
+        // Compile the module
+        let compiled = engine.compile(&config.module)?;
+
+        // Create capability enforcer
+        let enforcer = CapabilityEnforcer::new(config.capabilities.clone(), id.0);
+
+        // Create resource meter
+        let meter = ResourceMeter::new(config.resources.clone());
+
+        // Create metrics
+        let metrics = SandboxMetrics::new(id);
+
+        let cold_start = start.elapsed();
+        tracing::info!(
+            sandbox_id = %id,
+            cold_start_ms = cold_start.as_secs_f64() * 1000.0,
+            module_hash = %compiled.hash(),
+            "Sandbox created"
+        );
+
+        Ok(Self {
+            id,
+            state: SandboxState::Ready,
+            config,
+            engine,
+            compiled,
+            instance: Mutex::new(None),
+            enforcer,
+            meter,
+            metrics,
+            created_at: start,
+        })
+    }
+
+    /// Get the sandbox ID.
+    pub fn id(&self) -> SandboxId {
+        self.id
+    }
+
+    /// Get the current state.
+    pub fn state(&self) -> SandboxState {
+        self.state
+    }
+
+    /// Get the module hash.
+    pub fn module_hash(&self) -> &ModuleHash {
+        self.compiled.hash()
+    }
+
+    /// Get the configuration.
+    pub fn config(&self) -> &SandboxConfig {
+        &self.config
+    }
+
+    /// Get the capability enforcer.
+    pub fn enforcer(&self) -> &CapabilityEnforcer {
+        &self.enforcer
+    }
+
+    /// Get the resource meter.
+    pub fn meter(&self) -> &ResourceMeter {
+        &self.meter
+    }
+
+    /// Get the metrics.
+    pub fn metrics(&self) -> &SandboxMetrics {
+        &self.metrics
+    }
+
+    /// Get how long the sandbox has existed.
+    pub fn age(&self) -> Duration {
+        self.created_at.elapsed()
+    }
+
+    /// Run the sandbox with optional input.
+    pub async fn run(&mut self, input: &[u8]) -> Result<Output> {
+        self.ensure_state(SandboxState::Ready)?;
+        self.state = SandboxState::Running;
+
+        let start = Instant::now();
+        self.metrics.record_run_start();
+
+        tracing::debug!(sandbox_id = %self.id, "Starting sandbox execution");
+
+        // Create a new instance with input if provided
+        let input_data = if input.is_empty() {
+            None
+        } else {
+            Some(input.to_vec())
+        };
+
+        let mut instance = self.engine.instantiate_with_input(
+            &self.compiled,
+            &self.config,
+            self.enforcer.clone(),
+            self.meter.clone(),
+            input_data,
+        )?;
+
+        // Set up epoch-based timeout if wall time limit is configured
+        // We tick epochs every EPOCH_TICK_INTERVAL and calculate the deadline accordingly
+        const EPOCH_TICK_INTERVAL: Duration = Duration::from_millis(10);
+        let epoch_ticker_handle = if let Some(timeout) = self.config.resources.time.wall_time {
+            // Calculate how many epochs until timeout
+            let epochs_until_timeout =
+                (timeout.as_millis() / EPOCH_TICK_INTERVAL.as_millis()).max(1) as u64;
+            instance.set_epoch_deadline(epochs_until_timeout);
+
+            // Spawn a background task to increment epochs
+            let engine = self.engine.clone();
+            let cancel_token = tokio_util::sync::CancellationToken::new();
+            let token_clone = cancel_token.clone();
+
+            let handle = tokio::spawn(async move {
+                let mut interval = tokio::time::interval(EPOCH_TICK_INTERVAL);
+                loop {
+                    tokio::select! {
+                        _ = token_clone.cancelled() => {
+                            break;
+                        }
+                        _ = interval.tick() => {
+                            engine.increment_epoch();
+                        }
+                    }
+                }
+            });
+
+            Some((handle, cancel_token))
+        } else {
+            None
+        };
+
+        // Run the WASM instance
+        let result = tokio::task::spawn_blocking(move || instance.run())
+            .await
+            .map_err(|e| Error::Execution(e.to_string()))?;
+
+        // Stop the epoch ticker if it was started
+        if let Some((handle, cancel_token)) = epoch_ticker_handle {
+            cancel_token.cancel();
+            let _ = handle.await;
+        }
+
+        let duration = start.elapsed();
+        self.state = SandboxState::Terminated;
+
+        match result {
+            Ok(exec_result) => {
+                self.metrics.record_run_complete(duration, true);
+
+                // Record fuel consumption in the meter
+                if let Some(fuel) = exec_result.fuel_consumed {
+                    // record_fuel can fail if it exceeds limits, but we ignore that here
+                    // since the execution already completed
+                    let _ = self.meter.record_fuel(fuel);
+                }
+
+                tracing::info!(
+                    sandbox_id = %self.id,
+                    exit_code = exec_result.exit_code,
+                    duration_ms = duration.as_secs_f64() * 1000.0,
+                    fuel_consumed = ?exec_result.fuel_consumed,
+                    "Sandbox execution completed"
+                );
+
+                Ok(Output {
+                    exit_code: exec_result.exit_code,
+                    stdout: exec_result.stdout,
+                    stderr: exec_result.stderr,
+                    duration,
+                    resource_usage: self.meter.usage(),
+                })
+            }
+            Err(e) => {
+                self.metrics.record_run_complete(duration, false);
+
+                tracing::warn!(
+                    sandbox_id = %self.id,
+                    error = %e,
+                    duration_ms = duration.as_secs_f64() * 1000.0,
+                    "Sandbox execution failed"
+                );
+
+                Err(e)
+            }
+        }
+    }
+
+    /// Run a specific exported function.
+    pub async fn call(
+        &mut self,
+        function: &str,
+        args: &[wasmtime::Val],
+    ) -> Result<Vec<wasmtime::Val>> {
+        self.ensure_state(SandboxState::Ready)?;
+        self.state = SandboxState::Running;
+
+        let start = Instant::now();
+
+        // Create instance if needed
+        let mut instance_guard = self.instance.lock().await;
+        if instance_guard.is_none() {
+            *instance_guard = Some(self.engine.instantiate(
+                &self.compiled,
+                &self.config,
+                self.enforcer.clone(),
+                self.meter.clone(),
+            )?);
+        }
+
+        let instance = instance_guard.as_mut().unwrap();
+        let result = instance.call(function, args);
+
+        let duration = start.elapsed();
+        self.state = SandboxState::Ready;
+
+        tracing::debug!(
+            sandbox_id = %self.id,
+            function = function,
+            duration_ms = duration.as_secs_f64() * 1000.0,
+            "Function call completed"
+        );
+
+        result
+    }
+
+    /// Terminate the sandbox.
+    pub async fn terminate(&mut self) -> Result<SandboxMetrics> {
+        tracing::info!(sandbox_id = %self.id, "Terminating sandbox");
+
+        self.state = SandboxState::Terminated;
+
+        // Drop the instance
+        *self.instance.lock().await = None;
+
+        Ok(self.metrics.clone())
+    }
+
+    /// Ensure the sandbox is in the expected state.
+    fn ensure_state(&self, expected: SandboxState) -> Result<()> {
+        if self.state != expected {
+            return Err(Error::InvalidState {
+                expected: expected.to_string(),
+                actual: self.state.to_string(),
+            });
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for Sandbox {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Sandbox")
+            .field("id", &self.id)
+            .field("state", &self.state)
+            .field("module_hash", &self.compiled.hash())
+            .field("age", &self.age())
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::capability::Capability;
+
+    // Minimal WASM module with _start function
+    // This is a valid WASM module that just returns
+    const HELLO_WASM: &[u8] = include_bytes!("../tests/fixtures/minimal.wasm");
+
+    // Use a minimal valid WASM for basic tests
+    #[allow(dead_code)]
+    const MINIMAL_WASM: &[u8] = &[
+        0x00, 0x61, 0x73, 0x6d, // magic
+        0x01, 0x00, 0x00, 0x00, // version
+    ];
+
+    #[test]
+    fn test_sandbox_id() {
+        let id1 = SandboxId::new();
+        let id2 = SandboxId::new();
+        assert_ne!(id1, id2);
+    }
+
+    #[test]
+    fn test_sandbox_state_display() {
+        assert_eq!(SandboxState::Ready.to_string(), "ready");
+        assert_eq!(SandboxState::Running.to_string(), "running");
+        assert_eq!(SandboxState::Terminated.to_string(), "terminated");
+    }
+
+    #[test]
+    fn test_output_helpers() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"hello".to_vec(),
+            stderr: b"error".to_vec(),
+            duration: Duration::from_millis(100),
+            resource_usage: ResourceUsage::default(),
+        };
+
+        assert!(output.success());
+        assert_eq!(output.stdout_str(), "hello");
+        assert_eq!(output.stderr_str(), "error");
+    }
+
+    #[tokio::test]
+    async fn test_sandbox_create() {
+        // Skip if fixture doesn't exist
+        if HELLO_WASM.len() < 8 {
+            return;
+        }
+
+        let config = SandboxConfig::builder()
+            .module(HELLO_WASM)
+            .unwrap()
+            .capability(Capability::stdout())
+            .build()
+            .unwrap();
+
+        let sandbox = Sandbox::create(config).await.unwrap();
+
+        assert_eq!(sandbox.state(), SandboxState::Ready);
+    }
+}
