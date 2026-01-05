@@ -1,0 +1,261 @@
+syntax = "proto3";
+
+package isolate.v1;
+
+// The Isolate sandbox service.
+service IsolateService {
+  // Create a new sandbox.
+  rpc CreateSandbox(CreateSandboxRequest) returns (CreateSandboxResponse);
+
+  // Run a sandbox.
+  rpc RunSandbox(RunSandboxRequest) returns (RunSandboxResponse);
+
+  // Get sandbox status.
+  rpc GetSandbox(GetSandboxRequest) returns (GetSandboxResponse);
+
+  // Terminate a sandbox.
+  rpc TerminateSandbox(TerminateSandboxRequest) returns (TerminateSandboxResponse);
+
+  // List all sandboxes.
+  rpc ListSandboxes(ListSandboxesRequest) returns (ListSandboxesResponse);
+
+  // Stream sandbox output.
+  rpc StreamOutput(StreamOutputRequest) returns (stream OutputChunk);
+
+  // Get metrics.
+  rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
+}
+
+// Request to create a sandbox.
+message CreateSandboxRequest {
+  // WASM module bytes.
+  bytes module = 1;
+
+  // Sandbox configuration.
+  SandboxConfig config = 2;
+}
+
+// Response from creating a sandbox.
+message CreateSandboxResponse {
+  // Sandbox ID.
+  string sandbox_id = 1;
+
+  // Module hash.
+  string module_hash = 2;
+
+  // Creation time in milliseconds.
+  double creation_time_ms = 3;
+}
+
+// Request to run a sandbox.
+message RunSandboxRequest {
+  // Sandbox ID.
+  string sandbox_id = 1;
+
+  // Optional input data.
+  bytes input = 2;
+
+  // Entry point function (default: "_start").
+  string entry_point = 3;
+}
+
+// Response from running a sandbox.
+message RunSandboxResponse {
+  // Exit code.
+  int32 exit_code = 1;
+
+  // Captured stdout.
+  bytes stdout = 2;
+
+  // Captured stderr.
+  bytes stderr = 3;
+
+  // Execution duration in milliseconds.
+  double duration_ms = 4;
+
+  // Resource usage.
+  ResourceUsage resource_usage = 5;
+}
+
+// Request to get sandbox status.
+message GetSandboxRequest {
+  // Sandbox ID.
+  string sandbox_id = 1;
+}
+
+// Response with sandbox status.
+message GetSandboxResponse {
+  // Sandbox info.
+  SandboxInfo sandbox = 1;
+}
+
+// Request to terminate a sandbox.
+message TerminateSandboxRequest {
+  // Sandbox ID.
+  string sandbox_id = 1;
+}
+
+// Response from terminating a sandbox.
+message TerminateSandboxResponse {
+  // Whether the sandbox was terminated.
+  bool terminated = 1;
+
+  // Final metrics.
+  SandboxMetrics metrics = 2;
+}
+
+// Request to list sandboxes.
+message ListSandboxesRequest {
+  // Optional state filter.
+  string state_filter = 1;
+
+  // Maximum number of results.
+  int32 limit = 2;
+
+  // Pagination offset.
+  int32 offset = 3;
+}
+
+// Response with sandbox list.
+message ListSandboxesResponse {
+  // List of sandboxes.
+  repeated SandboxInfo sandboxes = 1;
+
+  // Total count.
+  int32 total = 2;
+}
+
+// Request to stream sandbox output.
+message StreamOutputRequest {
+  // Sandbox ID.
+  string sandbox_id = 1;
+
+  // Which stream(s) to follow.
+  bool follow_stdout = 2;
+  bool follow_stderr = 3;
+}
+
+// A chunk of output.
+message OutputChunk {
+  // Stream type: "stdout" or "stderr".
+  string stream = 1;
+
+  // Data.
+  bytes data = 2;
+
+  // Timestamp.
+  int64 timestamp = 3;
+}
+
+// Request to get metrics.
+message GetMetricsRequest {
+  // Format: "prometheus" or "json".
+  string format = 1;
+}
+
+// Response with metrics.
+message GetMetricsResponse {
+  // Metrics data.
+  string data = 1;
+}
+
+// Sandbox configuration.
+message SandboxConfig {
+  // Memory limit in bytes.
+  uint64 memory_limit = 1;
+
+  // CPU fuel limit.
+  uint64 fuel_limit = 2;
+
+  // Wall time limit in seconds.
+  uint32 wall_time_limit_secs = 3;
+
+  // CPU time limit in seconds.
+  uint32 cpu_time_limit_secs = 4;
+
+  // Capabilities to grant.
+  repeated Capability capabilities = 5;
+
+  // Environment variables.
+  map<string, string> env = 6;
+
+  // Command-line arguments.
+  repeated string args = 7;
+}
+
+// A capability.
+message Capability {
+  // Capability type.
+  string type = 1;
+
+  // Capability value (path, host, etc.).
+  string value = 2;
+}
+
+// Resource limits.
+message ResourceLimits {
+  uint64 memory_limit = 1;
+  uint64 fuel_limit = 2;
+  uint32 wall_time_limit_secs = 3;
+  uint32 cpu_time_limit_secs = 4;
+}
+
+// Resource usage.
+message ResourceUsage {
+  // Peak memory usage in bytes.
+  uint64 peak_memory = 1;
+
+  // Fuel consumed.
+  uint64 fuel_consumed = 2;
+
+  // CPU time in milliseconds.
+  double cpu_time_ms = 3;
+
+  // Wall time in milliseconds.
+  double wall_time_ms = 4;
+
+  // Bytes read.
+  uint64 bytes_read = 5;
+
+  // Bytes written.
+  uint64 bytes_written = 6;
+}
+
+// Sandbox info.
+message SandboxInfo {
+  // Sandbox ID.
+  string id = 1;
+
+  // Current state.
+  string state = 2;
+
+  // Module hash.
+  string module_hash = 3;
+
+  // Creation timestamp.
+  int64 created_at = 4;
+
+  // Age in seconds.
+  double age_secs = 5;
+
+  // Metrics.
+  SandboxMetrics metrics = 6;
+}
+
+// Sandbox metrics.
+message SandboxMetrics {
+  // Number of runs.
+  uint64 run_count = 1;
+
+  // Successful runs.
+  uint64 success_count = 2;
+
+  // Failed runs.
+  uint64 failure_count = 3;
+
+  // Total run duration in milliseconds.
+  double total_run_duration_ms = 4;
+
+  // Last run duration in milliseconds.
+  double last_run_duration_ms = 5;
+}
