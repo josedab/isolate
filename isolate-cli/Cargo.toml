@@ -1,0 +1,44 @@
+[package]
+name = "isolate-cli"
+description = "CLI tool for the Isolate secure sandbox runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "isolate"
+path = "src/main.rs"
+
+[dependencies]
+isolate-core = { path = "../isolate-core" }
+
+# Async
+tokio = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utilities
+chrono = { workspace = true }
+
+# Beautiful terminal output
+colored = "2"
+indicatif = "0.17"
+console = "0.15"
+dialoguer = "0.11"
+tabled = "0.15"
+human-panic = "2"
+comfy-table = "7"
