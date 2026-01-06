@@ -1,0 +1,96 @@
+# Dependabot configuration for automatic dependency updates
+version: 2
+
+updates:
+  # Rust dependencies
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "rust"
+    reviewers:
+      - "maintainers"
+    groups:
+      # Group wasmtime updates together
+      wasmtime:
+        patterns:
+          - "wasmtime*"
+          - "wasi*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group crypto dependencies
+      crypto:
+        patterns:
+          - "sha2"
+          - "ed25519*"
+          - "rand*"
+          - "hex"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group serde ecosystem
+      serde:
+        patterns:
+          - "serde*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group tokio ecosystem
+      async:
+        patterns:
+          - "tokio*"
+          - "async-*"
+          - "futures*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group all dev dependencies
+      dev-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Python dependencies (if any)
+  - package-ecosystem: "pip"
+    directory: "/isolate-python"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(python)"
+    labels:
+      - "dependencies"
+      - "python"
