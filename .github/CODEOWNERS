@@ -1,0 +1,30 @@
+# CODEOWNERS for Isolate
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners - these owners will be requested for review
+# when someone opens a pull request.
+* @josedab
+
+# Core library - critical security and performance code
+/isolate-core/ @josedab
+
+# CLI tool
+/isolate-cli/ @josedab
+
+# gRPC server
+/isolate-server/ @josedab
+
+# Python bindings
+/isolate-python/ @josedab
+
+# Infrastructure and CI/CD
+/.github/ @josedab
+/Cargo.toml @josedab
+/Cargo.lock @josedab
+/deny.toml @josedab
+
+# Documentation
+/README.md @josedab
+/CONTRIBUTING.md @josedab
+/CHANGELOG.md @josedab
+/*.md @josedab
