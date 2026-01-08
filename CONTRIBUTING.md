@@ -18,7 +18,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/OWNER/isolate.git
+   git clone https://github.com/josedab/isolate.git
    cd isolate
    ```
 
@@ -179,9 +179,9 @@ If you discover a security vulnerability:
 
 ## Getting Help
 
-- Open a [Discussion](https://github.com/OWNER/isolate/discussions) for questions
-- Check existing [Issues](https://github.com/OWNER/isolate/issues)
-- Read the [Documentation](https://OWNER.github.io/isolate/)
+- Open a [Discussion](https://github.com/josedab/isolate/discussions) for questions
+- Check existing [Issues](https://github.com/josedab/isolate/issues)
+- Read the [Documentation](https://josedab.github.io/isolate/)
 
 ## Recognition
 

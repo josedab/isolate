@@ -42,5 +42,5 @@ The following features are included but considered experimental and may change s
 - Formal verification module
 - Linux-specific security (seccomp, Landlock)
 
-[Unreleased]: https://github.com/example/isolate/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/example/isolate/releases/tag/v0.1.0
+[Unreleased]: https://github.com/josedab/isolate/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/josedab/isolate/releases/tag/v0.1.0
