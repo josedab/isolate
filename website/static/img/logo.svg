@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0066ff"/>
+      <stop offset="100%" style="stop-color:#0052cc"/>
+    </linearGradient>
+    <linearGradient id="innerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4d94ff"/>
+      <stop offset="100%" style="stop-color:#0066ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Outer shield shape -->
+  <path d="M50 5 L90 20 L90 50 C90 75 70 90 50 95 C30 90 10 75 10 50 L10 20 Z"
+        fill="url(#shieldGradient)"
+        stroke="none"/>
+
+  <!-- Inner shield highlight -->
+  <path d="M50 15 L80 27 L80 50 C80 70 65 82 50 86 C35 82 20 70 20 50 L20 27 Z"
+        fill="url(#innerGradient)"
+        opacity="0.3"/>
+
+  <!-- Hexagon pattern (representing WASM modules) -->
+  <g fill="white" opacity="0.9">
+    <!-- Center hexagon -->
+    <polygon points="50,35 60,40 60,50 50,55 40,50 40,40" />
+    <!-- Left hexagon -->
+    <polygon points="35,45 45,50 45,60 35,65 25,60 25,50" opacity="0.7"/>
+    <!-- Right hexagon -->
+    <polygon points="65,45 75,50 75,60 65,65 55,60 55,50" opacity="0.7"/>
+  </g>
+
+  <!-- Lock symbol in center -->
+  <g fill="white">
+    <rect x="45" y="62" width="10" height="8" rx="1"/>
+    <path d="M47 62 L47 58 C47 55 48 54 50 54 C52 54 53 55 53 58 L53 62"
+          fill="none"
+          stroke="white"
+          stroke-width="2"/>
+  </g>
+</svg>
