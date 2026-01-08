@@ -1,0 +1,47 @@
+[package]
+name = "isolate-fuzz"
+version = "0.0.0"
+authors = ["Isolate Contributors"]
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+isolate-core = { path = "../isolate-core" }
+arbitrary = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_wasm_module"
+path = "fuzz_targets/fuzz_wasm_module.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_config"
+path = "fuzz_targets/fuzz_config.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sandbox_input"
+path = "fuzz_targets/fuzz_sandbox_input.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_capability_parsing"
+path = "fuzz_targets/fuzz_capability_parsing.rs"
+test = false
+doc = false
+bench = false
