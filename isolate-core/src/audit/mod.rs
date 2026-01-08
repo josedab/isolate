@@ -26,6 +26,10 @@
 //! assert!(log.verify_chain().is_ok());
 //! ```
 
+// This module is experimental and not all APIs are used yet.
+// Allow dead code until the feature stabilizes.
+#![allow(dead_code)]
+
 mod chain;
 mod entry;
 mod verifier;

@@ -19,6 +19,10 @@
 //! let mut sandbox2 = Sandbox::restore(snapshot_id, &snapshot_engine, config).await?;
 //! ```
 
+// This module is experimental and not all APIs are used yet.
+// Allow dead code until the feature stabilizes.
+#![allow(dead_code)]
+
 mod pool;
 
 pub use pool::{WarmPool, WarmPoolConfig, WarmPoolStats};
@@ -660,7 +664,7 @@ mod tests {
             GlobalValue::I32(42),
             GlobalValue::I64(12345678901234),
             GlobalValue::F32(1.5f32.to_bits()),
-            GlobalValue::F64(3.14159f64.to_bits()),
+            GlobalValue::F64(1.23456f64.to_bits()),
         ];
 
         let sandbox_id = SandboxId::new();

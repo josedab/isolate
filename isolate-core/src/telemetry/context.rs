@@ -1,5 +1,9 @@
 //! Trace context propagation utilities.
 
+// This module is experimental and not all APIs are used yet.
+// Allow dead code until the feature stabilizes.
+#![allow(dead_code)]
+
 use opentelemetry::{
     global,
     propagation::{Extractor, Injector},

@@ -590,9 +590,9 @@ mod tests {
 
     #[test]
     fn test_variable_f32() {
-        let var = Variable::f32(2, None, 3.14159);
+        let var = Variable::f32(2, None, 2.5);
         assert_eq!(var.var_type, VariableType::F32);
-        assert!((var.as_f32().unwrap() - 3.14159).abs() < 0.0001);
+        assert!((var.as_f32().unwrap() - 2.5).abs() < 0.0001);
     }
 
     #[test]
