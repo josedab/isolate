@@ -1,9 +1,33 @@
 //! Capability-based security system.
 //!
 //! Isolate uses a capability-based security model where all permissions must be
-//! explicitly granted. By default, sandboxes have no capabilities.
+//! explicitly granted. By default, sandboxes have no capabilities (principle of
+//! least privilege).
 //!
-//! # Example
+//! # Available Capabilities
+//!
+//! | Category | Capability | Description |
+//! |----------|------------|-------------|
+//! | **I/O** | `Capability::stdout()` | Write to standard output |
+//! | | `Capability::stderr()` | Write to standard error |
+//! | | `Capability::stdin()` | Read from standard input |
+//! | **Filesystem** | `Capability::filesystem_read(path)` | Read files under path |
+//! | | `Capability::filesystem_write(path)` | Read/write files under path |
+//! | | `Capability::temp_dir()` | Access temporary directory |
+//! | **Network** | `Capability::http_client(hosts)` | HTTP requests to allowed hosts |
+//! | | `Capability::tcp_connect(addrs)` | TCP connections to addresses |
+//! | | `Capability::tcp_listen(port)` | Listen on TCP port |
+//! | | `Capability::dns_resolve()` | DNS resolution |
+//! | **Time** | `Capability::system_clock()` | Read system time |
+//! | | `Capability::monotonic_clock()` | Read monotonic time |
+//! | | `Capability::timers()` | Create timers/sleeps |
+//! | **Random** | `Capability::secure_random()` | Cryptographic random |
+//! | | `Capability::seeded_random(seed)` | Deterministic random |
+//! | **Environment** | `Capability::env_var(name)` | Read specific env var |
+//! | | `Capability::env_all()` | Read all env vars |
+//! | | `Capability::args()` | Read command-line args |
+//!
+//! # Basic Example
 //!
 //! ```rust
 //! use isolate_core::capability::{Capability, CapabilitySet};
@@ -17,6 +41,29 @@
 //!
 //! // Check if capability is granted
 //! assert!(caps.has(&Capability::stdout()));
+//! assert!(!caps.has(&Capability::stdin()));  // Not granted
+//! ```
+//!
+//! # Using with SandboxConfig
+//!
+//! ```no_run
+//! use isolate_core::{SandboxConfig, capability::Capability};
+//!
+//! # fn example() -> isolate_core::Result<()> {
+//! let config = SandboxConfig::builder()
+//!     .module(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])?
+//!     // Grant output capabilities
+//!     .capability(Capability::stdout())
+//!     .capability(Capability::stderr())
+//!     // Grant read access to data directory
+//!     .capability(Capability::filesystem_read("/app/data"))
+//!     // Allow HTTP to specific API
+//!     .capability(Capability::http_client(vec!["api.example.com", "*.trusted.io"]))
+//!     // Grant time access (needed for timeouts, rate limiting)
+//!     .capability(Capability::system_clock())
+//!     .build()?;
+//! # Ok(())
+//! # }
 //! ```
 
 mod audit;

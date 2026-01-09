@@ -1,7 +1,61 @@
 //! Sandbox management and lifecycle.
 //!
-//! This module provides the main `Sandbox` type for creating and running
+//! This module provides the main [`Sandbox`] type for creating and running
 //! isolated WASM code.
+//!
+//! # Overview
+//!
+//! A sandbox provides secure, isolated execution of WebAssembly modules with:
+//! - **Memory isolation**: Each sandbox has its own linear memory
+//! - **Capability-based security**: Explicit permission grants for I/O operations
+//! - **Resource limits**: CPU time, memory, and I/O quotas
+//! - **Output capture**: Stdout and stderr are captured and returned
+//!
+//! # Example
+//!
+//! ```no_run
+//! use isolate_core::{Sandbox, SandboxConfig, capability::Capability};
+//! use std::time::Duration;
+//!
+//! # async fn example() -> isolate_core::Result<()> {
+//! // Load WASM module bytes
+//! let wasm_bytes = std::fs::read("my_module.wasm")?;
+//!
+//! // Configure the sandbox with capabilities and limits
+//! let config = SandboxConfig::builder()
+//!     .module(&wasm_bytes)?
+//!     .memory_limit(64 * 1024 * 1024)  // 64 MB
+//!     .fuel(10_000_000)                 // CPU limit
+//!     .wall_time_limit(Duration::from_secs(30))
+//!     .capability(Capability::stdout()) // Allow stdout
+//!     .capability(Capability::stderr()) // Allow stderr
+//!     .env("API_KEY", "secret")         // Environment variable
+//!     .build()?;
+//!
+//! // Create and run the sandbox
+//! let mut sandbox = Sandbox::create(config).await?;
+//! let output = sandbox.run(&[]).await?;
+//!
+//! // Check results
+//! if output.success() {
+//!     println!("Output: {}", output.stdout_str());
+//! } else {
+//!     eprintln!("Error (exit {}): {}", output.exit_code, output.stderr_str());
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Lifecycle
+//!
+//! A sandbox goes through the following states:
+//!
+//! 1. **Creating** - Module is being compiled
+//! 2. **Ready** - Sandbox is ready to execute
+//! 3. **Running** - Currently executing WASM code
+//! 4. **Terminated** - Execution completed (or failed)
+//!
+//! After termination, the sandbox cannot be reused.
 
 use crate::capability::CapabilityEnforcer;
 use crate::config::{ModuleHash, SandboxConfig};
@@ -130,6 +184,54 @@ mod serde_bytes {
 }
 
 /// A secure sandbox for executing WASM code.
+///
+/// A `Sandbox` provides isolated execution of WebAssembly modules with
+/// capability-based security, resource limits, and output capture.
+///
+/// # Creating a Sandbox
+///
+/// ```no_run
+/// # use isolate_core::{Sandbox, SandboxConfig, capability::Capability};
+/// # async fn example() -> isolate_core::Result<()> {
+/// let wasm = std::fs::read("module.wasm")?;
+/// let config = SandboxConfig::builder()
+///     .module(&wasm)?
+///     .capability(Capability::stdout())
+///     .build()?;
+///
+/// let sandbox = Sandbox::create(config).await?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Sharing an Engine
+///
+/// For better performance when creating many sandboxes, share a [`WasmEngine`]:
+///
+/// ```no_run
+/// # use isolate_core::{Sandbox, SandboxConfig, engine::WasmEngine};
+/// # use std::sync::Arc;
+/// # async fn example() -> isolate_core::Result<()> {
+/// let engine = Arc::new(WasmEngine::new()?);
+///
+/// // Create multiple sandboxes sharing the same engine
+/// let config1 = SandboxConfig::builder()
+///     .module(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])?
+///     .build()?;
+/// let sandbox1 = Sandbox::create_with_engine(config1, engine.clone()).await?;
+///
+/// let config2 = SandboxConfig::builder()
+///     .module(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])?
+///     .build()?;
+/// let sandbox2 = Sandbox::create_with_engine(config2, engine.clone()).await?;
+///
+/// // Both sandboxes share compiled module cache
+/// assert_eq!(engine.cached_module_count(), 1);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// [`WasmEngine`]: crate::engine::WasmEngine
 pub struct Sandbox {
     /// Unique identifier.
     id: SandboxId,
