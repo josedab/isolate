@@ -4,11 +4,38 @@
 //! - Sandbox CRD for declarative sandbox management
 //! - SandboxPool CRD for auto-scaling pools
 //! - SandboxPolicy CRD for cluster-wide policies
-//! - Automatic sidecar injection
+//! - Resource-aware scheduling
+//! - Operator reconciliation with retries
+//! - Helm chart generation for deployment
 //! - Health checks and readiness probes
+
+pub mod helm;
+pub mod operator;
+pub mod scheduler;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+// Re-export scheduler types
+pub use scheduler::{
+    AntiAffinityTerm, LabelExpression, LabelOperator, NodeAffinity, NodeResources,
+    PodAntiAffinity, PreferredExpression, ResourceRequest, SandboxScheduler, SchedulingDecision,
+    SchedulingStrategy, Taint, TaintEffect, Toleration, TolerationOperator,
+    WeightedAntiAffinityTerm,
+};
+
+// Re-export operator types
+pub use operator::{
+    EventType, IsolateOperator, OperatorConfig, OperatorEvent, OperatorMetrics, OperatorState,
+    ReconcileAction,
+};
+
+// Re-export helm types
+pub use helm::{
+    ChartMetadata, HelmChartGenerator, HelmValues, ImageConfig, Maintainer, MetricsConfig,
+    OperatorValues, RbacConfig, ResourceConfig, ResourceLimits, SecurityContext, ServiceConfig,
+    ServiceMonitorConfig, ServiceAccountConfig, TolerationConfig,
+};
 
 /// Kubernetes API version for Isolate CRDs.
 pub const API_VERSION: &str = "isolate.io/v1alpha1";
