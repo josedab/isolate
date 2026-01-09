@@ -1,0 +1,8 @@
+isolate-team:
+  name: Isolate Team
+  title: Core Contributors
+  url: https://github.com/josedab/isolate
+  image_url: https://github.com/josedab.png
+  page: true
+  socials:
+    github: josedab
