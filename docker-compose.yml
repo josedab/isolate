@@ -1,0 +1,63 @@
+# Docker Compose for Isolate development and testing
+#
+# Usage:
+#   docker compose up -d        # Start the server
+#   docker compose logs -f      # View logs
+#   docker compose down         # Stop and remove containers
+#
+# The server will be available at:
+#   - gRPC: localhost:50051
+
+services:
+  isolate-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/josedab/isolate-server:latest
+    container_name: isolate-server
+    ports:
+      - "50051:50051"
+    environment:
+      - RUST_LOG=info
+      - ISOLATE_HOST=0.0.0.0
+      - ISOLATE_PORT=50051
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/50051' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # Development service with hot reload using cargo-watch
+  isolate-server-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: isolate-server-dev:local
+    container_name: isolate-server-dev
+    ports:
+      - "50051:50051"
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/app/target
+    environment:
+      - RUST_LOG=debug
+      - ISOLATE_HOST=0.0.0.0
+      - ISOLATE_PORT=50051
+    profiles:
+      - dev
+
+volumes:
+  cargo-cache:
+  target-cache:

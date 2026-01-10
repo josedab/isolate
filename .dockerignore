@@ -1,0 +1,39 @@
+# Build artifacts
+target/
+*.rs.bk
+
+# Development files
+.git/
+.github/
+.gitignore
+.vscode/
+*.md
+!README.md
+
+# Documentation
+website/
+docs/
+
+# Python build artifacts
+isolate-python/target/
+isolate-python/*.egg-info/
+__pycache__/
+*.pyc
+
+# Test fixtures (include in image for now)
+# isolate-core/tests/
+
+# IDE and editor files
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
