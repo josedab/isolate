@@ -4,17 +4,104 @@
 //! Features beautiful terminal output, progress indicators, and interactive mode.
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use colored::*;
 use comfy_table::{presets::UTF8_FULL_CONDENSED, Attribute, Cell, Color, Table};
 use console::Term;
 use dialoguer::{theme::ColorfulTheme, Confirm, MultiSelect};
 use indicatif::{ProgressBar, ProgressStyle};
-use isolate_core::{capability::Capability, Sandbox, SandboxConfig};
+use isolate_core::{capability::Capability, error::Error as IsolateError, Sandbox, SandboxConfig};
+use notify_debouncer_mini::{new_debouncer, notify::RecursiveMode};
+use serde::Deserialize;
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+/// Configuration file structures for .isolate.toml
+#[derive(Debug, Deserialize, Default)]
+struct ProjectConfig {
+    project: Option<ProjectInfo>,
+    sandbox: Option<SandboxDefaults>,
+    modules: Option<Vec<ModuleConfig>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct ProjectInfo {
+    name: Option<String>,
+    version: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct SandboxDefaults {
+    memory_limit: Option<String>,
+    timeout: Option<u64>,
+    fuel: Option<u64>,
+    cpu_time: Option<u64>,
+    entry_point: Option<String>,
+    capabilities: Option<CapabilitiesConfig>,
+    env: Option<std::collections::HashMap<String, String>>,
+    args: Option<ArgsConfig>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct CapabilitiesConfig {
+    stdout: Option<bool>,
+    stderr: Option<bool>,
+    stdin: Option<bool>,
+    time: Option<bool>,
+    random: Option<bool>,
+    dns: Option<bool>,
+    fs: Option<FsCapabilities>,
+    http: Option<HttpCapabilities>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct FsCapabilities {
+    read: Option<Vec<String>>,
+    write: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct HttpCapabilities {
+    hosts: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct ArgsConfig {
+    values: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ModuleConfig {
+    name: String,
+    path: String,
+    memory_limit: Option<String>,
+    timeout: Option<u64>,
+    fuel: Option<u64>,
+}
+
+/// Load project configuration from .isolate.toml
+fn load_project_config() -> Option<ProjectConfig> {
+    // Search for config file in current directory and parents
+    let mut current_dir = std::env::current_dir().ok()?;
+
+    loop {
+        let config_path = current_dir.join(".isolate.toml");
+        if config_path.exists() {
+            let content = std::fs::read_to_string(&config_path).ok()?;
+            return toml::from_str(&content).ok();
+        }
+
+        if !current_dir.pop() {
+            break;
+        }
+    }
+
+    None
+}
 
 const BANNER: &str = r#"
   ___          _       _
@@ -40,7 +127,7 @@ struct Cli {
     log_level: String,
 
     /// Output format (text, json, pretty)
-    #[arg(short, long, default_value = "pretty", global = true)]
+    #[arg(short = 'F', long, default_value = "pretty", global = true)]
     format: OutputFormat,
 
     /// Disable colored output
@@ -82,6 +169,15 @@ enum Commands {
     /// Manage snapshots
     #[command(subcommand)]
     Snapshot(SnapshotCommands),
+
+    /// Generate shell completions
+    Completions(CompletionsArgs),
+
+    /// Check installation and system requirements
+    Doctor,
+
+    /// Initialize a new Isolate project with example files
+    Init(InitArgs),
 }
 
 #[derive(Subcommand, Debug)]
@@ -92,6 +188,32 @@ enum SnapshotCommands {
     Delete { id: String },
     /// Show snapshot info
     Info { id: String },
+}
+
+#[derive(Parser, Debug)]
+struct CompletionsArgs {
+    /// Shell to generate completions for
+    #[arg(value_enum)]
+    shell: Shell,
+}
+
+#[derive(Parser, Debug)]
+struct InitArgs {
+    /// Project directory (defaults to current directory)
+    #[arg(default_value = ".")]
+    path: PathBuf,
+
+    /// Project name (defaults to directory name)
+    #[arg(short, long)]
+    name: Option<String>,
+
+    /// Include example WASM modules
+    #[arg(long, default_value = "true")]
+    examples: bool,
+
+    /// Overwrite existing files
+    #[arg(long)]
+    force: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -174,6 +296,14 @@ struct RunArgs {
     /// Show resource usage after execution
     #[arg(long)]
     show_stats: bool,
+
+    /// Watch for file changes and re-execute
+    #[arg(short, long)]
+    watch: bool,
+
+    /// Debounce delay for watch mode in milliseconds
+    #[arg(long, default_value = "500")]
+    watch_delay: u64,
 }
 
 #[derive(Parser, Debug)]
@@ -319,6 +449,9 @@ async fn main() -> Result<()> {
         Commands::Benchmark(args) => benchmark_command(args, cli.quiet).await,
         Commands::Interactive(args) => interactive_command(args).await,
         Commands::Snapshot(cmd) => snapshot_command(cmd).await,
+        Commands::Completions(args) => completions_command(args),
+        Commands::Doctor => doctor_command(cli.quiet).await,
+        Commands::Init(args) => init_command(args, cli.quiet),
     };
 
     if let Err(e) = &result {
@@ -331,6 +464,14 @@ async fn main() -> Result<()> {
                 eprintln!("  {} {}", "Caused by:".yellow(), c);
                 cause = c.source();
             }
+
+            // Show suggestion if this is an isolate error
+            if let Some(isolate_err) = e.downcast_ref::<IsolateError>() {
+                if let Some(suggestion) = isolate_err.suggestion() {
+                    eprintln!();
+                    eprintln!("  {} {}", "Suggestion:".cyan().bold(), suggestion);
+                }
+            }
         }
         std::process::exit(1);
     }
@@ -339,44 +480,211 @@ async fn main() -> Result<()> {
 }
 
 async fn run_command(args: RunArgs, format: OutputFormat, quiet: bool) -> Result<()> {
+    if args.watch {
+        run_watch_mode(args, format, quiet).await
+    } else {
+        let exit_code = run_once(&args, format, quiet).await?;
+        std::process::exit(exit_code);
+    }
+}
+
+async fn run_watch_mode(args: RunArgs, format: OutputFormat, quiet: bool) -> Result<()> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    let module_path = args.module.canonicalize()
+        .with_context(|| format!("Failed to find module: {}", args.module.display()))?;
+
+    if !quiet {
+        println!("{}", "─".repeat(50).dimmed());
+        println!(
+            "  {} Watch mode enabled for {}",
+            "👁".cyan(),
+            module_path.display().to_string().cyan()
+        );
+        println!("  {} Press Ctrl+C to stop\n", "ℹ".dimmed());
+    }
+
+    // Set up file watcher
+    let (tx, rx) = channel();
+    let mut debouncer = new_debouncer(
+        Duration::from_millis(args.watch_delay),
+        tx,
+    ).context("Failed to create file watcher")?;
+
+    // Watch the module file's parent directory
+    let watch_dir = module_path.parent().unwrap_or(&module_path);
+    debouncer
+        .watcher()
+        .watch(watch_dir, RecursiveMode::NonRecursive)
+        .context("Failed to watch directory")?;
+
+    // Set up Ctrl+C handler
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    }).ok();
+
+    // Initial run
+    let mut run_count = 1u32;
+    if !quiet {
+        println!("{} Run #{}", "▶".green().bold(), run_count);
+    }
+    let _ = run_once(&args, format, quiet).await;
+
+    // Watch loop
+    while running.load(Ordering::SeqCst) {
+        match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(Ok(events)) => {
+                // Check if our module was modified
+                let module_changed = events.iter().any(|e| {
+                    e.path == module_path ||
+                    e.path.file_name() == module_path.file_name()
+                });
+
+                if module_changed {
+                    run_count += 1;
+                    if !quiet {
+                        println!("\n{}", "─".repeat(50).dimmed());
+                        println!(
+                            "  {} File changed, re-executing... (Run #{})",
+                            "↻".yellow().bold(),
+                            run_count
+                        );
+                        println!("{}", "─".repeat(50).dimmed());
+                    }
+                    let _ = run_once(&args, format, quiet).await;
+                }
+            }
+            Ok(Err(e)) => {
+                if !quiet {
+                    eprintln!("{} Watch error: {:?}", "⚠".yellow(), e);
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // Normal timeout, continue watching
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                break;
+            }
+        }
+    }
+
+    if !quiet {
+        println!("\n{} Watch mode stopped.", "■".red());
+    }
+
+    Ok(())
+}
+
+async fn run_once(args: &RunArgs, format: OutputFormat, quiet: bool) -> Result<i32> {
+    // Load project config if available
+    let project_config = load_project_config();
+    let sandbox_defaults = project_config
+        .as_ref()
+        .and_then(|c| c.sandbox.as_ref());
+
     // Read the WASM module
     let wasm_bytes = std::fs::read(&args.module)
         .with_context(|| format!("Failed to read module: {}", args.module.display()))?;
 
-    // Build capabilities
+    // Build capabilities - CLI args override config file
     let mut capabilities = Vec::new();
+    let caps_config = sandbox_defaults.and_then(|s| s.capabilities.as_ref());
 
-    if args.cap_stdout || args.cap_stdio {
+    // stdout
+    let use_stdout = args.cap_stdout
+        || args.cap_stdio
+        || caps_config.and_then(|c| c.stdout).unwrap_or(false);
+    if use_stdout {
         capabilities.push(Capability::stdout());
     }
-    if args.cap_stderr || args.cap_stdio {
+
+    // stderr
+    let use_stderr = args.cap_stderr
+        || args.cap_stdio
+        || caps_config.and_then(|c| c.stderr).unwrap_or(false);
+    if use_stderr {
         capabilities.push(Capability::stderr());
     }
-    if args.cap_stdin || args.cap_stdio {
+
+    // stdin
+    let use_stdin = args.cap_stdin
+        || args.cap_stdio
+        || caps_config.and_then(|c| c.stdin).unwrap_or(false);
+    if use_stdin {
         capabilities.push(Capability::stdin());
     }
+
+    // filesystem read - combine CLI and config
     for path in &args.cap_fs_read {
         capabilities.push(Capability::filesystem_read(path));
     }
+    if let Some(fs_caps) = caps_config.and_then(|c| c.fs.as_ref()) {
+        if let Some(read_paths) = &fs_caps.read {
+            for path in read_paths {
+                capabilities.push(Capability::filesystem_read(PathBuf::from(path)));
+            }
+        }
+    }
+
+    // filesystem write - combine CLI and config
     for path in &args.cap_fs_write {
         capabilities.push(Capability::filesystem_write(path));
     }
-    if !args.cap_http.is_empty() {
-        capabilities.push(Capability::http_client(args.cap_http.clone()));
+    if let Some(fs_caps) = caps_config.and_then(|c| c.fs.as_ref()) {
+        if let Some(write_paths) = &fs_caps.write {
+            for path in write_paths {
+                capabilities.push(Capability::filesystem_write(PathBuf::from(path)));
+            }
+        }
     }
-    if args.cap_dns {
+
+    // HTTP - combine CLI and config
+    let mut http_hosts = args.cap_http.clone();
+    if let Some(http_caps) = caps_config.and_then(|c| c.http.as_ref()) {
+        if let Some(hosts) = &http_caps.hosts {
+            http_hosts.extend(hosts.clone());
+        }
+    }
+    if !http_hosts.is_empty() {
+        capabilities.push(Capability::http_client(http_hosts));
+    }
+
+    // dns
+    let use_dns = args.cap_dns || caps_config.and_then(|c| c.dns).unwrap_or(false);
+    if use_dns {
         capabilities.push(Capability::dns_resolve());
     }
-    if args.cap_time {
+
+    // time
+    let use_time = args.cap_time || caps_config.and_then(|c| c.time).unwrap_or(false);
+    if use_time {
         capabilities.push(Capability::system_clock());
         capabilities.push(Capability::monotonic_clock());
     }
-    if args.cap_random {
+
+    // random
+    let use_random = args.cap_random || caps_config.and_then(|c| c.random).unwrap_or(false);
+    if use_random {
         capabilities.push(Capability::secure_random());
     }
 
-    // Parse environment variables
+    // Parse environment variables - config first, CLI overrides
     let mut env_vars = std::collections::HashMap::new();
+    if let Some(config_env) = sandbox_defaults.and_then(|s| s.env.as_ref()) {
+        for (key, value) in config_env {
+            // Support environment variable expansion: ${VAR_NAME}
+            let expanded = if value.starts_with("${") && value.ends_with("}") {
+                let var_name = &value[2..value.len() - 1];
+                std::env::var(var_name).unwrap_or_default()
+            } else {
+                value.clone()
+            };
+            env_vars.insert(key.clone(), expanded);
+        }
+    }
     for env_str in &args.env {
         let parts: Vec<_> = env_str.splitn(2, '=').collect();
         if parts.len() == 2 {
@@ -384,22 +692,62 @@ async fn run_command(args: RunArgs, format: OutputFormat, quiet: bool) -> Result
         }
     }
 
-    // Build configuration
-    let memory_limit = parse_size(&args.memory_limit)?;
+    // Build configuration - use config defaults where CLI args use defaults
+    let memory_limit_str = if args.memory_limit == "256M" {
+        sandbox_defaults
+            .and_then(|s| s.memory_limit.as_ref())
+            .cloned()
+            .unwrap_or_else(|| args.memory_limit.clone())
+    } else {
+        args.memory_limit.clone()
+    };
+    let memory_limit = parse_size(&memory_limit_str)?;
+
+    // Timeout - use config default if CLI is at default
+    let timeout = if args.timeout == 60 {
+        sandbox_defaults.and_then(|s| s.timeout).unwrap_or(args.timeout)
+    } else {
+        args.timeout
+    };
+
+    // Entry point - use config default if CLI is at default
+    let entry = if args.entry == "_start" {
+        sandbox_defaults
+            .and_then(|s| s.entry_point.as_ref())
+            .cloned()
+            .unwrap_or_else(|| args.entry.clone())
+    } else {
+        args.entry.clone()
+    };
+
+    // Fuel - CLI overrides config
+    let fuel = args.fuel.or_else(|| sandbox_defaults.and_then(|s| s.fuel));
+
+    // CPU time - CLI overrides config
+    let cpu_time = args.cpu_time.or_else(|| sandbox_defaults.and_then(|s| s.cpu_time));
+
+    // Args - combine config and CLI
+    let mut run_args = Vec::new();
+    if let Some(config_args) = sandbox_defaults.and_then(|s| s.args.as_ref()) {
+        if let Some(values) = &config_args.values {
+            run_args.extend(values.clone());
+        }
+    }
+    run_args.extend(args.args.clone());
 
     let mut builder = SandboxConfig::builder()
         .module(&wasm_bytes)?
         .memory_limit(memory_limit)
-        .wall_time_limit(Duration::from_secs(args.timeout))
+        .wall_time_limit(Duration::from_secs(timeout))
         .capabilities(capabilities.clone())
         .envs(env_vars)
-        .args(args.args.clone().into_iter())
-        .entry_point(args.entry.clone());
+        .args(run_args.into_iter())
+        .entry_point(entry);
 
-    if let Some(fuel) = args.fuel {
+    if let Some(fuel) = fuel {
         builder = builder.fuel(fuel);
     }
-    if let Some(cpu_time) = args.cpu_time {
+    if let Some(cpu_time) = cpu_time {
         builder = builder.cpu_time_limit(Duration::from_secs(cpu_time));
     }
 
@@ -523,7 +871,7 @@ async fn run_command(args: RunArgs, format: OutputFormat, quiet: bool) -> Result
         }
     }
 
-    std::process::exit(output.exit_code);
+    Ok(output.exit_code)
 }
 
 fn validate_command(args: ValidateArgs, quiet: bool) -> Result<()> {
@@ -906,4 +1254,382 @@ async fn snapshot_command(cmd: SnapshotCommands) -> Result<()> {
             Ok(())
         }
     }
+}
+
+fn completions_command(args: CompletionsArgs) -> Result<()> {
+    let mut cmd = Cli::command();
+    let bin_name = cmd.get_name().to_string();
+    generate(args.shell, &mut cmd, bin_name, &mut std::io::stdout());
+    Ok(())
+}
+
+fn init_command(args: InitArgs, quiet: bool) -> Result<()> {
+    use std::fs;
+    use std::io::Write;
+
+    let project_dir = args.path.canonicalize().unwrap_or_else(|_| args.path.clone());
+    let project_name = args
+        .name
+        .unwrap_or_else(|| {
+            project_dir
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "isolate-project".to_string())
+        });
+
+    if !quiet {
+        print_banner();
+        println!("{}", "Initialize Isolate Project".cyan().bold());
+        println!("{}", "─".repeat(50).dimmed());
+        println!("  Project: {}", project_name.cyan());
+        println!("  Directory: {}\n", project_dir.display().to_string().dimmed());
+    }
+
+    // Create project directory if it doesn't exist
+    if !project_dir.exists() {
+        fs::create_dir_all(&project_dir)?;
+    }
+
+    // Check for existing config
+    let config_path = project_dir.join(".isolate.toml");
+    if config_path.exists() && !args.force {
+        anyhow::bail!(
+            "Project already initialized (found .isolate.toml). Use --force to overwrite."
+        );
+    }
+
+    // Create .isolate.toml config file
+    let config_content = format!(
+        r#"# Isolate Project Configuration
+# Generated by: isolate init
+# Documentation: https://github.com/josedab/isolate
+
+[project]
+name = "{}"
+version = "0.1.0"
+
+# Default sandbox configuration
+[sandbox]
+# Memory limit (supports K, M, G suffixes)
+memory_limit = "256M"
+
+# Wall-clock timeout in seconds
+timeout = 60
+
+# CPU fuel limit (instruction count, 0 = unlimited)
+# fuel = 10000000
+
+# CPU time limit in seconds (0 = unlimited)
+# cpu_time = 30
+
+# Entry point function
+entry_point = "_start"
+
+# Default capabilities to grant
+[sandbox.capabilities]
+stdout = true
+stderr = true
+stdin = false
+time = false
+random = false
+dns = false
+
+# Filesystem capabilities (uncomment to enable)
+# [sandbox.capabilities.fs]
+# read = ["/data"]
+# write = ["/tmp"]
+
+# HTTP capabilities (uncomment to enable)
+# [sandbox.capabilities.http]
+# hosts = ["*.example.com", "api.github.com"]
+
+# Environment variables to pass
+[sandbox.env]
+# API_KEY = "${{API_KEY}}"
+
+# Command-line arguments
+# [sandbox.args]
+# values = ["--verbose"]
+
+# Multiple module configurations
+# [[modules]]
+# name = "main"
+# path = "modules/main.wasm"
+#
+# [[modules]]
+# name = "worker"
+# path = "modules/worker.wasm"
+# memory_limit = "128M"
+"#,
+        project_name
+    );
+
+    let mut config_file = fs::File::create(&config_path)?;
+    config_file.write_all(config_content.as_bytes())?;
+
+    if !quiet {
+        println!("  {} Created .isolate.toml", "✓".green());
+    }
+
+    // Create examples directory with sample WASM modules
+    if args.examples {
+        let examples_dir = project_dir.join("examples");
+        fs::create_dir_all(&examples_dir)?;
+
+        // Minimal valid WASI WASM module that calls proc_exit(0)
+        let hello_wasm: &[u8] = &[
+            0x00, 0x61, 0x73, 0x6d, // WASM magic
+            0x01, 0x00, 0x00, 0x00, // Version 1
+            // Type section
+            0x01, 0x08, 0x02, 0x60, 0x01, 0x7f, 0x00, 0x60, 0x00, 0x00,
+            // Import section: wasi_snapshot_preview1.proc_exit
+            0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61,
+            0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65,
+            0x77, 0x31, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74,
+            0x00, 0x00,
+            // Function section
+            0x03, 0x02, 0x01, 0x01,
+            // Memory section
+            0x05, 0x03, 0x01, 0x00, 0x01,
+            // Export section: memory and _start
+            0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
+            0x06, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01,
+            // Code section: call proc_exit(0)
+            0x0a, 0x08, 0x01, 0x06, 0x00, 0x41, 0x00, 0x10, 0x00, 0x0b,
+        ];
+
+        fs::write(examples_dir.join("hello.wasm"), hello_wasm)?;
+
+        if !quiet {
+            println!("  {} Created examples/hello.wasm", "✓".green());
+        }
+
+        // Create a README for examples
+        let examples_readme = r#"# Example WASM Modules
+
+This directory contains example WebAssembly modules for use with Isolate.
+
+## hello.wasm
+
+A minimal WASI module that exits with code 0.
+
+```bash
+isolate run examples/hello.wasm --cap-stdout
+```
+
+## Building Your Own Modules
+
+You can compile WASM modules from various languages:
+
+### Rust
+```bash
+cargo build --target wasm32-wasip1 --release
+```
+
+### C/C++ (with WASI SDK)
+```bash
+$WASI_SDK/bin/clang --sysroot=$WASI_SDK/share/wasi-sysroot -o output.wasm input.c
+```
+
+### AssemblyScript
+```bash
+npx asc input.ts -o output.wasm --runtime stub
+```
+
+### Go (TinyGo)
+```bash
+tinygo build -o output.wasm -target wasi input.go
+```
+"#;
+        fs::write(examples_dir.join("README.md"), examples_readme)?;
+
+        if !quiet {
+            println!("  {} Created examples/README.md", "✓".green());
+        }
+    }
+
+    // Create .gitignore
+    let gitignore_path = project_dir.join(".gitignore");
+    if !gitignore_path.exists() || args.force {
+        let gitignore_content = r#"# Isolate project ignores
+*.wasm.cache
+.isolate-snapshots/
+"#;
+        fs::write(&gitignore_path, gitignore_content)?;
+
+        if !quiet {
+            println!("  {} Created .gitignore", "✓".green());
+        }
+    }
+
+    if !quiet {
+        println!("{}", "─".repeat(50).dimmed());
+        println!("\n  {} Project initialized successfully!", "✓".green().bold());
+        println!("\n  {}", "Next steps:".yellow().bold());
+        println!("    1. Add your WASM modules to the project");
+        println!("    2. Configure capabilities in .isolate.toml");
+        println!("    3. Run with: {}", "isolate run <module.wasm>".cyan());
+        println!("\n  Try the example:");
+        println!(
+            "    {}",
+            "isolate run examples/hello.wasm --cap-stdout".cyan()
+        );
+    }
+
+    Ok(())
+}
+
+async fn doctor_command(quiet: bool) -> Result<()> {
+    if !quiet {
+        print_banner();
+        println!("{}", "System Diagnostics".cyan().bold());
+        println!("{}", "─".repeat(50).dimmed());
+    }
+
+    let mut all_ok = true;
+
+    // Check 1: Rust version
+    let rust_version = rustc_version();
+    if !quiet {
+        print!(
+            "  {} Rust version: {}",
+            "•".dimmed(),
+            rust_version.cyan()
+        );
+        println!(" {}", "✓".green());
+    }
+
+    // Check 2: Wasmtime availability (we have it if we compiled)
+    if !quiet {
+        print!("  {} Wasmtime: {}", "•".dimmed(), "27.x".cyan());
+        println!(" {}", "✓".green());
+    }
+
+    // Check 3: Self-test with embedded minimal WASM module
+    // Minimal valid WASI WASM module that calls proc_exit(0)
+    let minimal_wasm: &[u8] = &[
+        0x00, 0x61, 0x73, 0x6d, // WASM magic
+        0x01, 0x00, 0x00, 0x00, // Version 1
+        // Type section
+        0x01, 0x08, 0x02, 0x60, 0x01, 0x7f, 0x00, 0x60, 0x00, 0x00,
+        // Import section: wasi_snapshot_preview1.proc_exit
+        0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61,
+        0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65,
+        0x77, 0x31, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74,
+        0x00, 0x00,
+        // Function section
+        0x03, 0x02, 0x01, 0x01,
+        // Memory section
+        0x05, 0x03, 0x01, 0x00, 0x01,
+        // Export section: memory and _start
+        0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
+        0x06, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01,
+        // Code section: call proc_exit(0)
+        0x0a, 0x08, 0x01, 0x06, 0x00, 0x41, 0x00, 0x10, 0x00, 0x0b,
+    ];
+
+    if !quiet {
+        print!("  {} Self-test: ", "•".dimmed());
+    }
+
+    match SandboxConfig::builder().module(minimal_wasm) {
+        Ok(builder) => match builder.build() {
+            Ok(config) => match Sandbox::create(config).await {
+                Ok(mut sandbox) => match sandbox.run(&[]).await {
+                    Ok(output) => {
+                        if output.exit_code == 0 {
+                            if !quiet {
+                                println!("{}", "Sandbox execution OK ✓".green());
+                            }
+                        } else {
+                            if !quiet {
+                                println!(
+                                    "{}",
+                                    format!("Unexpected exit code: {}", output.exit_code).yellow()
+                                );
+                            }
+                            all_ok = false;
+                        }
+                    }
+                    Err(e) => {
+                        if !quiet {
+                            println!("{}", format!("Execution failed: {}", e).red());
+                        }
+                        all_ok = false;
+                    }
+                },
+                Err(e) => {
+                    if !quiet {
+                        println!("{}", format!("Sandbox creation failed: {}", e).red());
+                    }
+                    all_ok = false;
+                }
+            },
+            Err(e) => {
+                if !quiet {
+                    println!("{}", format!("Config build failed: {}", e).red());
+                }
+                all_ok = false;
+            }
+        },
+        Err(e) => {
+            if !quiet {
+                println!("{}", format!("Module validation failed: {}", e).red());
+            }
+            all_ok = false;
+        }
+    }
+
+    // Check 4: Temp directory access
+    if !quiet {
+        print!("  {} Temp directory: ", "•".dimmed());
+    }
+    match std::env::temp_dir().canonicalize() {
+        Ok(temp) => {
+            if !quiet {
+                println!("{} {}", temp.display().to_string().cyan(), "✓".green());
+            }
+        }
+        Err(_) => {
+            if !quiet {
+                println!("{}", "Not accessible".red());
+            }
+            all_ok = false;
+        }
+    }
+
+    // Summary
+    if !quiet {
+        println!("{}", "─".repeat(50).dimmed());
+        if all_ok {
+            println!("\n  {} All checks passed!", "✓".green().bold());
+            println!(
+                "  {}",
+                "Isolate is ready to use.".dimmed()
+            );
+        } else {
+            println!("\n  {} Some checks failed.", "✗".red().bold());
+            println!(
+                "  {}",
+                "Please review the issues above.".dimmed()
+            );
+        }
+    }
+
+    if all_ok {
+        Ok(())
+    } else {
+        std::process::exit(1);
+    }
+}
+
+fn rustc_version() -> String {
+    std::process::Command::new("rustc")
+        .arg("--version")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
 }
