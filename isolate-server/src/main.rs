@@ -64,8 +64,7 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use isolate_core::telemetry::TelemetryConfig;
-use opentelemetry::trace::TracerProvider;
+use opentelemetry::{trace::TracerProvider, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{runtime, trace::Sampler, Resource};
 use std::convert::Infallible;
@@ -239,9 +238,10 @@ async fn main() -> anyhow::Result<()> {
             };
 
             // Build resource with service info
-            let resource = Resource::builder()
-                .with_service_name(args.service_name.clone())
-                .build();
+            let resource = Resource::new(vec![
+                KeyValue::new("service.name", args.service_name.clone()),
+                KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+            ]);
 
             // Build tracer provider
             let provider = opentelemetry_sdk::trace::TracerProvider::builder()
