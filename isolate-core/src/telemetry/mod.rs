@@ -116,10 +116,7 @@ impl TelemetryConfig {
 
     /// Build OpenTelemetry resource from config.
     fn build_resource(&self) -> Resource {
-        let mut attributes = vec![KeyValue::new(
-            semconv::SERVICE_NAME,
-            self.service_name.clone(),
-        )];
+        let mut attributes = vec![KeyValue::new(semconv::SERVICE_NAME, self.service_name.clone())];
 
         if let Some(ref version) = self.service_version {
             attributes.push(KeyValue::new(semconv::SERVICE_VERSION, version.clone()));
@@ -196,9 +193,7 @@ impl TelemetryConfigBuilder {
 
     /// Add a resource attribute.
     pub fn resource_attribute(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.config
-            .resource_attributes
-            .push((key.into(), value.into()));
+        self.config.resource_attributes.push((key.into(), value.into()));
         self
     }
 
@@ -252,10 +247,7 @@ impl TelemetryHandle {
 /// Initialize OpenTelemetry with the given configuration.
 pub fn init_telemetry(config: TelemetryConfig) -> Result<TelemetryHandle, TelemetryError> {
     if !config.tracing_enabled {
-        return Ok(TelemetryHandle {
-            config,
-            initialized: false,
-        });
+        return Ok(TelemetryHandle { config, initialized: false });
     }
 
     let initialized = if let Some(ref endpoint) = config.otlp_endpoint {
@@ -288,10 +280,7 @@ pub fn init_telemetry(config: TelemetryConfig) -> Result<TelemetryHandle, Teleme
         false
     };
 
-    Ok(TelemetryHandle {
-        config,
-        initialized,
-    })
+    Ok(TelemetryHandle { config, initialized })
 }
 
 /// Get the global tracer for manual instrumentation.
@@ -325,10 +314,7 @@ mod tests {
 
         assert_eq!(config.service_name, "test-service");
         assert_eq!(config.service_version, Some("1.0.0".to_string()));
-        assert_eq!(
-            config.otlp_endpoint,
-            Some("http://localhost:4317".to_string())
-        );
+        assert_eq!(config.otlp_endpoint, Some("http://localhost:4317".to_string()));
         assert_eq!(config.sampling_ratio, 0.5);
         assert_eq!(config.resource_attributes.len(), 1);
     }

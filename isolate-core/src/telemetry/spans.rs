@@ -54,16 +54,10 @@ impl SandboxSpan {
     /// Start a new span.
     fn new(name: &'static str, kind: SpanKind, attributes: Vec<KeyValue>) -> Self {
         let tracer = global::tracer("isolate");
-        let span = tracer
-            .span_builder(name)
-            .with_kind(kind)
-            .with_attributes(attributes)
-            .start(&tracer);
+        let span =
+            tracer.span_builder(name).with_kind(kind).with_attributes(attributes).start(&tracer);
 
-        Self {
-            span,
-            start_time: Instant::now(),
-        }
+        Self { span, start_time: Instant::now() }
     }
 
     /// Add an attribute to the span.
@@ -80,8 +74,7 @@ impl SandboxSpan {
 
     /// Record an error on the span.
     pub fn record_error(&mut self, error: &str) {
-        self.span
-            .set_attribute(KeyValue::new(attributes::ERROR_MESSAGE, error.to_string()));
+        self.span.set_attribute(KeyValue::new(attributes::ERROR_MESSAGE, error.to_string()));
         self.span.set_status(Status::error(error.to_string()));
     }
 
@@ -98,8 +91,7 @@ impl SandboxSpan {
     /// End the span.
     pub fn end(mut self) {
         let duration_ms = self.start_time.elapsed().as_millis() as i64;
-        self.span
-            .set_attribute(KeyValue::new(attributes::DURATION_MS, duration_ms));
+        self.span.set_attribute(KeyValue::new(attributes::DURATION_MS, duration_ms));
         self.span.end();
     }
 
@@ -182,11 +174,7 @@ pub struct SpanBuilder {
 impl SpanBuilder {
     /// Create a new span builder.
     pub fn new(name: &'static str) -> Self {
-        Self {
-            name,
-            kind: SpanKind::Internal,
-            attributes: Vec::new(),
-        }
+        Self { name, kind: SpanKind::Internal, attributes: Vec::new() }
     }
 
     /// Set the span kind.
@@ -197,22 +185,19 @@ impl SpanBuilder {
 
     /// Add a sandbox ID attribute.
     pub fn sandbox_id(mut self, id: Uuid) -> Self {
-        self.attributes
-            .push(KeyValue::new(attributes::SANDBOX_ID, id.to_string()));
+        self.attributes.push(KeyValue::new(attributes::SANDBOX_ID, id.to_string()));
         self
     }
 
     /// Add a module hash attribute.
     pub fn module_hash(mut self, hash: &str) -> Self {
-        self.attributes
-            .push(KeyValue::new(attributes::MODULE_HASH, hash.to_string()));
+        self.attributes.push(KeyValue::new(attributes::MODULE_HASH, hash.to_string()));
         self
     }
 
     /// Add a string attribute.
     pub fn attribute(mut self, key: &str, value: impl Into<String>) -> Self {
-        self.attributes
-            .push(KeyValue::new(key.to_string(), value.into()));
+        self.attributes.push(KeyValue::new(key.to_string(), value.into()));
         self
     }
 
@@ -234,9 +219,8 @@ pub mod spans {
 
     /// Create a span for sandbox creation.
     pub fn sandbox_create(sandbox_id: Uuid, module_hash: Option<&str>) -> SandboxSpan {
-        let mut builder = SpanBuilder::new("sandbox.create")
-            .kind(SpanKind::Internal)
-            .sandbox_id(sandbox_id);
+        let mut builder =
+            SpanBuilder::new("sandbox.create").kind(SpanKind::Internal).sandbox_id(sandbox_id);
 
         if let Some(hash) = module_hash {
             builder = builder.module_hash(hash);
@@ -247,10 +231,7 @@ pub mod spans {
 
     /// Create a span for sandbox execution.
     pub fn sandbox_execute(sandbox_id: Uuid) -> SandboxSpan {
-        SpanBuilder::new("sandbox.execute")
-            .kind(SpanKind::Internal)
-            .sandbox_id(sandbox_id)
-            .start()
+        SpanBuilder::new("sandbox.execute").kind(SpanKind::Internal).sandbox_id(sandbox_id).start()
     }
 
     /// Create a span for sandbox termination.
@@ -264,10 +245,7 @@ pub mod spans {
 
     /// Create a span for WASM module compilation.
     pub fn module_compile(module_hash: &str) -> SandboxSpan {
-        SpanBuilder::new("module.compile")
-            .kind(SpanKind::Internal)
-            .module_hash(module_hash)
-            .start()
+        SpanBuilder::new("module.compile").kind(SpanKind::Internal).module_hash(module_hash).start()
     }
 
     /// Create a span for snapshot creation.

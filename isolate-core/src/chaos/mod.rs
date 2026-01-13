@@ -26,10 +26,7 @@ pub enum FaultType {
     /// Packet loss probability (0.0-1.0).
     PacketLoss(f64),
     /// I/O error injection.
-    IoError {
-        probability: f64,
-        error_type: IoErrorType,
-    },
+    IoError { probability: f64, error_type: IoErrorType },
     /// Random process kill.
     ProcessKill { probability: f64 },
     /// Clock skew.
@@ -326,9 +323,7 @@ impl ChaosEngine {
         metrics.failed_requests = simulated_requests - metrics.successful_requests;
 
         for _ in 0..simulated_requests {
-            metrics
-                .latency_samples
-                .push(Duration::from_millis(50 + (self.rng_seed % 100) as u64));
+            metrics.latency_samples.push(Duration::from_millis(50 + (self.rng_seed % 100) as u64));
         }
 
         // Check abort conditions
@@ -394,10 +389,7 @@ impl ChaosEngine {
 
     /// Inject a fault directly.
     pub fn inject_fault(&mut self, sandbox_id: &str, fault: FaultInjection) {
-        self.active_faults
-            .entry(sandbox_id.to_string())
-            .or_default()
-            .push(fault);
+        self.active_faults.entry(sandbox_id.to_string()).or_default().push(fault);
     }
 
     /// Remove all faults from sandbox.
@@ -407,10 +399,7 @@ impl ChaosEngine {
 
     /// Get active faults for sandbox.
     pub fn get_active_faults(&self, sandbox_id: &str) -> &[FaultInjection] {
-        self.active_faults
-            .get(sandbox_id)
-            .map(|v| v.as_slice())
-            .unwrap_or(&[])
+        self.active_faults.get(sandbox_id).map(|v| v.as_slice()).unwrap_or(&[])
     }
 
     /// Get all experiment results.
@@ -574,10 +563,7 @@ mod tests {
         };
 
         let experiment = ExperimentBuilder::new("test")
-            .fault(
-                FaultType::NetworkLatency(Duration::from_millis(100)),
-                Duration::from_secs(5),
-            )
+            .fault(FaultType::NetworkLatency(Duration::from_millis(100)), Duration::from_secs(5))
             .hypothesis(hypothesis)
             .build();
 
@@ -629,11 +615,8 @@ mod tests {
         metrics.total_requests = 100;
         metrics.successful_requests = 95;
         metrics.failed_requests = 5;
-        metrics.latency_samples = vec![
-            Duration::from_millis(10),
-            Duration::from_millis(20),
-            Duration::from_millis(100),
-        ];
+        metrics.latency_samples =
+            vec![Duration::from_millis(10), Duration::from_millis(20), Duration::from_millis(100)];
 
         assert_eq!(metrics.success_rate(), 0.95);
         assert_eq!(metrics.error_rate(), 0.05);
@@ -645,10 +628,7 @@ mod tests {
 
         let experiment = ExperimentBuilder::new("abort-test")
             .fault(
-                FaultType::IoError {
-                    probability: 0.5,
-                    error_type: IoErrorType::ReadError,
-                },
+                FaultType::IoError { probability: 0.5, error_type: IoErrorType::ReadError },
                 Duration::from_secs(5),
             )
             .abort_on(AbortCondition::ErrorRateExceeds(0.01))

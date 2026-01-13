@@ -43,17 +43,12 @@ impl MetricsRegistry {
         let registry = Registry::new();
 
         // Sandbox counters
-        let sandboxes_created = Counter::new(
-            "isolate_sandboxes_created_total",
-            "Total number of sandboxes created",
-        )
-        .unwrap();
+        let sandboxes_created =
+            Counter::new("isolate_sandboxes_created_total", "Total number of sandboxes created")
+                .unwrap();
 
-        let sandboxes_active = Gauge::new(
-            "isolate_sandboxes_active",
-            "Number of currently active sandboxes",
-        )
-        .unwrap();
+        let sandboxes_active =
+            Gauge::new("isolate_sandboxes_active", "Number of currently active sandboxes").unwrap();
 
         let sandbox_runs = CounterVec::new(
             Opts::new("isolate_sandbox_runs_total", "Total number of sandbox runs"),
@@ -66,9 +61,7 @@ impl MetricsRegistry {
                 "isolate_sandbox_run_duration_seconds",
                 "Sandbox run duration in seconds",
             )
-            .buckets(vec![
-                0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
-            ]),
+            .buckets(vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]),
             &["status"],
         )
         .unwrap();
@@ -78,9 +71,7 @@ impl MetricsRegistry {
                 "isolate_sandbox_cold_start_seconds",
                 "Sandbox cold start time in seconds",
             )
-            .buckets(vec![
-                0.0001, 0.0005, 0.001, 0.002, 0.003, 0.005, 0.01, 0.025, 0.05, 0.1,
-            ]),
+            .buckets(vec![0.0001, 0.0005, 0.001, 0.002, 0.003, 0.005, 0.01, 0.025, 0.05, 0.1]),
         )
         .unwrap();
 
@@ -105,10 +96,7 @@ impl MetricsRegistry {
         .unwrap();
 
         let capability_denials = CounterVec::new(
-            Opts::new(
-                "isolate_capability_denials_total",
-                "Total capability denials",
-            ),
+            Opts::new("isolate_capability_denials_total", "Total capability denials"),
             &["capability"],
         )
         .unwrap();
@@ -117,9 +105,7 @@ impl MetricsRegistry {
         registry.register(Box::new(sandboxes_created.clone())).ok();
         registry.register(Box::new(sandboxes_active.clone())).ok();
         registry.register(Box::new(sandbox_runs.clone())).ok();
-        registry
-            .register(Box::new(sandbox_run_duration.clone()))
-            .ok();
+        registry.register(Box::new(sandbox_run_duration.clone())).ok();
         registry.register(Box::new(sandbox_cold_start.clone())).ok();
         registry.register(Box::new(memory_usage.clone())).ok();
         registry.register(Box::new(fuel_consumed.clone())).ok();
@@ -156,39 +142,27 @@ impl MetricsRegistry {
     pub fn record_sandbox_run(&self, duration: Duration, success: bool) {
         let status = if success { "success" } else { "failure" };
         self.sandbox_runs.with_label_values(&[status]).inc();
-        self.sandbox_run_duration
-            .with_label_values(&[status])
-            .observe(duration.as_secs_f64());
+        self.sandbox_run_duration.with_label_values(&[status]).observe(duration.as_secs_f64());
     }
 
     /// Record memory usage.
     pub fn record_memory_usage(&self, sandbox_id: &str, current: usize, peak: usize) {
-        self.memory_usage
-            .with_label_values(&[sandbox_id, "current"])
-            .set(current as f64);
-        self.memory_usage
-            .with_label_values(&[sandbox_id, "peak"])
-            .set(peak as f64);
+        self.memory_usage.with_label_values(&[sandbox_id, "current"]).set(current as f64);
+        self.memory_usage.with_label_values(&[sandbox_id, "peak"]).set(peak as f64);
     }
 
     /// Record fuel consumption.
     pub fn record_fuel(&self, sandbox_id: &str, fuel: u64) {
-        self.fuel_consumed
-            .with_label_values(&[sandbox_id])
-            .inc_by(fuel as f64);
+        self.fuel_consumed.with_label_values(&[sandbox_id]).inc_by(fuel as f64);
     }
 
     /// Record capability check.
     pub fn record_capability_check(&self, capability: &str, allowed: bool) {
         let result = if allowed { "allowed" } else { "denied" };
-        self.capability_checks
-            .with_label_values(&[capability, result])
-            .inc();
+        self.capability_checks.with_label_values(&[capability, result]).inc();
 
         if !allowed {
-            self.capability_denials
-                .with_label_values(&[capability])
-                .inc();
+            self.capability_denials.with_label_values(&[capability]).inc();
         }
     }
 
@@ -276,9 +250,7 @@ impl SandboxMetrics {
 
     /// Get the sandbox age.
     pub fn age(&self) -> Duration {
-        self.created_at
-            .map(|t| t.elapsed())
-            .unwrap_or(Duration::ZERO)
+        self.created_at.map(|t| t.elapsed()).unwrap_or(Duration::ZERO)
     }
 
     /// Get the average run duration.
@@ -318,9 +290,7 @@ struct TimingStatsInner {
 impl TimingStats {
     /// Create a new timing stats collector.
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(RwLock::new(TimingStatsInner::default())),
-        }
+        Self { inner: Arc::new(RwLock::new(TimingStatsInner::default())) }
     }
 
     /// Record a timing sample.
@@ -402,10 +372,7 @@ mod tests {
         assert_eq!(metrics.success_count, 1);
         assert_eq!(metrics.failure_count, 0);
         assert_eq!(metrics.success_rate(), 1.0);
-        assert_eq!(
-            metrics.average_run_duration(),
-            Some(Duration::from_millis(100))
-        );
+        assert_eq!(metrics.average_run_duration(), Some(Duration::from_millis(100)));
     }
 
     #[test]
