@@ -45,11 +45,7 @@ impl HttpClient {
             .build()
             .map_err(|e| crate::Error::Http(format!("Failed to create HTTP client: {}", e)))?;
 
-        Ok(Self {
-            client,
-            config,
-            capabilities: Arc::new(capabilities.into()),
-        })
+        Ok(Self { client, config, capabilities: Arc::new(capabilities.into()) })
     }
 
     /// Execute an HTTP request.
@@ -63,19 +59,17 @@ impl HttpClient {
             .map_err(|e| HttpError::InvalidUrl(format!("{}: {}", request.url, e)))?;
 
         // Check capability
-        let host = url
-            .host_str()
-            .ok_or_else(|| HttpError::InvalidUrl("URL has no host".to_string()))?;
+        let host =
+            url.host_str().ok_or_else(|| HttpError::InvalidUrl("URL has no host".to_string()))?;
 
         self.check_host_allowed(host)?;
 
         // Check request body size
         if let Some(ref body) = request.body {
             if body.len() > self.config.max_request_body {
-                return Err(HttpError::RequestBodyTooLarge {
-                    max: self.config.max_request_body,
-                }
-                .into());
+                return Err(
+                    HttpError::RequestBodyTooLarge { max: self.config.max_request_body }.into()
+                );
             }
         }
 
@@ -107,9 +101,7 @@ impl HttpClient {
             } else if e.is_connect() {
                 HttpError::Connection(e.to_string())
             } else if e.is_redirect() {
-                HttpError::TooManyRedirects {
-                    max: self.config.max_redirects,
-                }
+                HttpError::TooManyRedirects { max: self.config.max_redirects }
             } else {
                 HttpError::Http(e.to_string())
             }
@@ -144,21 +136,9 @@ impl HttpClient {
             HttpResponseBody::new(body_bytes.to_vec())
         };
 
-        debug!(
-            "HTTP response: {} {} in {:?} ({} bytes)",
-            status,
-            final_url,
-            duration,
-            body.len()
-        );
+        debug!("HTTP response: {} {} in {:?} ({} bytes)", status, final_url, duration, body.len());
 
-        Ok(HttpResponse {
-            status,
-            headers,
-            body,
-            duration,
-            final_url,
-        })
+        Ok(HttpResponse { status, headers, body, duration, final_url })
     }
 
     /// Check if the host is allowed by the capabilities.
@@ -173,10 +153,7 @@ impl HttpClient {
             }
         }
 
-        Err(HttpError::HostNotAllowed {
-            host: host.to_string(),
-        }
-        .into())
+        Err(HttpError::HostNotAllowed { host: host.to_string() }.into())
     }
 
     /// Check if a host matches a pattern.
@@ -227,34 +204,16 @@ mod tests {
 
     #[test]
     fn test_host_matches_pattern_exact() {
-        assert!(HttpClient::host_matches_pattern(
-            "api.example.com",
-            "api.example.com"
-        ));
-        assert!(!HttpClient::host_matches_pattern(
-            "api.example.com",
-            "other.example.com"
-        ));
+        assert!(HttpClient::host_matches_pattern("api.example.com", "api.example.com"));
+        assert!(!HttpClient::host_matches_pattern("api.example.com", "other.example.com"));
     }
 
     #[test]
     fn test_host_matches_pattern_wildcard() {
-        assert!(HttpClient::host_matches_pattern(
-            "api.example.com",
-            "*.example.com"
-        ));
-        assert!(HttpClient::host_matches_pattern(
-            "sub.api.example.com",
-            "*.example.com"
-        ));
-        assert!(HttpClient::host_matches_pattern(
-            "example.com",
-            "*.example.com"
-        ));
-        assert!(!HttpClient::host_matches_pattern(
-            "example.org",
-            "*.example.com"
-        ));
+        assert!(HttpClient::host_matches_pattern("api.example.com", "*.example.com"));
+        assert!(HttpClient::host_matches_pattern("sub.api.example.com", "*.example.com"));
+        assert!(HttpClient::host_matches_pattern("example.com", "*.example.com"));
+        assert!(!HttpClient::host_matches_pattern("example.org", "*.example.com"));
     }
 
     #[test]

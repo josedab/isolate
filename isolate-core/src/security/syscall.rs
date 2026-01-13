@@ -46,13 +46,7 @@ pub enum SyscallCategory {
 impl Syscall {
     /// Create a new syscall definition.
     pub fn new(name: impl Into<String>, number: i32, category: SyscallCategory) -> Self {
-        Self {
-            name: name.into(),
-            number,
-            num_args: 0,
-            description: None,
-            category,
-        }
+        Self { name: name.into(), number, num_args: 0, description: None, category }
     }
 
     /// Set the number of arguments.
@@ -111,11 +105,7 @@ pub struct ArgFilter {
 impl ArgFilter {
     /// Create a new exact match filter.
     pub fn exact(index: u8, value: u64) -> Self {
-        Self {
-            index,
-            value,
-            mask: u64::MAX,
-        }
+        Self { index, value, mask: u64::MAX }
     }
 
     /// Create a masked match filter.
@@ -226,10 +216,7 @@ pub struct SyscallTable {
 impl SyscallTable {
     /// Create an empty table.
     pub fn new() -> Self {
-        Self {
-            by_name: HashMap::new(),
-            by_number: HashMap::new(),
-        }
+        Self { by_name: HashMap::new(), by_number: HashMap::new() }
     }
 
     /// Create x86_64 Linux syscall table.

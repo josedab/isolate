@@ -66,10 +66,7 @@ impl ChannelHub {
 
     /// Create a new channel hub with the given configuration.
     pub fn with_config(config: HubConfig) -> Self {
-        Self {
-            channels: Arc::new(DashMap::new()),
-            config,
-        }
+        Self { channels: Arc::new(DashMap::new()), config }
     }
 
     /// Get the hub configuration.
@@ -80,9 +77,7 @@ impl ChannelHub {
     /// Create a new channel.
     pub fn create_channel(&self, config: ChannelConfig) -> Result<(), IpcError> {
         if self.channels.len() >= self.config.max_channels {
-            return Err(IpcError::TooManyChannels {
-                max: self.config.max_channels,
-            });
+            return Err(IpcError::TooManyChannels { max: self.config.max_channels });
         }
 
         if self.channels.contains_key(&config.id) {
@@ -145,9 +140,7 @@ impl ChannelHub {
     /// Send a message to a channel.
     pub fn send(&self, channel_id: impl Into<ChannelId>, message: Message) -> Result<(), IpcError> {
         let id = channel_id.into();
-        let channel = self
-            .get(&id)
-            .ok_or_else(|| IpcError::Channel(ChannelError::NotFound(id)))?;
+        let channel = self.get(&id).ok_or_else(|| IpcError::Channel(ChannelError::NotFound(id)))?;
         channel.send(message).map_err(IpcError::Channel)
     }
 
@@ -158,9 +151,7 @@ impl ChannelHub {
         receiver: Option<Uuid>,
     ) -> Result<Option<Message>, IpcError> {
         let id = channel_id.into();
-        let channel = self
-            .get(&id)
-            .ok_or_else(|| IpcError::Channel(ChannelError::NotFound(id)))?;
+        let channel = self.get(&id).ok_or_else(|| IpcError::Channel(ChannelError::NotFound(id)))?;
         channel.receive(receiver).map_err(IpcError::Channel)
     }
 
@@ -194,10 +185,7 @@ impl ChannelHub {
 
     /// Get statistics for all channels.
     pub fn all_stats(&self) -> Vec<(ChannelId, ChannelStats)> {
-        self.channels
-            .iter()
-            .map(|r| (r.key().clone(), r.value().stats()))
-            .collect()
+        self.channels.iter().map(|r| (r.key().clone(), r.value().stats())).collect()
     }
 
     /// Clear all messages from all channels.
@@ -221,10 +209,7 @@ impl Default for ChannelHub {
 
 impl Clone for ChannelHub {
     fn clone(&self) -> Self {
-        Self {
-            channels: Arc::clone(&self.channels),
-            config: self.config.clone(),
-        }
+        Self { channels: Arc::clone(&self.channels), config: self.config.clone() }
     }
 }
 
@@ -313,10 +298,7 @@ mod tests {
         let hub = ChannelHub::new();
 
         let result = hub.send("missing", Message::text("Hello"));
-        assert!(matches!(
-            result,
-            Err(IpcError::Channel(ChannelError::NotFound(_)))
-        ));
+        assert!(matches!(result, Err(IpcError::Channel(ChannelError::NotFound(_)))));
     }
 
     #[test]
@@ -347,11 +329,7 @@ mod tests {
         hub.create_channel(ChannelConfig::new("b")).unwrap();
         hub.create_channel(ChannelConfig::new("c")).unwrap();
 
-        let channels = vec![
-            ChannelId::new("a"),
-            ChannelId::new("b"),
-            ChannelId::new("missing"),
-        ];
+        let channels = vec![ChannelId::new("a"), ChannelId::new("b"), ChannelId::new("missing")];
 
         let sent = hub.broadcast(&channels, Message::text("Hello")).unwrap();
         assert_eq!(sent, 2); // a and b, not missing
@@ -377,10 +355,7 @@ mod tests {
         hub.create_channel(ChannelConfig::new("test")).unwrap();
 
         let result = hub.create_channel(ChannelConfig::new("test"));
-        assert!(matches!(
-            result,
-            Err(IpcError::Channel(ChannelError::AlreadyExists(_)))
-        ));
+        assert!(matches!(result, Err(IpcError::Channel(ChannelError::AlreadyExists(_)))));
     }
 
     #[test]

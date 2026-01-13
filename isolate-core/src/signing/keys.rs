@@ -54,10 +54,7 @@ impl SigningKey {
 
         // Simple randomness from system time and memory addresses
         // In production, use a proper CSPRNG
-        let seed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
+        let seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
 
         let mut hasher = Sha256::new();
         hasher.update(&seed.to_le_bytes());
@@ -83,12 +80,7 @@ impl SigningKey {
         let mut public_bytes = [0u8; 32];
         public_bytes.copy_from_slice(&public_hash);
 
-        Self {
-            secret,
-            public: VerifyingKey {
-                bytes: public_bytes,
-            },
-        }
+        Self { secret, public: VerifyingKey { bytes: public_bytes } }
     }
 
     /// Get the public key.
@@ -134,9 +126,7 @@ impl SigningKey {
 
 impl fmt::Debug for SigningKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SigningKey")
-            .field("key_id", &self.key_id())
-            .finish_non_exhaustive()
+        f.debug_struct("SigningKey").field("key_id", &self.key_id()).finish_non_exhaustive()
     }
 }
 

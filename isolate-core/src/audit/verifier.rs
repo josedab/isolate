@@ -12,19 +12,11 @@ pub enum ChainVerificationError {
 
     /// Hash mismatch at a specific entry.
     #[error("Hash mismatch at entry {sequence}: expected {expected}, got {actual}")]
-    HashMismatch {
-        sequence: u64,
-        expected: String,
-        actual: String,
-    },
+    HashMismatch { sequence: u64, expected: String, actual: String },
 
     /// Chain link broken (previous hash doesn't match).
     #[error("Chain broken at entry {sequence}: previous hash {expected} != {actual}")]
-    ChainBroken {
-        sequence: u64,
-        expected: String,
-        actual: String,
-    },
+    ChainBroken { sequence: u64, expected: String, actual: String },
 
     /// Sequence number gap or mismatch.
     #[error("Sequence mismatch at entry: expected {expected}, got {actual}")]
@@ -95,15 +87,11 @@ impl ChainVerifier {
     ) -> Result<(), ChainVerificationError> {
         for entry in entries {
             if entry.signature.is_none() {
-                return Err(ChainVerificationError::MissingSignature {
-                    sequence: entry.sequence,
-                });
+                return Err(ChainVerificationError::MissingSignature { sequence: entry.sequence });
             }
 
             if !entry.verify_signature(key) {
-                return Err(ChainVerificationError::SignatureInvalid {
-                    sequence: entry.sequence,
-                });
+                return Err(ChainVerificationError::SignatureInvalid { sequence: entry.sequence });
             }
         }
 
@@ -128,15 +116,11 @@ impl ChainVerifier {
         // Verify signature if key provided
         if let Some(k) = key {
             if entry.signature.is_none() {
-                return Err(ChainVerificationError::MissingSignature {
-                    sequence: entry.sequence,
-                });
+                return Err(ChainVerificationError::MissingSignature { sequence: entry.sequence });
             }
 
             if !entry.verify_signature(k) {
-                return Err(ChainVerificationError::SignatureInvalid {
-                    sequence: entry.sequence,
-                });
+                return Err(ChainVerificationError::SignatureInvalid { sequence: entry.sequence });
             }
         }
 
@@ -176,10 +160,7 @@ impl ChainVerifier {
 
     /// Get a summary of chain statistics.
     pub fn chain_stats(entries: &[AuditEntry]) -> ChainStats {
-        let mut stats = ChainStats {
-            total_entries: entries.len(),
-            ..Default::default()
-        };
+        let mut stats = ChainStats { total_entries: entries.len(), ..Default::default() };
 
         if let Some(first) = entries.first() {
             stats.first_timestamp = Some(first.timestamp);
@@ -271,10 +252,7 @@ mod tests {
         entries[1].hash[0] ^= 0xFF;
 
         let result = ChainVerifier::verify_chain(&entries);
-        assert!(matches!(
-            result,
-            Err(ChainVerificationError::HashMismatch { .. })
-        ));
+        assert!(matches!(result, Err(ChainVerificationError::HashMismatch { .. })));
     }
 
     #[test]
@@ -287,10 +265,7 @@ mod tests {
         entries[2].hash = entries[2].compute_hash();
 
         let result = ChainVerifier::verify_chain(&entries);
-        assert!(matches!(
-            result,
-            Err(ChainVerificationError::ChainBroken { .. })
-        ));
+        assert!(matches!(result, Err(ChainVerificationError::ChainBroken { .. })));
     }
 
     #[test]
@@ -301,10 +276,7 @@ mod tests {
         entries[2].sequence = 5;
 
         let result = ChainVerifier::verify_chain(&entries);
-        assert!(matches!(
-            result,
-            Err(ChainVerificationError::SequenceMismatch { .. })
-        ));
+        assert!(matches!(result, Err(ChainVerificationError::SequenceMismatch { .. })));
     }
 
     #[test]

@@ -31,12 +31,7 @@ pub struct SecretRef {
 impl SecretRef {
     /// Create a new secret reference.
     pub fn new(provider: SecretProvider, path: impl Into<String>) -> Self {
-        Self {
-            provider,
-            path: path.into(),
-            key: None,
-            version: None,
-        }
+        Self { provider, path: path.into(), key: None, version: None }
     }
 
     /// With specific key.
@@ -85,10 +80,7 @@ pub struct SecretValue {
 impl SecretValue {
     /// Create new secret value.
     pub fn new(value: impl Into<Vec<u8>>) -> Self {
-        Self {
-            value: value.into(),
-            metadata: SecretMetadata::default(),
-        }
+        Self { value: value.into(), metadata: SecretMetadata::default() }
     }
 
     /// Get value as bytes.
@@ -214,12 +206,7 @@ pub struct SecretsManager {
 impl SecretsManager {
     /// Create new secrets manager.
     pub fn new(config: SecretsConfig) -> Self {
-        Self {
-            config,
-            cache: HashMap::new(),
-            memory_store: HashMap::new(),
-            audit_log: Vec::new(),
-        }
+        Self { config, cache: HashMap::new(), memory_store: HashMap::new(), audit_log: Vec::new() }
     }
 
     /// Get a secret.
@@ -485,10 +472,7 @@ impl SecretInjector {
         manager: Arc<std::sync::RwLock<SecretsManager>>,
         sandbox_id: impl Into<String>,
     ) -> Self {
-        Self {
-            manager,
-            sandbox_id: sandbox_id.into(),
-        }
+        Self { manager, sandbox_id: sandbox_id.into() }
     }
 
     /// Inject secrets as environment variables.
@@ -539,9 +523,7 @@ mod tests {
         let mut manager = SecretsManager::default();
 
         // Set a secret
-        manager
-            .set("api-key", SecretValue::new(b"secret123".to_vec()), "test")
-            .unwrap();
+        manager.set("api-key", SecretValue::new(b"secret123".to_vec()), "test").unwrap();
 
         // Get the secret
         let secret_ref = SecretRef::new(SecretProvider::InMemory, "api-key");
@@ -563,9 +545,7 @@ mod tests {
     fn test_secret_delete() {
         let mut manager = SecretsManager::default();
 
-        manager
-            .set("to-delete", SecretValue::new(b"value".to_vec()), "test")
-            .unwrap();
+        manager.set("to-delete", SecretValue::new(b"value".to_vec()), "test").unwrap();
 
         let secret_ref = SecretRef::new(SecretProvider::InMemory, "to-delete");
         manager.delete(&secret_ref, "test").unwrap();
@@ -578,14 +558,10 @@ mod tests {
     fn test_secret_rotation() {
         let mut manager = SecretsManager::default();
 
-        manager
-            .set("rotate-me", SecretValue::new(b"old-value".to_vec()), "test")
-            .unwrap();
+        manager.set("rotate-me", SecretValue::new(b"old-value".to_vec()), "test").unwrap();
 
         let secret_ref = SecretRef::new(SecretProvider::InMemory, "rotate-me");
-        manager
-            .rotate(&secret_ref, SecretValue::new(b"new-value".to_vec()), "test")
-            .unwrap();
+        manager.rotate(&secret_ref, SecretValue::new(b"new-value".to_vec()), "test").unwrap();
 
         let value = manager.get(&secret_ref, "test").unwrap();
         assert_eq!(value.as_str().unwrap(), "new-value");
@@ -595,12 +571,8 @@ mod tests {
     fn test_secret_list() {
         let mut manager = SecretsManager::default();
 
-        manager
-            .set("secret1", SecretValue::new(b"v1".to_vec()), "test")
-            .unwrap();
-        manager
-            .set("secret2", SecretValue::new(b"v2".to_vec()), "test")
-            .unwrap();
+        manager.set("secret1", SecretValue::new(b"v1".to_vec()), "test").unwrap();
+        manager.set("secret2", SecretValue::new(b"v2".to_vec()), "test").unwrap();
 
         let paths = manager.list(&SecretProvider::InMemory, "test").unwrap();
         assert_eq!(paths.len(), 2);
@@ -610,14 +582,10 @@ mod tests {
 
     #[test]
     fn test_audit_logging() {
-        let mut manager = SecretsManager::new(SecretsConfig {
-            audit_enabled: true,
-            ..Default::default()
-        });
+        let mut manager =
+            SecretsManager::new(SecretsConfig { audit_enabled: true, ..Default::default() });
 
-        manager
-            .set("audited", SecretValue::new(b"value".to_vec()), "user1")
-            .unwrap();
+        manager.set("audited", SecretValue::new(b"value".to_vec()), "user1").unwrap();
         let secret_ref = SecretRef::new(SecretProvider::InMemory, "audited");
         manager.get(&secret_ref, "user2").unwrap();
 
@@ -654,9 +622,7 @@ mod tests {
             ..Default::default()
         });
 
-        manager
-            .set("cached", SecretValue::new(b"value".to_vec()), "test")
-            .unwrap();
+        manager.set("cached", SecretValue::new(b"value".to_vec()), "test").unwrap();
         let secret_ref = SecretRef::new(SecretProvider::InMemory, "cached");
 
         // First fetch populates cache
@@ -674,16 +640,12 @@ mod tests {
     fn test_cache_invalidation() {
         let mut manager = SecretsManager::default();
 
-        manager
-            .set("to-invalidate", SecretValue::new(b"v1".to_vec()), "test")
-            .unwrap();
+        manager.set("to-invalidate", SecretValue::new(b"v1".to_vec()), "test").unwrap();
         let secret_ref = SecretRef::new(SecretProvider::InMemory, "to-invalidate");
         manager.get(&secret_ref, "test").unwrap();
 
         manager.invalidate(&secret_ref);
-        manager
-            .set("to-invalidate", SecretValue::new(b"v2".to_vec()), "test")
-            .unwrap();
+        manager.set("to-invalidate", SecretValue::new(b"v2".to_vec()), "test").unwrap();
 
         let value = manager.get(&secret_ref, "test").unwrap();
         assert_eq!(value.as_str().unwrap(), "v2");
@@ -691,9 +653,8 @@ mod tests {
 
     #[test]
     fn test_secret_ref_with_key() {
-        let secret_ref = SecretRef::new(SecretProvider::InMemory, "config")
-            .key("database_url")
-            .version("v1");
+        let secret_ref =
+            SecretRef::new(SecretProvider::InMemory, "config").key("database_url").version("v1");
 
         assert_eq!(secret_ref.key, Some("database_url".to_string()));
         assert_eq!(secret_ref.version, Some("v1".to_string()));
@@ -723,27 +684,15 @@ mod tests {
 
         {
             let mut m = manager.write().unwrap();
-            m.set("api-key", SecretValue::new(b"key123".to_vec()), "setup")
-                .unwrap();
-            m.set(
-                "api-secret",
-                SecretValue::new(b"secret456".to_vec()),
-                "setup",
-            )
-            .unwrap();
+            m.set("api-key", SecretValue::new(b"key123".to_vec()), "setup").unwrap();
+            m.set("api-secret", SecretValue::new(b"secret456".to_vec()), "setup").unwrap();
         }
 
         let injector = SecretInjector::new(manager, "sandbox-1");
 
         let mappings = vec![
-            (
-                SecretRef::new(SecretProvider::InMemory, "api-key"),
-                "API_KEY".to_string(),
-            ),
-            (
-                SecretRef::new(SecretProvider::InMemory, "api-secret"),
-                "API_SECRET".to_string(),
-            ),
+            (SecretRef::new(SecretProvider::InMemory, "api-key"), "API_KEY".to_string()),
+            (SecretRef::new(SecretProvider::InMemory, "api-secret"), "API_SECRET".to_string()),
         ];
 
         let env = injector.inject_env(&mappings).unwrap();

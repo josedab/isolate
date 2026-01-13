@@ -14,11 +14,7 @@ pub struct ModuleSigner {
 impl ModuleSigner {
     /// Create a new module signer.
     pub fn new(key: SigningKey) -> Self {
-        Self {
-            key,
-            signer_name: None,
-            signer_url: None,
-        }
+        Self { key, signer_name: None, signer_url: None }
     }
 
     /// Set the signer name.
@@ -120,9 +116,8 @@ mod tests {
     #[test]
     fn test_signer_with_options() {
         let key = SigningKey::generate();
-        let signer = ModuleSigner::new(key)
-            .with_signer_name("Test Org")
-            .with_signer_url("https://test.org");
+        let signer =
+            ModuleSigner::new(key).with_signer_name("Test Org").with_signer_url("https://test.org");
 
         assert_eq!(signer.signer_name, Some("Test Org".to_string()));
         assert_eq!(signer.signer_url, Some("https://test.org".to_string()));

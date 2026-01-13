@@ -354,10 +354,7 @@ impl SecurityContext {
         let mut features = Vec::new();
 
         if let Some(ref policy) = self.seccomp {
-            features.push(format!(
-                "seccomp: {}",
-                policy.name.as_deref().unwrap_or("custom")
-            ));
+            features.push(format!("seccomp: {}", policy.name.as_deref().unwrap_or("custom")));
         }
 
         if let Some(ref policy) = self.landlock {
@@ -653,10 +650,7 @@ mod tests {
 
     #[test]
     fn test_security_context_builder_namespaces() {
-        let context = SecurityContext::builder()
-            .enable_namespaces(true)
-            .build()
-            .unwrap();
+        let context = SecurityContext::builder().enable_namespaces(true).build().unwrap();
 
         assert!(context.namespaces.any_enabled());
     }
@@ -674,10 +668,8 @@ mod tests {
 
     #[test]
     fn test_security_context_validate() {
-        let context = SecurityContext::builder()
-            .seccomp_policy(SeccompPolicy::sandbox())
-            .build()
-            .unwrap();
+        let context =
+            SecurityContext::builder().seccomp_policy(SeccompPolicy::sandbox()).build().unwrap();
 
         assert!(context.validate().is_ok());
     }
@@ -712,9 +704,6 @@ mod tests {
     fn test_security_context_apply_seccomp_non_linux() {
         let context = SecurityContext::sandbox();
         // Should fail on non-Linux
-        assert!(matches!(
-            context.apply(),
-            Err(SecurityError::NotSupported(_))
-        ));
+        assert!(matches!(context.apply(), Err(SecurityError::NotSupported(_))));
     }
 }

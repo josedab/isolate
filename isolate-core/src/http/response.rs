@@ -46,9 +46,7 @@ impl HttpResponse {
 
     /// Check if the response is JSON.
     pub fn is_json(&self) -> bool {
-        self.content_type()
-            .map(|ct| ct.starts_with("application/json"))
-            .unwrap_or(false)
+        self.content_type().map(|ct| ct.starts_with("application/json")).unwrap_or(false)
     }
 
     /// Get the body as bytes.
@@ -79,18 +77,12 @@ pub struct HttpResponseBody {
 impl HttpResponseBody {
     /// Create a new response body.
     pub fn new(data: Vec<u8>) -> Self {
-        Self {
-            data,
-            truncated: false,
-        }
+        Self { data, truncated: false }
     }
 
     /// Create a truncated response body.
     pub fn truncated(data: Vec<u8>) -> Self {
-        Self {
-            data,
-            truncated: true,
-        }
+        Self { data, truncated: true }
     }
 
     /// Get the body as bytes.
@@ -207,9 +199,7 @@ mod tests {
         let mut response = mock_response(200, "");
         assert!(response.content_type().is_none());
 
-        response
-            .headers
-            .insert("content-type".to_string(), "application/json".to_string());
+        response.headers.insert("content-type".to_string(), "application/json".to_string());
         assert_eq!(response.content_type(), Some("application/json"));
         assert!(response.is_json());
     }

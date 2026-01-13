@@ -58,34 +58,19 @@ pub enum AuditAction {
     /// Capability was granted.
     CapabilityGranted { capability: String },
     /// Capability was used.
-    CapabilityUsed {
-        capability: String,
-        context: Option<String>,
-    },
+    CapabilityUsed { capability: String, context: Option<String> },
     /// Capability was denied.
     CapabilityDenied { capability: String, reason: String },
 
     /// Resource limit was set.
     ResourceLimitSet { resource: String, limit: String },
     /// Resource limit was exceeded.
-    ResourceLimitExceeded {
-        resource: String,
-        limit: String,
-        actual: String,
-    },
+    ResourceLimitExceeded { resource: String, limit: String, actual: String },
 
     /// Filesystem access.
-    FilesystemAccess {
-        path: String,
-        operation: String,
-        allowed: bool,
-    },
+    FilesystemAccess { path: String, operation: String, allowed: bool },
     /// Network access.
-    NetworkAccess {
-        host: String,
-        operation: String,
-        allowed: bool,
-    },
+    NetworkAccess { host: String, operation: String, allowed: bool },
 
     /// Snapshot created.
     SnapshotCreated { snapshot_id: String },
@@ -93,10 +78,7 @@ pub enum AuditAction {
     SnapshotRestored { snapshot_id: String },
 
     /// Custom audit event.
-    Custom {
-        action: String,
-        data: serde_json::Value,
-    },
+    Custom { action: String, data: serde_json::Value },
 }
 
 impl std::fmt::Display for AuditAction {
@@ -120,14 +102,10 @@ impl std::fmt::Display for AuditAction {
             Self::ResourceLimitExceeded { resource, .. } => {
                 write!(f, "resource_limit_exceeded({})", resource)
             }
-            Self::FilesystemAccess {
-                path, operation, ..
-            } => {
+            Self::FilesystemAccess { path, operation, .. } => {
                 write!(f, "filesystem_access({}, {})", operation, path)
             }
-            Self::NetworkAccess {
-                host, operation, ..
-            } => {
+            Self::NetworkAccess { host, operation, .. } => {
                 write!(f, "network_access({}, {})", operation, host)
             }
             Self::SnapshotCreated { snapshot_id } => {
@@ -163,11 +141,7 @@ pub struct AuditEntry {
     #[serde(with = "hex_serde")]
     pub hash: AuditHash,
     /// Optional HMAC signature.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        with = "option_hex_serde"
-    )]
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "option_hex_serde")]
     pub signature: Option<AuditHash>,
 }
 
@@ -189,11 +163,7 @@ impl AuditEntry {
 
     /// Create a genesis entry (first entry in a chain).
     pub fn genesis(sandbox_id: Uuid) -> Self {
-        Self::new(
-            sandbox_id,
-            AuditAction::SandboxCreated,
-            Some(AuditSeverity::Info),
-        )
+        Self::new(sandbox_id, AuditAction::SandboxCreated, Some(AuditSeverity::Info))
     }
 
     /// Compute the hash of this entry.
@@ -203,12 +173,7 @@ impl AuditEntry {
         // Hash all fields except the hash itself
         hasher.update(self.id.as_bytes());
         hasher.update(self.sequence.to_le_bytes());
-        hasher.update(
-            self.timestamp
-                .timestamp_nanos_opt()
-                .unwrap_or(0)
-                .to_le_bytes(),
-        );
+        hasher.update(self.timestamp.timestamp_nanos_opt().unwrap_or(0).to_le_bytes());
         hasher.update(self.sandbox_id.as_bytes());
 
         // Hash the action as JSON for deterministic serialization
@@ -389,9 +354,8 @@ mod tests {
         let sandbox_id = Uuid::new_v4();
         let key = b"secret-key-12345";
 
-        let entry = AuditEntry::new(sandbox_id, AuditAction::SandboxCreated, None)
-            .finalize()
-            .sign(key);
+        let entry =
+            AuditEntry::new(sandbox_id, AuditAction::SandboxCreated, None).finalize().sign(key);
 
         assert!(entry.signature.is_some());
         assert!(entry.verify_signature(key));
