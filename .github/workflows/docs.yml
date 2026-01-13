@@ -58,7 +58,7 @@ jobs:
           echo '<meta http-equiv="refresh" content="0; url=isolate_core/index.html">' > target/doc/index.html
 
       - name: Upload documentation artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: target/doc
 
