@@ -92,11 +92,7 @@ pub enum Error {
 
     /// Invalid function signature.
     #[error("Invalid function signature for '{name}': expected {expected}, got {actual}")]
-    InvalidSignature {
-        name: String,
-        expected: String,
-        actual: String,
-    },
+    InvalidSignature { name: String, expected: String, actual: String },
 
     /// Pool exhausted.
     #[error("Warm pool exhausted, no available sandboxes")]
@@ -105,6 +101,26 @@ pub enum Error {
     /// HTTP client error.
     #[error("HTTP error: {0}")]
     Http(String),
+
+    /// KV store error.
+    #[error("KV store error: {0}")]
+    KvStore(String),
+
+    /// Policy evaluation error.
+    #[error("Policy error: {0}")]
+    Policy(String),
+
+    /// Gateway error.
+    #[error("Gateway error: {0}")]
+    Gateway(String),
+
+    /// Orchestrator error.
+    #[error("Orchestrator error: {0}")]
+    Orchestrator(String),
+
+    /// Marketplace error.
+    #[error("Marketplace error: {0}")]
+    Marketplace(String),
 }
 
 impl Error {
@@ -240,6 +256,26 @@ impl Error {
             Error::Http(_) => Some(
                 "Check network connectivity and that the target URL is correct. \
                  Ensure --cap-http includes the required host pattern.",
+            ),
+            Error::KvStore(_) => Some(
+                "Check KV store quota limits and key/value sizes. \
+                 Use namespace stats to monitor usage.",
+            ),
+            Error::Policy(_) => Some(
+                "Review the policy configuration. Ensure policy rules are valid \
+                 and the evaluation context provides all required attributes.",
+            ),
+            Error::Gateway(_) => Some(
+                "Check the gateway configuration and ensure the server is running. \
+                 Review route definitions and middleware configuration.",
+            ),
+            Error::Orchestrator(_) => Some(
+                "Check tenant quotas and orchestrator capacity. \
+                 Review scheduler configuration and resource availability.",
+            ),
+            Error::Marketplace(_) => Some(
+                "Check the module manifest and registry connectivity. \
+                 Ensure module signatures are valid and trusted keys are configured.",
             ),
         }
     }

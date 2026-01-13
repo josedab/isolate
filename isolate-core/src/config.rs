@@ -99,9 +99,7 @@ impl WasmModule {
 
         // Check WASM magic number: \0asm
         if &bytes[0..4] != b"\0asm" {
-            return Err(Error::ModuleValidation(
-                "Invalid WASM magic number".to_string(),
-            ));
+            return Err(Error::ModuleValidation("Invalid WASM magic number".to_string()));
         }
 
         let hash = ModuleHash::from_bytes(&bytes);
@@ -141,11 +139,7 @@ pub struct SnapshotConfig {
 
 impl Default for SnapshotConfig {
     fn default() -> Self {
-        Self {
-            enabled: false,
-            storage_path: None,
-            max_snapshots: 10,
-        }
+        Self { enabled: false, storage_path: None, max_snapshots: 10 }
     }
 }
 
@@ -196,10 +190,7 @@ pub struct SandboxConfigBuilder {
 impl SandboxConfigBuilder {
     /// Create a new builder.
     pub fn new() -> Self {
-        Self {
-            entry_point: "_start".to_string(),
-            ..Default::default()
-        }
+        Self { entry_point: "_start".to_string(), ..Default::default() }
     }
 
     /// Set the WASM module from bytes.

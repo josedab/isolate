@@ -43,7 +43,7 @@
 //!
 //! The library is organized into several key modules:
 //!
-//! ### Core Modules
+//! ### Core Modules (always available)
 //!
 //! | Module | Description |
 //! |--------|-------------|
@@ -54,22 +54,22 @@
 //! | [`engine`] | WASM execution engine (Wasmtime integration) |
 //! | [`resource`] | Resource limiting and metering |
 //! | [`metrics`] | Prometheus metrics integration |
-//! | [`audit`] | Cryptographic audit logging |
+//! | [`stability`] | Stability tracking utilities |
 //!
-//! ### Additional Modules
+//! ### Feature-Gated Module Groups
 //!
-//! | Module | Description |
-//! |--------|-------------|
-//! | [`pool`] | Multi-tenant resource pooling |
-//! | [`workflow`] | Multi-sandbox pipeline orchestration |
-//! | [`http`] | HTTP client capability implementation |
-//! | [`ipc`] | Inter-process communication |
-//! | [`secrets`] | Secret management |
-//! | [`security`] | OS-level security (seccomp, Landlock) |
+//! Enable these via Cargo features to compile only what you need:
 //!
-//! ### Feature-Gated Modules
+//! | Feature | Modules | Description |
+//! |---------|---------|-------------|
+//! | `pool` | `pool`, `predict` | Warm sandbox pool with predictive autoscaling |
+//! | `networking` | `http`, `network` | HTTP client and network policy |
+//! | `agent` | `agent` | AI agent framework for tool-using sandboxes |
+//! | `policy-engine` | `policy`, `audit`, `compose` | Policy rules, audit logging, composition |
+//! | `platform` | `admin`, `gateway`, `orchestrator`, `kv`, `secrets`, `ipc`, `marketplace`, `plugin`, `workflow`, `vfs`, `provenance` | Full platform services |
+//! | `extras` | `ai_exec`, `carbon`, `enclave`, `jsrt`, `security`, `verify` | Additional integrations |
 //!
-//! These modules require feature flags to enable:
+//! ### Experimental Feature-Gated Modules
 //!
 //! | Feature | Module | Description |
 //! |---------|--------|-------------|
@@ -125,10 +125,18 @@
 //!
 //! ```toml
 //! [dependencies]
-//! isolate-core = { version = "0.1", features = ["snapshots", "otel-telemetry"] }
+//! isolate-core = { version = "0.1", features = ["pool", "networking"] }
 //! ```
 //!
-//! Available features:
+//! Module group features:
+//! - `pool` - Warm sandbox pool with predictive autoscaling
+//! - `networking` - HTTP client and network policy modules
+//! - `agent` - AI agent framework
+//! - `policy-engine` - Policy rules, audit logging, composition
+//! - `platform` - Admin, gateway, orchestrator, KV, secrets, IPC, marketplace, etc.
+//! - `extras` - AI exec, carbon tracking, enclave, JS runtime, OS security, verification
+//!
+//! Experimental features:
 //! - `snapshots` - Copy-on-write snapshot/restore
 //! - `wasi-preview2` - WASI Component Model support
 //! - `debug-support` - Debugging and time-travel
@@ -142,27 +150,78 @@
 //! - `full` - Enable all features
 
 // Core modules (always available)
-pub mod audit;
 pub mod capability;
-pub mod carbon;
-pub mod compose;
 pub mod config;
-pub mod enclave;
 pub mod engine;
 pub mod error;
-pub mod http;
-pub mod ipc;
 pub mod metrics;
-pub mod plugin;
-pub mod pool;
-pub mod predict;
-pub mod provenance;
 pub mod resource;
 pub mod sandbox;
+pub mod stability;
+
+// Optional module groups (enabled via feature flags)
+#[cfg(feature = "pool")]
+pub mod pool;
+#[cfg(feature = "pool")]
+pub mod predict;
+
+#[cfg(feature = "networking")]
+pub mod http;
+#[cfg(feature = "networking")]
+pub mod network;
+
+#[cfg(feature = "agent")]
+pub mod agent;
+
+#[cfg(feature = "agent")]
+pub mod llm;
+
+#[cfg(feature = "policy-engine")]
+pub mod audit;
+#[cfg(feature = "policy-engine")]
+pub mod compose;
+#[cfg(feature = "policy-engine")]
+pub mod policy;
+
+#[cfg(feature = "platform")]
+pub mod admin;
+#[cfg(feature = "platform")]
+pub mod gateway;
+#[cfg(feature = "platform")]
+pub mod iac;
+#[cfg(feature = "platform")]
+pub mod ipc;
+#[cfg(feature = "platform")]
+pub mod kv;
+#[cfg(feature = "platform")]
+pub mod marketplace;
+#[cfg(feature = "platform")]
+pub mod orchestrator;
+#[cfg(feature = "platform")]
+pub mod plugin;
+#[cfg(feature = "platform")]
+pub mod provenance;
+#[cfg(feature = "platform")]
 pub mod secrets;
-pub mod security;
-pub mod verify;
+#[cfg(feature = "platform")]
+pub mod serverless;
+#[cfg(feature = "platform")]
+pub mod vfs;
+#[cfg(feature = "platform")]
 pub mod workflow;
+
+#[cfg(feature = "extras")]
+pub mod ai_exec;
+#[cfg(feature = "extras")]
+pub mod carbon;
+#[cfg(feature = "extras")]
+pub mod enclave;
+#[cfg(feature = "extras")]
+pub mod jsrt;
+#[cfg(feature = "extras")]
+pub mod security;
+#[cfg(feature = "extras")]
+pub mod verify;
 
 // Feature-gated experimental modules
 #[cfg(feature = "snapshots")]
