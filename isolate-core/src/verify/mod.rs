@@ -150,10 +150,7 @@ impl Default for VerifierConfig {
         Self {
             timeout: Duration::from_secs(60),
             memory_limit: 1024 * 1024 * 1024, // 1GB
-            methods: vec![
-                ProofMethod::AbstractInterpretation,
-                ProofMethod::SymbolicExecution,
-            ],
+            methods: vec![ProofMethod::AbstractInterpretation, ProofMethod::SymbolicExecution],
             generate_counterexamples: true,
             generate_certificates: true,
         }
@@ -175,10 +172,7 @@ impl Default for FormalVerifier {
 impl FormalVerifier {
     /// Create a new formal verifier.
     pub fn new(config: VerifierConfig) -> Self {
-        Self {
-            config,
-            cache: HashMap::new(),
-        }
+        Self { config, cache: HashMap::new() }
     }
 
     /// Verify a property on WASM module.
@@ -301,21 +295,12 @@ impl FormalVerifier {
 
     /// Get verification statistics.
     pub fn stats(&self) -> VerifierStats {
-        let verified = self
-            .cache
-            .values()
-            .filter(|r| r.outcome == VerificationOutcome::Verified)
-            .count();
-        let violated = self
-            .cache
-            .values()
-            .filter(|r| r.outcome == VerificationOutcome::Violated)
-            .count();
-        let inconclusive = self
-            .cache
-            .values()
-            .filter(|r| r.outcome == VerificationOutcome::Inconclusive)
-            .count();
+        let verified =
+            self.cache.values().filter(|r| r.outcome == VerificationOutcome::Verified).count();
+        let violated =
+            self.cache.values().filter(|r| r.outcome == VerificationOutcome::Violated).count();
+        let inconclusive =
+            self.cache.values().filter(|r| r.outcome == VerificationOutcome::Inconclusive).count();
 
         VerifierStats {
             total_verifications: self.cache.len(),
@@ -390,10 +375,7 @@ mod tests {
 
         let result = verifier.verify(
             &wasm,
-            &Property::ResourceBound {
-                resource: ResourceType::Memory,
-                limit: 1024 * 1024,
-            },
+            &Property::ResourceBound { resource: ResourceType::Memory, limit: 1024 * 1024 },
         );
         assert_eq!(result.outcome, VerificationOutcome::Verified);
     }

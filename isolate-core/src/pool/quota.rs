@@ -321,14 +321,8 @@ impl std::fmt::Debug for AtomicResourceUsage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AtomicResourceUsage")
             .field("memory_bytes", &self.memory_bytes.load(Ordering::SeqCst))
-            .field(
-                "active_sandboxes",
-                &self.active_sandboxes.load(Ordering::SeqCst),
-            )
-            .field(
-                "total_sandboxes",
-                &self.total_sandboxes.load(Ordering::SeqCst),
-            )
+            .field("active_sandboxes", &self.active_sandboxes.load(Ordering::SeqCst))
+            .field("total_sandboxes", &self.total_sandboxes.load(Ordering::SeqCst))
             .finish_non_exhaustive()
     }
 }
@@ -408,18 +402,13 @@ mod tests {
 
     #[test]
     fn test_resource_usage_exceeds_quota() {
-        let quota = TenantQuota::new()
-            .with_max_memory(100)
-            .with_max_sandboxes(5);
+        let quota = TenantQuota::new().with_max_memory(100).with_max_sandboxes(5);
 
         let mut usage = ResourceUsage::new();
         assert!(usage.exceeds_quota(&quota).is_none());
 
         usage.memory_bytes = 150;
-        assert!(matches!(
-            usage.exceeds_quota(&quota),
-            Some(QuotaError::MemoryExceeded { .. })
-        ));
+        assert!(matches!(usage.exceeds_quota(&quota), Some(QuotaError::MemoryExceeded { .. })));
 
         usage.memory_bytes = 50;
         usage.active_sandboxes = 5;
@@ -434,17 +423,12 @@ mod tests {
         let quota = TenantQuota::new().with_enabled(false);
         let usage = ResourceUsage::new();
 
-        assert!(matches!(
-            usage.exceeds_quota(&quota),
-            Some(QuotaError::TenantDisabled)
-        ));
+        assert!(matches!(usage.exceeds_quota(&quota), Some(QuotaError::TenantDisabled)));
     }
 
     #[test]
     fn test_resource_usage_utilization() {
-        let quota = TenantQuota::new()
-            .with_max_memory(1000)
-            .with_max_sandboxes(10);
+        let quota = TenantQuota::new().with_max_memory(1000).with_max_sandboxes(10);
 
         let mut usage = ResourceUsage::new();
         usage.memory_bytes = 500;

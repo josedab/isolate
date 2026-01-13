@@ -206,10 +206,7 @@ impl ProvenanceTracker {
         }
 
         // Index by sandbox
-        self.sandbox_index
-            .entry(sandbox_id)
-            .or_default()
-            .push(id.clone());
+        self.sandbox_index.entry(sandbox_id).or_default().push(id.clone());
 
         // Invalidate lineage cache
         self.lineage_cache.remove(&id);
@@ -266,26 +263,17 @@ impl ProvenanceTracker {
 
     /// Find provenance by input hash.
     pub fn find_by_input_hash(&self, hash: &str) -> Vec<&ProvenanceRecord> {
-        self.records
-            .values()
-            .filter(|r| r.inputs.iter().any(|i| i.hash == hash))
-            .collect()
+        self.records.values().filter(|r| r.inputs.iter().any(|i| i.hash == hash)).collect()
     }
 
     /// Find provenance by output hash.
     pub fn find_by_output_hash(&self, hash: &str) -> Vec<&ProvenanceRecord> {
-        self.records
-            .values()
-            .filter(|r| r.outputs.iter().any(|o| o.hash == hash))
-            .collect()
+        self.records.values().filter(|r| r.outputs.iter().any(|o| o.hash == hash)).collect()
     }
 
     /// Find provenance by module hash.
     pub fn find_by_module_hash(&self, hash: &str) -> Vec<&ProvenanceRecord> {
-        self.records
-            .values()
-            .filter(|r| r.module_hash == hash)
-            .collect()
+        self.records.values().filter(|r| r.module_hash == hash).collect()
     }
 
     /// Get data flow graph.
@@ -320,10 +308,7 @@ impl ProvenanceTracker {
 
     /// Verify provenance signature.
     pub fn verify_signature(&self, id: &ProvenanceId) -> Result<bool, ProvenanceError> {
-        let record = self
-            .records
-            .get(id)
-            .ok_or(ProvenanceError::NotFound(id.0.clone()))?;
+        let record = self.records.get(id).ok_or(ProvenanceError::NotFound(id.0.clone()))?;
 
         match &record.signature {
             Some(sig) => {
@@ -341,10 +326,7 @@ impl ProvenanceTracker {
         signer: &str,
         key: &[u8],
     ) -> Result<(), ProvenanceError> {
-        let record = self
-            .records
-            .get_mut(id)
-            .ok_or(ProvenanceError::NotFound(id.0.clone()))?;
+        let record = self.records.get_mut(id).ok_or(ProvenanceError::NotFound(id.0.clone()))?;
 
         // Simplified signing - just hash the record
         let data = format!("{:?}", record);
@@ -363,11 +345,7 @@ impl ProvenanceTracker {
     /// Get statistics.
     pub fn stats(&self) -> ProvenanceStats {
         let total_records = self.records.len();
-        let signed_records = self
-            .records
-            .values()
-            .filter(|r| r.signature.is_some())
-            .count();
+        let signed_records = self.records.values().filter(|r| r.signature.is_some()).count();
         let with_lineage = self.records.values().filter(|r| r.parent.is_some()).count();
 
         ProvenanceStats {
@@ -602,9 +580,7 @@ mod tests {
     use super::*;
 
     fn create_test_record(sandbox_id: &str) -> ProvenanceRecord {
-        ProvenanceBuilder::new(sandbox_id)
-            .module_hash("abc123")
-            .build(Some(0), 100)
+        ProvenanceBuilder::new(sandbox_id).module_hash("abc123").build(Some(0), 100)
     }
 
     #[test]
@@ -663,9 +639,8 @@ mod tests {
         let parent_id = parent.id.clone();
         tracker.record(parent);
 
-        let child = ProvenanceBuilder::new("sandbox-2")
-            .parent(parent_id.clone())
-            .build(Some(0), 50);
+        let child =
+            ProvenanceBuilder::new("sandbox-2").parent(parent_id.clone()).build(Some(0), 50);
         tracker.record(child);
 
         let descendants = tracker.get_descendants(&parent_id);
@@ -676,11 +651,7 @@ mod tests {
     fn test_find_by_module_hash() {
         let mut tracker = ProvenanceTracker::new();
 
-        tracker.record(
-            ProvenanceBuilder::new("sb-1")
-                .module_hash("hash123")
-                .build(Some(0), 100),
-        );
+        tracker.record(ProvenanceBuilder::new("sb-1").module_hash("hash123").build(Some(0), 100));
 
         let found = tracker.find_by_module_hash("hash123");
         assert_eq!(found.len(), 1);

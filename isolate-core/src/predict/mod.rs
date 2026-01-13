@@ -132,11 +132,7 @@ impl PredictiveScaler {
             self.samples.iter().map(|s| s.cpu_usage).sum::<f64>() / self.samples.len() as f64;
         let avg_mem =
             self.samples.iter().map(|s| s.memory_usage).sum::<u64>() / self.samples.len() as u64;
-        let avg_sandboxes = self
-            .samples
-            .iter()
-            .map(|s| s.sandbox_count as f64)
-            .sum::<f64>()
+        let avg_sandboxes = self.samples.iter().map(|s| s.sandbox_count as f64).sum::<f64>()
             / self.samples.len() as f64;
 
         // Calculate trend
@@ -151,9 +147,8 @@ impl PredictiveScaler {
 
         // Predict with trend
         let predicted_sandboxes = (avg_sandboxes * (1.0 + trend * 0.5)) as u32;
-        let recommended = predicted_sandboxes
-            .max(self.config.min_pool_size)
-            .min(self.config.max_pool_size);
+        let recommended =
+            predicted_sandboxes.max(self.config.min_pool_size).min(self.config.max_pool_size);
 
         let confidence = (self.samples.len() as f64 / self.config.sample_window as f64).min(1.0);
 
@@ -183,18 +178,14 @@ impl PredictiveScaler {
         }
 
         if prediction.cpu_usage > self.config.scale_up_threshold * 100.0 {
-            let needed = prediction
-                .recommended_pool_size
-                .saturating_sub(self.current_pool_size);
+            let needed = prediction.recommended_pool_size.saturating_sub(self.current_pool_size);
             if needed > 0 {
                 return ScalingAction::ScaleUp(needed.min(10));
             }
         }
 
         if prediction.cpu_usage < self.config.scale_down_threshold * 100.0 {
-            let excess = self
-                .current_pool_size
-                .saturating_sub(prediction.recommended_pool_size);
+            let excess = self.current_pool_size.saturating_sub(prediction.recommended_pool_size);
             if excess > 0 && self.current_pool_size > self.config.min_pool_size {
                 return ScalingAction::ScaleDown(excess.min(5));
             }
@@ -211,10 +202,8 @@ impl PredictiveScaler {
                     (self.current_pool_size + n).min(self.config.max_pool_size);
             }
             ScalingAction::ScaleDown(n) => {
-                self.current_pool_size = self
-                    .current_pool_size
-                    .saturating_sub(n)
-                    .max(self.config.min_pool_size);
+                self.current_pool_size =
+                    self.current_pool_size.saturating_sub(n).max(self.config.min_pool_size);
             }
             ScalingAction::Maintain => {}
         }
@@ -274,10 +263,7 @@ mod tests {
 
     #[test]
     fn test_scaling_action() {
-        let config = ScalerConfig {
-            cooldown: Duration::ZERO,
-            ..Default::default()
-        };
+        let config = ScalerConfig { cooldown: Duration::ZERO, ..Default::default() };
         let mut scaler = PredictiveScaler::new(config);
 
         for _ in 0..60 {
