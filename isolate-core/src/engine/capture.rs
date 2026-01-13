@@ -36,18 +36,12 @@ pub struct CaptureStream {
 impl CaptureStream {
     /// Create a new capture stream with the given buffer.
     pub fn new(buffer: CaptureBuffer) -> Self {
-        Self {
-            buffer,
-            meter: None,
-        }
+        Self { buffer, meter: None }
     }
 
     /// Create a new capture stream with metering.
     pub fn with_meter(buffer: CaptureBuffer, meter: ResourceMeter) -> Self {
-        Self {
-            buffer,
-            meter: Some(meter),
-        }
+        Self { buffer, meter: Some(meter) }
     }
 
     /// Get the captured bytes.
@@ -58,10 +52,7 @@ impl CaptureStream {
 
 impl StdoutStream for CaptureStream {
     fn stream(&self) -> Box<dyn HostOutputStream> {
-        Box::new(CaptureOutputStream::new(
-            self.buffer.clone(),
-            self.meter.clone(),
-        ))
+        Box::new(CaptureOutputStream::new(self.buffer.clone(), self.meter.clone()))
     }
 
     fn isatty(&self) -> bool {
@@ -179,27 +170,18 @@ pub struct BufferedStdin {
 impl BufferedStdin {
     /// Create a new buffered stdin with the given data.
     pub fn new(data: Vec<u8>) -> Self {
-        Self {
-            buffer: new_input_buffer(data),
-            meter: None,
-        }
+        Self { buffer: new_input_buffer(data), meter: None }
     }
 
     /// Create a new buffered stdin with metering.
     pub fn with_meter(data: Vec<u8>, meter: ResourceMeter) -> Self {
-        Self {
-            buffer: new_input_buffer(data),
-            meter: Some(meter),
-        }
+        Self { buffer: new_input_buffer(data), meter: Some(meter) }
     }
 }
 
 impl StdinStream for BufferedStdin {
     fn stream(&self) -> Box<dyn HostInputStream> {
-        Box::new(BufferedInputStream::new(
-            self.buffer.clone(),
-            self.meter.clone(),
-        ))
+        Box::new(BufferedInputStream::new(self.buffer.clone(), self.meter.clone()))
     }
 
     fn isatty(&self) -> bool {

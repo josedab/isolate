@@ -356,11 +356,7 @@ impl Sandbox {
         tracing::debug!(sandbox_id = %self.id, "Starting sandbox execution");
 
         // Create a new instance with input if provided
-        let input_data = if input.is_empty() {
-            None
-        } else {
-            Some(input.to_vec())
-        };
+        let input_data = if input.is_empty() { None } else { Some(input.to_vec()) };
 
         let mut instance = self.engine.instantiate_with_input(
             &self.compiled,

@@ -55,11 +55,7 @@ impl ResourceLimits {
                 cpu_time: None,
                 preemption_interval: Duration::from_millis(100),
             },
-            io: IoLimits {
-                read_bytes: None,
-                write_bytes: None,
-                iops: None,
-            },
+            io: IoLimits { read_bytes: None, write_bytes: None, iops: None },
             time: TimeLimits {
                 wall_time: Some(Duration::from_secs(3600)), // 1 hour
                 cpu_time: None,
@@ -137,11 +133,7 @@ impl Default for CpuLimits {
 impl CpuLimits {
     /// Create unlimited CPU limits.
     pub fn unlimited() -> Self {
-        Self {
-            fuel: None,
-            cpu_time: None,
-            preemption_interval: Duration::from_millis(100),
-        }
+        Self { fuel: None, cpu_time: None, preemption_interval: Duration::from_millis(100) }
     }
 
     /// Check if fuel metering is enabled.
@@ -181,11 +173,7 @@ impl Default for IoLimits {
 impl IoLimits {
     /// Create unlimited I/O limits.
     pub fn unlimited() -> Self {
-        Self {
-            read_bytes: None,
-            write_bytes: None,
-            iops: None,
-        }
+        Self { read_bytes: None, write_bytes: None, iops: None }
     }
 
     /// Check if any I/O limiting is enabled.
@@ -206,20 +194,14 @@ pub struct TimeLimits {
 
 impl Default for TimeLimits {
     fn default() -> Self {
-        Self {
-            wall_time: Some(Duration::from_secs(60)),
-            cpu_time: Some(Duration::from_secs(30)),
-        }
+        Self { wall_time: Some(Duration::from_secs(60)), cpu_time: Some(Duration::from_secs(30)) }
     }
 }
 
 impl TimeLimits {
     /// Create unlimited time limits.
     pub fn unlimited() -> Self {
-        Self {
-            wall_time: None,
-            cpu_time: None,
-        }
+        Self { wall_time: None, cpu_time: None }
     }
 
     /// Check if wall time limiting is enabled.

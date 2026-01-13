@@ -23,15 +23,12 @@ pub trait HostFn: Send + Sync {
 impl HostFunctions {
     /// Create a new empty host functions registry.
     pub fn new() -> Self {
-        Self {
-            functions: HashMap::new(),
-        }
+        Self { functions: HashMap::new() }
     }
 
     /// Register a host function.
     pub fn register<F: HostFn + 'static>(&mut self, func: F) {
-        self.functions
-            .insert(func.name().to_string(), Box::new(func));
+        self.functions.insert(func.name().to_string(), Box::new(func));
     }
 
     /// Call a host function by name.
@@ -72,11 +69,7 @@ pub struct HostState {
 impl HostState {
     /// Create a new host state.
     pub fn new(enforcer: CapabilityEnforcer, meter: ResourceMeter) -> Self {
-        Self {
-            enforcer,
-            meter,
-            host_functions: Arc::new(HostFunctions::new()),
-        }
+        Self { enforcer, meter, host_functions: Arc::new(HostFunctions::new()) }
     }
 
     /// Create with custom host functions.
@@ -85,11 +78,7 @@ impl HostState {
         meter: ResourceMeter,
         host_functions: Arc<HostFunctions>,
     ) -> Self {
-        Self {
-            enforcer,
-            meter,
-            host_functions,
-        }
+        Self { enforcer, meter, host_functions }
     }
 
     /// Get the capability enforcer.
@@ -138,9 +127,8 @@ pub struct TimeFunction;
 
 impl HostFn for TimeFunction {
     fn call(&self, _args: &[u8]) -> Result<Vec<u8>> {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
+        let now =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
 
         Ok(now.as_secs().to_le_bytes().to_vec())
     }
