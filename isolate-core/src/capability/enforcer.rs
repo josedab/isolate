@@ -73,13 +73,9 @@ impl CapabilityEnforcer {
             Ok(())
         } else {
             let cap = Capability::filesystem_read(path);
-            self.audit_log.record_denied(
-                cap.clone(),
-                Some(format!("read denied: {}", path.display())),
-            );
-            Err(Error::FilesystemAccessDenied {
-                path: path.to_path_buf(),
-            })
+            self.audit_log
+                .record_denied(cap.clone(), Some(format!("read denied: {}", path.display())));
+            Err(Error::FilesystemAccessDenied { path: path.to_path_buf() })
         }
     }
 
@@ -98,13 +94,9 @@ impl CapabilityEnforcer {
             Ok(())
         } else {
             let cap = Capability::filesystem_write(path);
-            self.audit_log.record_denied(
-                cap.clone(),
-                Some(format!("write denied: {}", path.display())),
-            );
-            Err(Error::FilesystemAccessDenied {
-                path: path.to_path_buf(),
-            })
+            self.audit_log
+                .record_denied(cap.clone(), Some(format!("write denied: {}", path.display())));
+            Err(Error::FilesystemAccessDenied { path: path.to_path_buf() })
         }
     }
 
@@ -137,11 +129,8 @@ impl CapabilityEnforcer {
             Ok(())
         } else {
             let cap = Capability::http_client(vec![host.to_string()]);
-            self.audit_log
-                .record_denied(cap, Some(format!("http denied: {}", host)));
-            Err(Error::NetworkAccessDenied {
-                host: host.to_string(),
-            })
+            self.audit_log.record_denied(cap, Some(format!("http denied: {}", host)));
+            Err(Error::NetworkAccessDenied { host: host.to_string() })
         }
     }
 
@@ -160,11 +149,8 @@ impl CapabilityEnforcer {
             Ok(())
         } else {
             let cap = Capability::tcp_connect(vec![*addr]);
-            self.audit_log
-                .record_denied(cap, Some(format!("tcp denied: {}", addr)));
-            Err(Error::NetworkAccessDenied {
-                host: addr.to_string(),
-            })
+            self.audit_log.record_denied(cap, Some(format!("tcp denied: {}", addr)));
+            Err(Error::NetworkAccessDenied { host: addr.to_string() })
         }
     }
 
@@ -181,13 +167,11 @@ impl CapabilityEnforcer {
         });
 
         if allowed {
-            self.audit_log
-                .record_used(Capability::env_var(name), Some(format!("env: {}", name)));
+            self.audit_log.record_used(Capability::env_var(name), Some(format!("env: {}", name)));
             Ok(())
         } else {
             let cap = Capability::env_var(name);
-            self.audit_log
-                .record_denied(cap.clone(), Some(format!("env denied: {}", name)));
+            self.audit_log.record_denied(cap.clone(), Some(format!("env denied: {}", name)));
             Err(Error::CapabilityDenied(cap))
         }
     }
@@ -225,15 +209,12 @@ impl CapabilityEnforcer {
         });
 
         if allowed {
-            self.audit_log.record_used(
-                Capability::host_function(name),
-                Some(format!("hostfn: {}", name)),
-            );
+            self.audit_log
+                .record_used(Capability::host_function(name), Some(format!("hostfn: {}", name)));
             Ok(())
         } else {
             let cap = Capability::host_function(name);
-            self.audit_log
-                .record_denied(cap.clone(), Some(format!("hostfn denied: {}", name)));
+            self.audit_log.record_denied(cap.clone(), Some(format!("hostfn denied: {}", name)));
             Err(Error::CapabilityDenied(cap))
         }
     }
@@ -298,17 +279,13 @@ mod tests {
         let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
 
         assert!(enforcer.check_fs_read(Path::new("/data/file.txt")).is_ok());
-        assert!(enforcer
-            .check_fs_read(Path::new("/secret/file.txt"))
-            .is_err());
+        assert!(enforcer.check_fs_read(Path::new("/secret/file.txt")).is_err());
     }
 
     #[test]
     fn test_enforcer_check_fs_write() {
         let mut caps = CapabilitySet::new();
-        caps.grant(Capability::Filesystem(FilesystemCapability::ReadWrite(
-            PathBuf::from("/data"),
-        )));
+        caps.grant(Capability::Filesystem(FilesystemCapability::ReadWrite(PathBuf::from("/data"))));
 
         let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
 
@@ -319,10 +296,7 @@ mod tests {
     #[test]
     fn test_enforcer_check_http() {
         let mut caps = CapabilitySet::new();
-        caps.grant(Capability::http_client(vec![
-            "api.example.com",
-            "*.trusted.com",
-        ]));
+        caps.grant(Capability::http_client(vec!["api.example.com", "*.trusted.com"]));
 
         let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
 
