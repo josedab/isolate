@@ -128,11 +128,7 @@ impl IoLimits {
 
     /// Create with specific read/write limits.
     pub fn with_bytes(read: u64, write: u64) -> Self {
-        Self {
-            max_read_bytes: Some(read),
-            max_write_bytes: Some(write),
-            ..Default::default()
-        }
+        Self { max_read_bytes: Some(read), max_write_bytes: Some(write), ..Default::default() }
     }
 }
 
