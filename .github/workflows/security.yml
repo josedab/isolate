@@ -184,7 +184,7 @@ jobs:
 
       - name: Create issue for failures
         if: contains(needs.*.result, 'failure')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { owner, repo } = context.repo;
