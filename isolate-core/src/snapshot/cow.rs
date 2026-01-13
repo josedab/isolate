@@ -47,10 +47,7 @@ struct PageData {
 
 impl PageData {
     fn new(data: Vec<u8>) -> Self {
-        Self {
-            data,
-            ref_count: AtomicUsize::new(1),
-        }
+        Self { data, ref_count: AtomicUsize::new(1) }
     }
 
     fn increment(&self) {
@@ -102,8 +99,7 @@ impl CowMemoryStore {
         // Check if we already have this page
         if let Some(existing) = self.pages.get(&hash) {
             existing.increment();
-            self.bytes_saved
-                .fetch_add(data.len() as u64, Ordering::Relaxed);
+            self.bytes_saved.fetch_add(data.len() as u64, Ordering::Relaxed);
             return hash;
         }
 
@@ -192,10 +188,7 @@ impl CowMemoryStore {
 
     fn page_path(&self, hash: &PageHash) -> PathBuf {
         let hex = hex::encode(hash.as_bytes());
-        self.storage_path
-            .join(&hex[0..2])
-            .join(&hex[2..4])
-            .join(&hex)
+        self.storage_path.join(&hex[0..2]).join(&hex[2..4]).join(&hex)
     }
 }
 
@@ -257,13 +250,7 @@ impl CowSnapshot {
             }
         }
 
-        Self {
-            id,
-            page_hashes,
-            zero_pages,
-            memory_size: memory.len(),
-            page_size,
-        }
+        Self { id, page_hashes, zero_pages, memory_size: memory.len(), page_size }
     }
 
     /// Restore memory from this CoW snapshot.
@@ -325,12 +312,7 @@ impl CowSnapshot {
             }
         }
 
-        CowSnapshotDiff {
-            base_id: self.id,
-            modified_pages,
-            added_pages,
-            removed_pages,
-        }
+        CowSnapshotDiff { base_id: self.id, modified_pages, added_pages, removed_pages }
     }
 
     /// Apply a diff to create a new snapshot.
@@ -416,11 +398,7 @@ pub struct SnapshotVersioner {
 impl SnapshotVersioner {
     /// Create a new versioner.
     pub fn new(max_history: usize) -> Self {
-        Self {
-            current_version: AtomicU64::new(0),
-            history: DashMap::new(),
-            max_history,
-        }
+        Self { current_version: AtomicU64::new(0), history: DashMap::new(), max_history }
     }
 
     /// Record a new version.

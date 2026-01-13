@@ -93,10 +93,7 @@ pub struct SnapshotSerializer {
 impl SnapshotSerializer {
     /// Create a new serializer with default settings.
     pub fn new() -> Self {
-        Self {
-            compression_enabled: true,
-            compression_level: 6,
-        }
+        Self { compression_enabled: true, compression_level: 6 }
     }
 
     /// Enable or disable compression.
@@ -201,9 +198,8 @@ impl SnapshotSerializer {
             return Err(Error::Snapshot("Invalid header length".into()));
         }
 
-        let header: SnapshotHeader =
-            serde_json::from_slice(&data[offset..offset + header_len])
-                .map_err(|e| Error::Snapshot(format!("Failed to parse header: {}", e)))?;
+        let header: SnapshotHeader = serde_json::from_slice(&data[offset..offset + header_len])
+            .map_err(|e| Error::Snapshot(format!("Failed to parse header: {}", e)))?;
 
         // Verify magic
         if header.magic != *MAGIC {
@@ -229,9 +225,8 @@ impl SnapshotSerializer {
         ]) as usize;
         offset += 4;
 
-        let pages: Vec<SerializedPage> =
-            serde_json::from_slice(&data[offset..offset + pages_len])
-                .map_err(|e| Error::Snapshot(format!("Failed to parse pages: {}", e)))?;
+        let pages: Vec<SerializedPage> = serde_json::from_slice(&data[offset..offset + pages_len])
+            .map_err(|e| Error::Snapshot(format!("Failed to parse pages: {}", e)))?;
 
         offset += pages_len;
 
@@ -244,9 +239,8 @@ impl SnapshotSerializer {
         ]) as usize;
         offset += 4;
 
-        let globals: Vec<GlobalValue> =
-            serde_json::from_slice(&data[offset..offset + globals_len])
-                .map_err(|e| Error::Snapshot(format!("Failed to parse globals: {}", e)))?;
+        let globals: Vec<GlobalValue> = serde_json::from_slice(&data[offset..offset + globals_len])
+            .map_err(|e| Error::Snapshot(format!("Failed to parse globals: {}", e)))?;
 
         offset += globals_len;
 
@@ -279,10 +273,8 @@ impl SnapshotSerializer {
                 .map_err(|e| Error::Snapshot(format!("Failed to parse metadata: {}", e)))?;
 
         // Convert pages
-        let memory_pages: HashMap<usize, MemoryPage> = pages
-            .into_iter()
-            .map(|p| self.deserialize_page(p))
-            .collect();
+        let memory_pages: HashMap<usize, MemoryPage> =
+            pages.into_iter().map(|p| self.deserialize_page(p)).collect();
 
         Ok(Snapshot {
             id: header.snapshot_id,
@@ -323,21 +315,11 @@ impl SnapshotSerializer {
         match page {
             MemoryPage::Zero => SerializedPage::Zero,
             MemoryPage::Data(data) => {
-                let compressed = if self.compression_enabled {
-                    self.compress(data)
-                } else {
-                    data.clone()
-                };
-                SerializedPage::Data {
-                    index,
-                    original_size: data.len(),
-                    data: compressed,
-                }
+                let compressed =
+                    if self.compression_enabled { self.compress(data) } else { data.clone() };
+                SerializedPage::Data { index, original_size: data.len(), data: compressed }
             }
-            MemoryPage::Reference {
-                parent_id,
-                page_index,
-            } => SerializedPage::Reference {
+            MemoryPage::Reference { parent_id, page_index } => SerializedPage::Reference {
                 index,
                 parent_id: *parent_id,
                 parent_index: *page_index,
@@ -348,11 +330,7 @@ impl SnapshotSerializer {
     fn deserialize_page(&self, page: SerializedPage) -> (usize, MemoryPage) {
         match page {
             SerializedPage::Zero => (0, MemoryPage::Zero),
-            SerializedPage::Data {
-                index,
-                original_size,
-                data,
-            } => {
+            SerializedPage::Data { index, original_size, data } => {
                 let decompressed = if self.compression_enabled && data.len() != original_size {
                     self.decompress(&data, original_size)
                 } else {
@@ -360,17 +338,9 @@ impl SnapshotSerializer {
                 };
                 (index, MemoryPage::Data(decompressed))
             }
-            SerializedPage::Reference {
-                index,
-                parent_id,
-                parent_index,
-            } => (
-                index,
-                MemoryPage::Reference {
-                    parent_id,
-                    page_index: parent_index,
-                },
-            ),
+            SerializedPage::Reference { index, parent_id, parent_index } => {
+                (index, MemoryPage::Reference { parent_id, page_index: parent_index })
+            }
         }
     }
 
@@ -450,10 +420,7 @@ pub struct SnapshotWriter<W: Write> {
 impl<W: Write> SnapshotWriter<W> {
     /// Create a new streaming writer.
     pub fn new(writer: W) -> Self {
-        Self {
-            writer: BufWriter::new(writer),
-            pages_written: 0,
-        }
+        Self { writer: BufWriter::new(writer), pages_written: 0 }
     }
 
     /// Write the snapshot header.
@@ -479,8 +446,7 @@ impl<W: Write> SnapshotWriter<W> {
         let header_bytes = serde_json::to_vec(&header)
             .map_err(|e| Error::Snapshot(format!("Failed to serialize header: {}", e)))?;
 
-        self.writer
-            .write_all(&(header_bytes.len() as u32).to_le_bytes())?;
+        self.writer.write_all(&(header_bytes.len() as u32).to_le_bytes())?;
         self.writer.write_all(&header_bytes)?;
 
         Ok(())
@@ -490,15 +456,10 @@ impl<W: Write> SnapshotWriter<W> {
     pub fn write_page(&mut self, index: usize, page: &MemoryPage) -> Result<()> {
         let serialized = match page {
             MemoryPage::Zero => SerializedPage::Zero,
-            MemoryPage::Data(data) => SerializedPage::Data {
-                index,
-                original_size: data.len(),
-                data: data.clone(),
-            },
-            MemoryPage::Reference {
-                parent_id,
-                page_index,
-            } => SerializedPage::Reference {
+            MemoryPage::Data(data) => {
+                SerializedPage::Data { index, original_size: data.len(), data: data.clone() }
+            }
+            MemoryPage::Reference { parent_id, page_index } => SerializedPage::Reference {
                 index,
                 parent_id: *parent_id,
                 parent_index: *page_index,
@@ -508,8 +469,7 @@ impl<W: Write> SnapshotWriter<W> {
         let page_bytes = serde_json::to_vec(&serialized)
             .map_err(|e| Error::Snapshot(format!("Failed to serialize page: {}", e)))?;
 
-        self.writer
-            .write_all(&(page_bytes.len() as u32).to_le_bytes())?;
+        self.writer.write_all(&(page_bytes.len() as u32).to_le_bytes())?;
         self.writer.write_all(&page_bytes)?;
         self.pages_written += 1;
 
@@ -519,9 +479,10 @@ impl<W: Write> SnapshotWriter<W> {
     /// Finish writing and return the underlying writer.
     pub fn finish(mut self) -> Result<W> {
         self.writer.flush()?;
-        Ok(self.writer.into_inner().map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-        })?)
+        Ok(self
+            .writer
+            .into_inner()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?)
     }
 }
 
