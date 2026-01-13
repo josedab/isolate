@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, SystemTime};
 
+pub mod executor;
+pub mod pipeline;
+
 /// Unique workflow ID.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct WorkflowId(pub String);
@@ -172,11 +175,8 @@ impl Workflow {
 
         // Kahn's algorithm
         let mut result = Vec::new();
-        let mut queue: VecDeque<&str> = in_degree
-            .iter()
-            .filter(|(_, &deg)| deg == 0)
-            .map(|(&name, _)| name)
-            .collect();
+        let mut queue: VecDeque<&str> =
+            in_degree.iter().filter(|(_, &deg)| deg == 0).map(|(&name, _)| name).collect();
 
         while !queue.is_empty() {
             let level: Vec<String> = queue.drain(..).map(|s| s.to_string()).collect();
@@ -325,10 +325,7 @@ pub struct Choice {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Condition {
     /// Check if value equals.
-    Equals {
-        variable: String,
-        value: serde_json::Value,
-    },
+    Equals { variable: String, value: serde_json::Value },
     /// Check if value is greater than.
     GreaterThan { variable: String, value: f64 },
     /// Check if value is less than.
@@ -349,10 +346,9 @@ impl Condition {
     /// Evaluate condition against context.
     pub fn evaluate(&self, context: &ExecutionContext) -> bool {
         match self {
-            Condition::Equals { variable, value } => context
-                .get_variable(variable)
-                .map(|v| v == value)
-                .unwrap_or(false),
+            Condition::Equals { variable, value } => {
+                context.get_variable(variable).map(|v| v == value).unwrap_or(false)
+            }
             Condition::GreaterThan { variable, value } => context
                 .get_variable(variable)
                 .and_then(|v| v.as_f64())
@@ -363,10 +359,7 @@ impl Condition {
                 .and_then(|v| v.as_f64())
                 .map(|v| v < *value)
                 .unwrap_or(false),
-            Condition::Contains {
-                variable,
-                substring,
-            } => context
+            Condition::Contains { variable, substring } => context
                 .get_variable(variable)
                 .and_then(|v| v.as_str())
                 .map(|v| v.contains(substring))
@@ -464,10 +457,7 @@ impl ExecutionContext {
         output: impl Into<String>,
         value: serde_json::Value,
     ) {
-        self.step_outputs
-            .entry(step.into())
-            .or_default()
-            .insert(output.into(), value);
+        self.step_outputs.entry(step.into()).or_default().insert(output.into(), value);
     }
 }
 
@@ -549,10 +539,7 @@ impl Default for WorkflowExecutor {
 impl WorkflowExecutor {
     /// Create new executor.
     pub fn new() -> Self {
-        Self {
-            workflows: HashMap::new(),
-            executions: HashMap::new(),
-        }
+        Self { workflows: HashMap::new(), executions: HashMap::new() }
     }
 
     /// Register a workflow.
@@ -631,10 +618,7 @@ impl WorkflowExecutor {
 
     /// List executions for workflow.
     pub fn list_executions(&self, workflow_id: &WorkflowId) -> Vec<&WorkflowExecution> {
-        self.executions
-            .values()
-            .filter(|e| &e.workflow_id == workflow_id)
-            .collect()
+        self.executions.values().filter(|e| &e.workflow_id == workflow_id).collect()
     }
 }
 
@@ -686,9 +670,7 @@ pub struct WorkflowBuilder {
 impl WorkflowBuilder {
     /// Create new builder.
     pub fn new(name: impl Into<String>) -> Self {
-        Self {
-            workflow: Workflow::new(name),
-        }
+        Self { workflow: Workflow::new(name) }
     }
 
     /// Set description.
@@ -789,10 +771,7 @@ mod tests {
     #[test]
     fn test_workflow_validation_empty() {
         let workflow = Workflow::new("empty");
-        assert!(matches!(
-            workflow.validate(),
-            Err(WorkflowError::EmptyWorkflow)
-        ));
+        assert!(matches!(workflow.validate(), Err(WorkflowError::EmptyWorkflow)));
     }
 
     #[test]
@@ -813,10 +792,7 @@ mod tests {
         );
         workflow.entry = "nonexistent".to_string();
 
-        assert!(matches!(
-            workflow.validate(),
-            Err(WorkflowError::InvalidEntry(_))
-        ));
+        assert!(matches!(workflow.validate(), Err(WorkflowError::InvalidEntry(_))));
     }
 
     #[test]
@@ -849,10 +825,7 @@ mod tests {
             },
         );
 
-        assert!(matches!(
-            workflow.validate(),
-            Err(WorkflowError::CycleDetected)
-        ));
+        assert!(matches!(workflow.validate(), Err(WorkflowError::CycleDetected)));
     }
 
     #[test]
@@ -923,27 +896,16 @@ mod tests {
         context.set_variable("count", serde_json::json!(10));
         context.set_variable("name", serde_json::json!("test"));
 
-        let cond = Condition::GreaterThan {
-            variable: "count".to_string(),
-            value: 5.0,
-        };
+        let cond = Condition::GreaterThan { variable: "count".to_string(), value: 5.0 };
         assert!(cond.evaluate(&context));
 
-        let cond = Condition::Contains {
-            variable: "name".to_string(),
-            substring: "es".to_string(),
-        };
+        let cond =
+            Condition::Contains { variable: "name".to_string(), substring: "es".to_string() };
         assert!(cond.evaluate(&context));
 
         let cond = Condition::And(vec![
-            Condition::GreaterThan {
-                variable: "count".to_string(),
-                value: 5.0,
-            },
-            Condition::LessThan {
-                variable: "count".to_string(),
-                value: 20.0,
-            },
+            Condition::GreaterThan { variable: "count".to_string(), value: 5.0 },
+            Condition::LessThan { variable: "count".to_string(), value: 20.0 },
         ]);
         assert!(cond.evaluate(&context));
     }
@@ -993,16 +955,10 @@ mod tests {
     fn test_choice_step() {
         let step = Step::choice(vec![
             Choice {
-                condition: Condition::GreaterThan {
-                    variable: "value".to_string(),
-                    value: 10.0,
-                },
+                condition: Condition::GreaterThan { variable: "value".to_string(), value: 10.0 },
                 next: "high".to_string(),
             },
-            Choice {
-                condition: Condition::Always,
-                next: "default".to_string(),
-            },
+            Choice { condition: Condition::Always, next: "default".to_string() },
         ]);
 
         if let StepType::Choice { choices } = &step.step_type {

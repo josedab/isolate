@@ -19,32 +19,17 @@ pub struct DiffChunk {
 impl DiffChunk {
     /// Create an insert chunk.
     pub fn insert(offset: usize, data: Vec<u8>) -> Self {
-        Self {
-            offset,
-            original_len: 0,
-            new_data: data,
-            chunk_type: ChunkType::Insert,
-        }
+        Self { offset, original_len: 0, new_data: data, chunk_type: ChunkType::Insert }
     }
 
     /// Create a delete chunk.
     pub fn delete(offset: usize, len: usize) -> Self {
-        Self {
-            offset,
-            original_len: len,
-            new_data: Vec::new(),
-            chunk_type: ChunkType::Delete,
-        }
+        Self { offset, original_len: len, new_data: Vec::new(), chunk_type: ChunkType::Delete }
     }
 
     /// Create a replace chunk.
     pub fn replace(offset: usize, original_len: usize, new_data: Vec<u8>) -> Self {
-        Self {
-            offset,
-            original_len,
-            new_data,
-            chunk_type: ChunkType::Replace,
-        }
+        Self { offset, original_len, new_data, chunk_type: ChunkType::Replace }
     }
 
     /// Get the size change from this chunk.
@@ -228,10 +213,7 @@ impl Default for WasmDiffer {
 impl WasmDiffer {
     /// Create a new differ.
     pub fn new() -> Self {
-        Self {
-            min_chunk_size: 64,
-            max_lookahead: 1024,
-        }
+        Self { min_chunk_size: 64, max_lookahead: 1024 }
     }
 
     /// Set minimum chunk size.
@@ -273,11 +255,7 @@ impl WasmDiffer {
 
     /// Find common suffix length.
     fn common_suffix(&self, a: &[u8], b: &[u8]) -> usize {
-        a.iter()
-            .rev()
-            .zip(b.iter().rev())
-            .take_while(|(x, y)| x == y)
-            .count()
+        a.iter().rev().zip(b.iter().rev()).take_while(|(x, y)| x == y).count()
     }
 
     /// Create a full replacement patch (no diff).
