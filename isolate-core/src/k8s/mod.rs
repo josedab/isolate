@@ -9,19 +9,23 @@
 //! - Helm chart generation for deployment
 //! - Health checks and readiness probes
 
+pub mod autoscaler;
+pub mod crd_v2;
+pub mod disaster_recovery;
 pub mod helm;
+pub mod network_policy;
 pub mod operator;
 pub mod scheduler;
+pub mod tenant;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // Re-export scheduler types
 pub use scheduler::{
-    AntiAffinityTerm, LabelExpression, LabelOperator, NodeAffinity, NodeResources,
-    PodAntiAffinity, PreferredExpression, ResourceRequest, SandboxScheduler, SchedulingDecision,
-    SchedulingStrategy, Taint, TaintEffect, Toleration, TolerationOperator,
-    WeightedAntiAffinityTerm,
+    AntiAffinityTerm, LabelExpression, LabelOperator, NodeAffinity, NodeResources, PodAntiAffinity,
+    PreferredExpression, ResourceRequest, SandboxScheduler, SchedulingDecision, SchedulingStrategy,
+    Taint, TaintEffect, Toleration, TolerationOperator, WeightedAntiAffinityTerm,
 };
 
 // Re-export operator types
@@ -33,8 +37,32 @@ pub use operator::{
 // Re-export helm types
 pub use helm::{
     ChartMetadata, HelmChartGenerator, HelmValues, ImageConfig, Maintainer, MetricsConfig,
-    OperatorValues, RbacConfig, ResourceConfig, ResourceLimits, SecurityContext, ServiceConfig,
-    ServiceMonitorConfig, ServiceAccountConfig, TolerationConfig,
+    OperatorValues, RbacConfig, ResourceConfig, ResourceLimits, SecurityContext,
+    ServiceAccountConfig, ServiceConfig, ServiceMonitorConfig, TolerationConfig,
+};
+
+// Re-export network policy types
+pub use network_policy::{
+    generate_admission_webhook, generate_network_policy, generate_pdb, NetworkPolicy,
+    NetworkPolicySpec, PodDisruptionBudget, ValidatingWebhookConfiguration,
+};
+
+// Re-export v2 CRD types
+pub use crd_v2::{
+    validate_spec, CapabilitySpec, LifecycleSpec, ModuleSourceSpec, ModuleSpec, ObservabilitySpec,
+    ResourceMetadata, ResourceSpec, SandboxV2, SandboxV2Spec, SandboxV2Status, API_VERSION_V2,
+};
+
+// Re-export tenant types
+pub use tenant::{
+    IsolationLevel, Permission, QuotaExceeded, Tenant, TenantManager, TenantQuota, TenantRole,
+    TenantStatus, TenantUsage,
+};
+
+// Re-export disaster recovery types
+pub use disaster_recovery::{
+    Backup, BackupContents, BackupStatus, BackupType, ClusterHealth, DisasterRecoveryManager,
+    FailoverConfig, FailoverStatus, FailoverStrategy, RestoreOperation, RestoreStatus, RestoreType,
 };
 
 /// Kubernetes API version for Isolate CRDs.
@@ -508,9 +536,7 @@ pub struct SandboxController {
 impl SandboxController {
     /// Create a new controller.
     pub fn new(namespace: &str) -> Self {
-        Self {
-            namespace: namespace.to_string(),
-        }
+        Self { namespace: namespace.to_string() }
     }
 
     /// Reconcile a Sandbox resource.
@@ -833,10 +859,7 @@ mod tests {
         // First reconcile: Pending -> Initializing
         let result = controller.reconcile(&mut crd);
         assert_eq!(result, ReconcileResult::Requeue);
-        assert_eq!(
-            crd.status.as_ref().unwrap().phase,
-            SandboxPhase::Initializing
-        );
+        assert_eq!(crd.status.as_ref().unwrap().phase, SandboxPhase::Initializing);
 
         // Second reconcile: Initializing -> Running
         let result = controller.reconcile(&mut crd);
@@ -915,12 +938,7 @@ mod tests {
                 max_idle_seconds: 300,
                 preload: true,
             },
-            status: Some(SandboxPoolStatus {
-                total: 10,
-                ready: 8,
-                in_use: 3,
-                warm: 5,
-            }),
+            status: Some(SandboxPoolStatus { total: 10, ready: 8, in_use: 3, warm: 5 }),
         };
 
         assert_eq!(pool.spec.size, 10);
