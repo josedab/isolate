@@ -46,13 +46,7 @@ pub struct RoutingDecision {
 impl RoutingDecision {
     /// Create a new routing decision.
     pub fn new(primary: NodeId, policy: RoutingPolicy) -> Self {
-        Self {
-            primary,
-            fallbacks: Vec::new(),
-            replicate: false,
-            policy,
-            confidence: 1.0,
-        }
+        Self { primary, fallbacks: Vec::new(), replicate: false, policy, confidence: 1.0 }
     }
 
     /// Add fallback nodes.
@@ -144,12 +138,7 @@ impl SandboxRouter {
         if let Ok(mut weights) = self.weights.write() {
             weights.insert(
                 node_id,
-                NodeWeight {
-                    weight: 1.0,
-                    load: 0.0,
-                    latency_ms: 0,
-                    success_rate: 1.0,
-                },
+                NodeWeight { weight: 1.0, load: 0.0, latency_ms: 0, success_rate: 1.0 },
             );
         }
     }
@@ -247,9 +236,7 @@ impl SandboxRouter {
         let weights = self.weights.read().ok()?;
 
         let (&node_id, _) = weights.iter().min_by(|(_, a), (_, b)| {
-            a.load
-                .partial_cmp(&b.load)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            a.load.partial_cmp(&b.load).unwrap_or(std::cmp::Ordering::Equal)
         })?;
 
         let fallbacks: Vec<NodeId> = weights
@@ -313,33 +300,22 @@ impl SandboxRouter {
     /// Weighted round-robin routing.
     fn route_weighted_rr(&self) -> Option<RoutingDecision> {
         let weights = self.weights.read().ok()?;
-        let nodes: Vec<_> = weights
-            .iter()
-            .map(|(&id, w)| (id, w.effective_weight()))
-            .collect();
+        let nodes: Vec<_> = weights.iter().map(|(&id, w)| (id, w.effective_weight())).collect();
 
         if nodes.is_empty() {
             return None;
         }
 
         // Simple round-robin (ignoring weights for simplicity)
-        let counter = self
-            .rr_counter
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let counter = self.rr_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let idx = counter % nodes.len();
 
-        Some(RoutingDecision::new(
-            nodes[idx].0,
-            RoutingPolicy::WeightedRoundRobin,
-        ))
+        Some(RoutingDecision::new(nodes[idx].0, RoutingPolicy::WeightedRoundRobin))
     }
 
     /// Get all known nodes.
     pub fn nodes(&self) -> Vec<NodeId> {
-        self.weights
-            .read()
-            .map(|w| w.keys().copied().collect())
-            .unwrap_or_default()
+        self.weights.read().map(|w| w.keys().copied().collect()).unwrap_or_default()
     }
 
     /// Get node count.

@@ -148,10 +148,8 @@ impl MeshCluster {
     pub async fn join(&self) -> Result<()> {
         // Add self to hash ring
         {
-            let mut ring = self
-                .hash_ring
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut ring =
+                self.hash_ring.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
             ring.add_node(self.local_node.id);
         }
 
@@ -167,9 +165,7 @@ impl MeshCluster {
             // For now, just emit the joined event
         }
 
-        self.emit_event(ClusterEvent::Joined {
-            members: seed_count,
-        });
+        self.emit_event(ClusterEvent::Joined { members: seed_count });
         Ok(())
     }
 
@@ -177,10 +173,8 @@ impl MeshCluster {
     pub async fn leave(&self) -> Result<()> {
         // Remove from hash ring
         {
-            let mut ring = self
-                .hash_ring
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut ring =
+                self.hash_ring.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
             ring.remove_node(self.local_node.id);
         }
 
@@ -194,19 +188,15 @@ impl MeshCluster {
 
     /// Get the node responsible for a sandbox.
     pub fn get_owner(&self, sandbox_id: &str) -> Result<Option<NodeId>> {
-        let ring = self
-            .hash_ring
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let ring =
+            self.hash_ring.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(ring.get_node(sandbox_id))
     }
 
     /// Get the nodes responsible for a sandbox (with replicas).
     pub fn get_owners(&self, sandbox_id: &str) -> Result<Vec<NodeId>> {
-        let ring = self
-            .hash_ring
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let ring =
+            self.hash_ring.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(ring.get_nodes(sandbox_id, self.config.mesh.replication_factor))
     }
 
@@ -236,9 +226,7 @@ impl MeshCluster {
         // Calculate which sandboxes need to move
         // In production, this would coordinate migrations
 
-        self.emit_event(ClusterEvent::Rebalancing {
-            sandboxes_moving: 0,
-        });
+        self.emit_event(ClusterEvent::Rebalancing { sandboxes_moving: 0 });
         self.emit_event(ClusterEvent::RebalanceComplete { sandboxes_moved: 0 });
 
         Ok(())
@@ -246,10 +234,7 @@ impl MeshCluster {
 
     /// Get cluster statistics.
     pub fn stats(&self) -> Result<MeshStats> {
-        let state = self
-            .state
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let state = self.state.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
         let mut stats = state.stats.clone();
         stats.active_nodes = self.gossip.alive_members().len();
@@ -262,10 +247,8 @@ impl MeshCluster {
     where
         F: Fn(ClusterEvent) + Send + Sync + 'static,
     {
-        let mut handlers = self
-            .event_handlers
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut handlers =
+            self.event_handlers.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         handlers.push(Box::new(handler));
         Ok(())
     }
@@ -320,10 +303,8 @@ impl MeshCluster {
 
     /// Update cluster state.
     fn update_state(&self) -> Result<()> {
-        let mut state = self
-            .state
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut state =
+            self.state.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
         let members = self.gossip.alive_members();
         state.is_healthy = !members.is_empty();

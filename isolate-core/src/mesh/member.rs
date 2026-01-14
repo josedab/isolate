@@ -262,21 +262,13 @@ impl Gossip {
     pub fn alive_members(&self) -> Vec<Member> {
         self.members
             .read()
-            .map(|m| {
-                m.values()
-                    .filter(|m| m.state.is_active())
-                    .cloned()
-                    .collect()
-            })
+            .map(|m| m.values().filter(|m| m.state.is_active()).cloned().collect())
             .unwrap_or_default()
     }
 
     /// Get all members.
     pub fn all_members(&self) -> Vec<Member> {
-        self.members
-            .read()
-            .map(|m| m.values().cloned().collect())
-            .unwrap_or_default()
+        self.members.read().map(|m| m.values().cloned().collect()).unwrap_or_default()
     }
 
     /// Select random members for gossiping.
@@ -305,21 +297,13 @@ impl Gossip {
 
     /// Create a ping message.
     pub fn create_ping(&self) -> GossipMessage {
-        let seq = self
-            .next_seq
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        GossipMessage::Ping {
-            from: self.local_id,
-            seq,
-        }
+        let seq = self.next_seq.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        GossipMessage::Ping { from: self.local_id, seq }
     }
 
     /// Create an ack message.
     pub fn create_ack(&self, seq: u64) -> GossipMessage {
-        GossipMessage::Ack {
-            from: self.local_id,
-            seq,
-        }
+        GossipMessage::Ack { from: self.local_id, seq }
     }
 
     /// Handle received gossip message.
@@ -336,14 +320,9 @@ impl Gossip {
             }
             GossipMessage::Join { member } => {
                 self.add_member(member);
-                Some(GossipMessage::MemberList {
-                    members: self.all_members(),
-                })
+                Some(GossipMessage::MemberList { members: self.all_members() })
             }
-            GossipMessage::Leave {
-                node_id,
-                incarnation: _,
-            } => {
+            GossipMessage::Leave { node_id, incarnation: _ } => {
                 self.mark_leaving(node_id);
                 None
             }
@@ -353,11 +332,7 @@ impl Gossip {
                 }
                 None
             }
-            GossipMessage::PingReq {
-                from: _,
-                target,
-                seq,
-            } => {
+            GossipMessage::PingReq { from: _, target, seq } => {
                 // Forward ping to target
                 Some(GossipMessage::Ping { from: target, seq })
             }
@@ -381,9 +356,7 @@ impl Gossip {
 
         if let Ok(mut members) = self.members.write() {
             if let Some(member) = members.get_mut(&from) {
-                member
-                    .health
-                    .record_ping(true, rtt.map(|d| d.as_millis() as u64).unwrap_or(0));
+                member.health.record_ping(true, rtt.map(|d| d.as_millis() as u64).unwrap_or(0));
                 if member.state == MemberState::Suspect {
                     member.transition(MemberState::Alive);
                 }
@@ -453,10 +426,7 @@ mod tests {
     use super::*;
 
     fn test_addr(id: u64) -> NodeAddr {
-        NodeAddr::new(
-            NodeId::new(id),
-            format!("127.0.0.1:{}", 9000 + id).parse().unwrap(),
-        )
+        NodeAddr::new(NodeId::new(id), format!("127.0.0.1:{}", 9000 + id).parse().unwrap())
     }
 
     #[test]

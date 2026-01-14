@@ -20,11 +20,7 @@ impl VirtualNode {
     /// Create a new virtual node.
     pub fn new(node_id: NodeId, index: usize) -> Self {
         let position = Self::hash_position(node_id, index);
-        Self {
-            node_id,
-            index,
-            position,
-        }
+        Self { node_id, index, position }
     }
 
     fn hash_position(node_id: NodeId, index: usize) -> u64 {
@@ -56,11 +52,7 @@ impl Default for HashRing {
 impl HashRing {
     /// Create a new hash ring.
     pub fn new(virtual_node_count: usize) -> Self {
-        Self {
-            ring: BTreeMap::new(),
-            node_vnodes: HashMap::new(),
-            virtual_node_count,
-        }
+        Self { ring: BTreeMap::new(), node_vnodes: HashMap::new(), virtual_node_count }
     }
 
     /// Add a node to the ring.
@@ -219,10 +211,7 @@ pub struct ConsistentHash {
 impl ConsistentHash {
     /// Create a new consistent hash with given nodes.
     pub fn new(nodes: &[NodeId]) -> Self {
-        Self {
-            num_buckets: nodes.len(),
-            buckets: nodes.to_vec(),
-        }
+        Self { num_buckets: nodes.len(), buckets: nodes.to_vec() }
     }
 
     /// Get the node for a key using jump hash.

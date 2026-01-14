@@ -32,16 +32,33 @@
 #![allow(dead_code)]
 
 mod cluster;
+pub mod consensus;
+pub mod distributed;
+mod failover;
 mod hash;
+mod health;
 mod member;
 mod migration;
+mod region;
 mod router;
+mod scheduler;
 
 pub use cluster::{ClusterConfig, ClusterEvent, MeshCluster};
+pub use consensus::{
+    PartitionAction, PartitionEvent, RaftCommand, RaftNode, RaftRole, RaftState,
+    SplitBrainDetector, StealableTask, VoteRequest, VoteResponse, WorkStealingQueue,
+};
+pub use failover::{FailoverCoordinator, FailoverEvent, FailoverPolicy, FailoverState};
 pub use hash::{ConsistentHash, HashRing, VirtualNode};
+pub use health::{HealthChecker, HealthConfig, HealthStatus, NodeHealth};
 pub use member::{Gossip, Member, MemberHealth, MemberState};
 pub use migration::{MigrationManager, MigrationPlan, MigrationState};
+pub use region::{DataLocalityConstraint, Region, RegionAwareRouter, RegionPolicy, RegionTopology};
 pub use router::{RoutingDecision, RoutingPolicy, SandboxRouter};
+pub use scheduler::{
+    NodeCapacity, PlacementConstraint, PlacementStrategy, ResourceRequirements, ScheduledTask,
+    SchedulerConfig, SchedulerStats, SchedulingResult, TaskPriority, TaskScheduler,
+};
 
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -93,11 +110,7 @@ pub struct NodeAddr {
 impl NodeAddr {
     /// Create a new node address.
     pub fn new(id: NodeId, addr: SocketAddr) -> Self {
-        Self {
-            id,
-            addr,
-            gossip_addr: None,
-        }
+        Self { id, addr, gossip_addr: None }
     }
 
     /// Set the gossip address.
@@ -126,6 +139,10 @@ pub struct MeshConfig {
     pub auto_migrate: bool,
     /// Maximum concurrent migrations.
     pub max_concurrent_migrations: usize,
+    /// Region this node belongs to.
+    pub region: Option<String>,
+    /// Region routing policy.
+    pub region_policy: Option<RegionPolicy>,
 }
 
 impl Default for MeshConfig {
@@ -139,6 +156,8 @@ impl Default for MeshConfig {
             failure_timeout: Duration::from_secs(5),
             auto_migrate: true,
             max_concurrent_migrations: 3,
+            region: None,
+            region_policy: None,
         }
     }
 }
