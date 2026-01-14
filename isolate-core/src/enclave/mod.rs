@@ -6,6 +6,21 @@
 //! Hardware-backed security using Intel SGX, AMD SEV, or ARM TrustZone.
 //! Provides encrypted memory, remote attestation, and secure enclaves.
 
+pub mod attestation;
+pub mod audit;
+pub mod compliance;
+pub mod hal;
+
+pub use attestation::{
+    AttestationCheck, AttestationPolicy, AttestationTrustLevel, AttestationVerifier, CheckSeverity,
+    EnclaveAttributes, EnclaveIdentity, VerificationResult,
+};
+pub use audit::{AttestationAuditEvent, AttestationAuditLog, AuditEventType, AuditOutcome};
+pub use compliance::{
+    ComplianceAssessor, ComplianceControl, ComplianceFramework, ComplianceReport,
+    ComplianceSummary, ControlStatus,
+};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -77,12 +92,7 @@ pub struct SecureEnclave {
 impl SecureEnclave {
     /// Create a new secure enclave.
     pub fn new(config: EnclaveConfig) -> Self {
-        Self {
-            config,
-            is_initialized: false,
-            attestation: None,
-            sealed_data: HashMap::new(),
-        }
+        Self { config, is_initialized: false, attestation: None, sealed_data: HashMap::new() }
     }
 
     /// Initialize the enclave.
