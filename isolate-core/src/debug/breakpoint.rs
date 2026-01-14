@@ -71,12 +71,7 @@ impl BreakpointCondition {
 
     /// Create a new condition with an expression.
     pub fn expression(expr: impl Into<String>) -> Self {
-        Self {
-            expression: expr.into(),
-            expected_value: None,
-            hit_count: None,
-            when_true: true,
-        }
+        Self { expression: expr.into(), expected_value: None, hit_count: None, when_true: true }
     }
 
     /// Create a condition that checks a value equals expected.
@@ -272,11 +267,7 @@ impl Breakpoint {
             watch_mode: WatchMode::default(),
             wasi_call: None,
             capability: None,
-            resource_threshold: Some(ResourceThreshold {
-                resource,
-                threshold,
-                trigger_above,
-            }),
+            resource_threshold: Some(ResourceThreshold { resource, threshold, trigger_above }),
             condition: None,
             hit_count: 0,
             sandbox_id: None,
@@ -362,10 +353,7 @@ impl Breakpoint {
                 format!("wasi::{}", self.wasi_call.as_deref().unwrap_or("unknown"))
             }
             BreakpointType::CapabilityCheck => {
-                format!(
-                    "capability {}",
-                    self.capability.as_deref().unwrap_or("unknown")
-                )
+                format!("capability {}", self.capability.as_deref().unwrap_or("unknown"))
             }
             BreakpointType::ResourceThreshold => {
                 if let Some(ref rt) = self.resource_threshold {
@@ -499,9 +487,7 @@ mod tests {
     fn test_breakpoint_description() {
         assert!(Breakpoint::function("main").description().contains("main"));
         assert!(Breakpoint::address(0x1000).description().contains("0x1000"));
-        assert!(Breakpoint::wasi_call("fd_read")
-            .description()
-            .contains("fd_read"));
+        assert!(Breakpoint::wasi_call("fd_read").description().contains("fd_read"));
     }
 
     #[test]

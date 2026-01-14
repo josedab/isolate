@@ -135,10 +135,7 @@ pub struct MemorySnapshot {
 impl MemorySnapshot {
     /// Create a new empty memory snapshot.
     pub fn new() -> Self {
-        Self {
-            pages: HashMap::new(),
-            total_size: 0,
-        }
+        Self { pages: HashMap::new(), total_size: 0 }
     }
 
     /// Page size (4KB).
@@ -276,9 +273,7 @@ pub struct RegisterSnapshot {
 impl RegisterSnapshot {
     /// Create a new register snapshot.
     pub fn new() -> Self {
-        Self {
-            values: HashMap::new(),
-        }
+        Self { values: HashMap::new() }
     }
 
     /// Set a register value.
@@ -315,11 +310,7 @@ impl RegisterSnapshot {
                     });
                 }
                 None => {
-                    changes.push(RegisterChange {
-                        name: name.clone(),
-                        old_value: None,
-                        new_value,
-                    });
+                    changes.push(RegisterChange { name: name.clone(), old_value: None, new_value });
                 }
                 _ => {}
             }
@@ -350,9 +341,7 @@ pub struct GlobalSnapshot {
 impl GlobalSnapshot {
     /// Create a new global snapshot.
     pub fn new() -> Self {
-        Self {
-            values: HashMap::new(),
-        }
+        Self { values: HashMap::new() }
     }
 
     /// Set a global value.
@@ -583,18 +572,13 @@ impl SnapshotManager {
     /// Get the nearest snapshot at or before the given event ID.
     pub fn get_nearest(&self, event_id: EventId) -> Option<StateSnapshot> {
         let snapshots = self.snapshots.read().ok()?;
-        snapshots
-            .range(..=event_id)
-            .next_back()
-            .map(|(_, s)| s.clone())
+        snapshots.range(..=event_id).next_back().map(|(_, s)| s.clone())
     }
 
     /// Get all snapshot event IDs.
     pub fn snapshot_ids(&self) -> Vec<EventId> {
         let snapshots = self.snapshots.read().ok();
-        snapshots
-            .map(|s| s.keys().copied().collect())
-            .unwrap_or_default()
+        snapshots.map(|s| s.keys().copied().collect()).unwrap_or_default()
     }
 
     /// Get the number of stored snapshots.
@@ -675,10 +659,7 @@ mod tests {
 
     #[test]
     fn test_state_snapshot() {
-        let snapshot = StateSnapshot::new(100)
-            .with_ip(0x1000)
-            .with_stack_depth(2)
-            .with_fuel(5000);
+        let snapshot = StateSnapshot::new(100).with_ip(0x1000).with_stack_depth(2).with_fuel(5000);
 
         assert_eq!(snapshot.event_id, 100);
         assert_eq!(snapshot.instruction_pointer, 0x1000);
@@ -746,9 +727,7 @@ mod tests {
 
     #[test]
     fn test_stack_frame() {
-        let frame = StackFrame::new(5, 0x1000)
-            .with_name("my_function")
-            .with_locals(vec![1, 2, 3]);
+        let frame = StackFrame::new(5, 0x1000).with_name("my_function").with_locals(vec![1, 2, 3]);
 
         assert_eq!(frame.function_index, 5);
         assert_eq!(frame.function_name, Some("my_function".to_string()));
@@ -764,13 +743,9 @@ mod tests {
         let mut regs2 = RegisterSnapshot::new();
         regs2.set("rax", 42);
 
-        let snap1 = StateSnapshot::new(0)
-            .with_stack_depth(1)
-            .with_registers(regs1);
+        let snap1 = StateSnapshot::new(0).with_stack_depth(1).with_registers(regs1);
 
-        let snap2 = StateSnapshot::new(100)
-            .with_stack_depth(3)
-            .with_registers(regs2);
+        let snap2 = StateSnapshot::new(100).with_stack_depth(3).with_registers(regs2);
 
         let diff = snap1.diff(&snap2);
         assert_eq!(diff.from_event, 0);

@@ -368,10 +368,7 @@ pub struct GlobalsSnapshot {
 impl GlobalsSnapshot {
     /// Create a new globals snapshot.
     pub fn new(globals: Vec<Variable>) -> Self {
-        Self {
-            globals,
-            captured_at: Utc::now(),
-        }
+        Self { globals, captured_at: Utc::now() }
     }
 
     /// Get a global by index.
@@ -381,9 +378,7 @@ impl GlobalsSnapshot {
 
     /// Get a global by name.
     pub fn get_by_name(&self, name: &str) -> Option<&Variable> {
-        self.globals
-            .iter()
-            .find(|g| g.name.as_deref() == Some(name))
+        self.globals.iter().find(|g| g.name.as_deref() == Some(name))
     }
 }
 
@@ -517,21 +512,14 @@ impl Inspector {
 
     /// Get all local variables from all frames.
     pub fn all_locals(&self) -> Vec<&Variable> {
-        self.call_stack
-            .iter()
-            .flat_map(|f| f.locals.iter())
-            .collect()
+        self.call_stack.iter().flat_map(|f| f.locals.iter()).collect()
     }
 
     /// Find a variable by name in any scope.
     pub fn find_variable(&self, name: &str) -> Option<&Variable> {
         // Search frames from top to bottom
         for frame in &self.call_stack {
-            if let Some(var) = frame
-                .locals
-                .iter()
-                .find(|v| v.name.as_deref() == Some(name))
-            {
+            if let Some(var) = frame.locals.iter().find(|v| v.name.as_deref() == Some(name)) {
                 return Some(var);
             }
         }
@@ -564,9 +552,8 @@ mod tests {
 
     #[test]
     fn test_stack_frame() {
-        let frame = StackFrame::new(0, 0x1000)
-            .with_function_name("main")
-            .with_source("test.c", 42, 10);
+        let frame =
+            StackFrame::new(0, 0x1000).with_function_name("main").with_source("test.c", 42, 10);
 
         assert_eq!(frame.index, 0);
         assert_eq!(frame.function_name, Some("main".to_string()));
@@ -640,10 +627,7 @@ mod tests {
         ]);
 
         assert_eq!(globals.get(0).unwrap().as_i32(), Some(100));
-        assert_eq!(
-            globals.get_by_name("global_ptr").unwrap().as_i64(),
-            Some(0x1000)
-        );
+        assert_eq!(globals.get_by_name("global_ptr").unwrap().as_i64(), Some(0x1000));
     }
 
     #[test]
@@ -667,10 +651,7 @@ mod tests {
         inspector.set_call_stack(stack);
 
         assert_eq!(inspector.stack_depth(), 2);
-        assert_eq!(
-            inspector.current_frame().unwrap().function_name,
-            Some("inner".to_string())
-        );
+        assert_eq!(inspector.current_frame().unwrap().function_name, Some("inner".to_string()));
     }
 
     #[test]
@@ -694,10 +675,7 @@ mod tests {
         let mut inspector = Inspector::new(sandbox_id);
 
         inspector.add_watch("x + y");
-        assert_eq!(
-            inspector.watches().get("x + y"),
-            Some(&"<not evaluated>".to_string())
-        );
+        assert_eq!(inspector.watches().get("x + y"), Some(&"<not evaluated>".to_string()));
 
         inspector.update_watch("x + y", "42");
         assert_eq!(inspector.watches().get("x + y"), Some(&"42".to_string()));

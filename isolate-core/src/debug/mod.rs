@@ -35,12 +35,23 @@
 #![allow(dead_code)]
 
 mod breakpoint;
+pub mod dap;
+pub mod flamegraph;
 mod inspector;
+pub mod profiler;
 mod session;
 pub mod timetravel;
 
 pub use breakpoint::{Breakpoint, BreakpointCondition, BreakpointId, BreakpointType};
+pub use dap::{
+    DapCommand, DapEvent, DapMessage, DapRequest, DapResponse, DapServer, DashboardSummary,
+    ResourceDashboard, ResourceDataPoint,
+};
+pub use flamegraph::{FlameGraphBuilder, FlameGraphOptions, FlameGraphSummary, FlameNode};
 pub use inspector::{Inspector, MemoryView, StackFrame, Variable, VariableType};
+pub use profiler::{
+    ExecutionProfile, FunctionProfile, ProfileEvent, ProfileSession, SandboxProfiler,
+};
 pub use session::{DebugCommand, DebugError, DebugEvent, DebugSession, DebugState};
 pub use timetravel::{
     EventType, ExecutionEvent, Recorder, RecordingConfig, RecordingSession, SnapshotManager,

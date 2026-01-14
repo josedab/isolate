@@ -39,15 +39,26 @@
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+mod diff;
 mod event;
 mod recorder;
+mod replay;
 mod snapshot;
 mod timeline;
+mod watchpoint;
 
+pub use diff::{
+    ComparisonSummary, DiffCategory, DiffSummary, EventDiff, ExecutionDiffer, MemoryDiff,
+    RegisterDiff, RunComparison, RunDifference, StateDiff,
+};
 pub use event::{EventType, ExecutionEvent, MemoryChange, RegisterChange};
 pub use recorder::{Recorder, RecordingConfig, RecordingSession};
+pub use replay::{
+    Bookmark, ReplayCommand, ReplayConfig, ReplayResult, ReplaySession, ReplaySpeed, ReplayState,
+};
 pub use snapshot::{SnapshotManager, StateSnapshot};
 pub use timeline::{StepResult, Timeline, TimelineNavigation};
+pub use watchpoint::{WatchCondition, WatchType, Watchpoint, WatchpointHit, WatchpointManager};
 
 use uuid::Uuid;
 
@@ -93,10 +104,7 @@ impl Default for TimeTravelConfig {
 impl TimeTravelConfig {
     /// Create a new configuration with time-travel enabled.
     pub fn enabled() -> Self {
-        Self {
-            enabled: true,
-            ..Default::default()
-        }
+        Self { enabled: true, ..Default::default() }
     }
 
     /// Create a minimal configuration for low overhead.
