@@ -31,10 +31,7 @@ impl FeatureVector {
 
     /// Get all features as a slice for ML models.
     pub fn to_array(&self, feature_names: &[&str]) -> Vec<f64> {
-        feature_names
-            .iter()
-            .map(|name| self.features.get(*name).copied().unwrap_or(0.0))
-            .collect()
+        feature_names.iter().map(|name| self.features.get(*name).copied().unwrap_or(0.0)).collect()
     }
 
     /// Normalize features to 0-1 range.
@@ -177,20 +174,14 @@ impl BehaviorFeatures {
         vec.set("memory_alloc_rate", self.memory_alloc_rate);
         vec.set("memory_access_entropy", self.memory_access_entropy);
         vec.set("peak_memory", self.peak_memory as f64);
-        vec.set(
-            "memory_regions_accessed",
-            self.memory_regions_accessed as f64,
-        );
+        vec.set("memory_regions_accessed", self.memory_regions_accessed as f64);
         vec.set("sequential_access_ratio", self.sequential_access_ratio);
 
         // I/O features
         vec.set("io_read_rate", self.io_read_rate);
         vec.set("io_write_rate", self.io_write_rate);
         vec.set("unique_files_accessed", self.unique_files_accessed as f64);
-        vec.set(
-            "sensitive_file_accesses",
-            self.sensitive_file_accesses as f64,
-        );
+        vec.set("sensitive_file_accesses", self.sensitive_file_accesses as f64);
 
         // Network features
         vec.set("outbound_connections", self.outbound_connections as f64);
@@ -208,16 +199,10 @@ impl BehaviorFeatures {
         // Crypto features
         vec.set("math_operation_ratio", self.math_operation_ratio);
         vec.set("hash_operation_count", self.hash_operation_count as f64);
-        vec.set(
-            "repeated_computation_ratio",
-            self.repeated_computation_ratio,
-        );
+        vec.set("repeated_computation_ratio", self.repeated_computation_ratio);
 
         // Timing features
-        vec.set(
-            "execution_duration_secs",
-            self.execution_duration.as_secs_f64(),
-        );
+        vec.set("execution_duration_secs", self.execution_duration.as_secs_f64());
         vec.set("syscall_timing_variance", self.syscall_timing_variance);
         vec.set("timing_anomalies", self.timing_anomalies as f64);
 
@@ -367,11 +352,8 @@ impl FeatureExtractor {
         features.instructions_per_second = instruction_count as f64 / duration_secs;
         features.wasi_calls_per_second = wasi_calls as f64 / duration_secs;
         features.unique_wasi_functions = unique_wasi.len() as u64;
-        features.wasi_error_ratio = if wasi_calls > 0 {
-            wasi_errors as f64 / wasi_calls as f64
-        } else {
-            0.0
-        };
+        features.wasi_error_ratio =
+            if wasi_calls > 0 { wasi_errors as f64 / wasi_calls as f64 } else { 0.0 };
         features.io_read_rate = bytes_read as f64 / duration_secs;
         features.io_write_rate = bytes_written as f64 / duration_secs;
 
@@ -392,15 +374,11 @@ impl FeatureExtractor {
 
     fn is_sensitive_path(&self, path: &str) -> bool {
         let path_lower = path.to_lowercase();
-        self.sensitive_patterns
-            .iter()
-            .any(|p| path_lower.contains(p))
+        self.sensitive_patterns.iter().any(|p| path_lower.contains(p))
     }
 
     fn is_suspicious_destination(&self, destination: &str) -> bool {
-        self.suspicious_destinations
-            .iter()
-            .any(|d| destination.contains(d))
+        self.suspicious_destinations.iter().any(|d| destination.contains(d))
     }
 }
 
@@ -431,11 +409,7 @@ pub enum ExecutionEventType {
     /// Memory write.
     MemoryWrite { address: u64, size: u32 },
     /// File access.
-    FileAccess {
-        path: String,
-        read: bool,
-        write: bool,
-    },
+    FileAccess { path: String, read: bool, write: bool },
     /// Network connection.
     NetworkConnect { destination: String },
     /// DNS query.

@@ -235,17 +235,11 @@ impl PatternMatcher {
         let index = self.patterns.len();
 
         // Index by category
-        self.patterns_by_category
-            .entry(pattern.category)
-            .or_default()
-            .push(index);
+        self.patterns_by_category.entry(pattern.category).or_default().push(index);
 
         // Index by tags
         for tag in &pattern.tags {
-            self.patterns_by_tag
-                .entry(tag.clone())
-                .or_default()
-                .push(index);
+            self.patterns_by_tag.entry(tag.clone()).or_default().push(index);
         }
 
         self.patterns.push(pattern);
@@ -314,16 +308,10 @@ impl PatternMatcher {
         self.patterns_by_tag.clear();
 
         for (index, pattern) in self.patterns.iter().enumerate() {
-            self.patterns_by_category
-                .entry(pattern.category)
-                .or_default()
-                .push(index);
+            self.patterns_by_category.entry(pattern.category).or_default().push(index);
 
             for tag in &pattern.tags {
-                self.patterns_by_tag
-                    .entry(tag.clone())
-                    .or_default()
-                    .push(index);
+                self.patterns_by_tag.entry(tag.clone()).or_default().push(index);
             }
         }
     }
@@ -365,23 +353,21 @@ impl PatternMatcher {
         );
 
         self.add_pattern(
-            MalwarePattern::new(
-                "miner_002",
-                "Coinhive-style Miner",
-                ThreatCategory::Cryptominer,
-            )
-            .with_description("Detects browser-style cryptocurrency mining patterns")
-            .with_indicator(BehaviorIndicator::new("sustained_cpu", "high_cpu").with_weight(0.7))
-            .with_indicator(
-                BehaviorIndicator::new("network_beacon", "suspicious_network")
-                    .with_description("Regular network beaconing")
-                    .with_weight(0.6),
-            )
-            .with_indicator(
-                BehaviorIndicator::new("wasm_compute", "high_math_ops").with_weight(0.8),
-            )
-            .with_threshold(0.65)
-            .with_tags(vec!["crypto".to_string(), "browser".to_string()]),
+            MalwarePattern::new("miner_002", "Coinhive-style Miner", ThreatCategory::Cryptominer)
+                .with_description("Detects browser-style cryptocurrency mining patterns")
+                .with_indicator(
+                    BehaviorIndicator::new("sustained_cpu", "high_cpu").with_weight(0.7),
+                )
+                .with_indicator(
+                    BehaviorIndicator::new("network_beacon", "suspicious_network")
+                        .with_description("Regular network beaconing")
+                        .with_weight(0.6),
+                )
+                .with_indicator(
+                    BehaviorIndicator::new("wasm_compute", "high_math_ops").with_weight(0.8),
+                )
+                .with_threshold(0.65)
+                .with_tags(vec!["crypto".to_string(), "browser".to_string()]),
         );
 
         // Data exfiltration patterns
@@ -497,29 +483,25 @@ impl PatternMatcher {
 
         // Generic suspicious patterns
         self.add_pattern(
-            MalwarePattern::new(
-                "generic_001",
-                "Suspicious Behavior",
-                ThreatCategory::Generic,
-            )
-            .with_description("Generic suspicious behavior pattern")
-            .with_indicator(
-                BehaviorIndicator::new("high_error_rate", "high_errors")
-                    .with_description("High WASI error rate")
-                    .with_weight(0.5),
-            )
-            .with_indicator(
-                BehaviorIndicator::new("timing_anomaly", "timing_anomaly")
-                    .with_description("Suspicious timing patterns")
-                    .with_weight(0.4),
-            )
-            .with_indicator(
-                BehaviorIndicator::new("unusual_syscalls", "unusual_wasi")
-                    .with_description("Unusual WASI call patterns")
-                    .with_weight(0.5),
-            )
-            .with_threshold(0.7)
-            .with_tags(vec!["generic".to_string()]),
+            MalwarePattern::new("generic_001", "Suspicious Behavior", ThreatCategory::Generic)
+                .with_description("Generic suspicious behavior pattern")
+                .with_indicator(
+                    BehaviorIndicator::new("high_error_rate", "high_errors")
+                        .with_description("High WASI error rate")
+                        .with_weight(0.5),
+                )
+                .with_indicator(
+                    BehaviorIndicator::new("timing_anomaly", "timing_anomaly")
+                        .with_description("Suspicious timing patterns")
+                        .with_weight(0.4),
+                )
+                .with_indicator(
+                    BehaviorIndicator::new("unusual_syscalls", "unusual_wasi")
+                        .with_description("Unusual WASI call patterns")
+                        .with_weight(0.5),
+                )
+                .with_threshold(0.7)
+                .with_tags(vec!["generic".to_string()]),
         );
     }
 }
@@ -645,11 +627,7 @@ mod tests {
         assert!(matcher.set_pattern_enabled(pattern_id, false));
 
         // Verify disabled
-        let pattern = matcher
-            .patterns()
-            .iter()
-            .find(|p| &p.id == pattern_id)
-            .unwrap();
+        let pattern = matcher.patterns().iter().find(|p| &p.id == pattern_id).unwrap();
         assert!(!pattern.enabled);
 
         // Re-enable

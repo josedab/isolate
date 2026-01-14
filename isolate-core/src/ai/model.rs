@@ -108,22 +108,14 @@ impl AnomalyModel {
     /// Train the model on a set of samples.
     pub fn train(&mut self, samples: &[FeatureVector]) -> Result<(), ModelError> {
         if samples.is_empty() {
-            return Err(ModelError::InvalidFeatures(
-                "No samples provided".to_string(),
-            ));
+            return Err(ModelError::InvalidFeatures("No samples provided".to_string()));
         }
 
         // Extract feature arrays for training
-        let feature_refs: Vec<&str> = self
-            .config
-            .feature_names
-            .iter()
-            .map(|s| s.as_str())
-            .collect();
-        let feature_arrays: Vec<Vec<f64>> = samples
-            .iter()
-            .map(|fv| fv.to_array(&feature_refs))
-            .collect();
+        let feature_refs: Vec<&str> =
+            self.config.feature_names.iter().map(|s| s.as_str()).collect();
+        let feature_arrays: Vec<Vec<f64>> =
+            samples.iter().map(|fv| fv.to_array(&feature_refs)).collect();
 
         // Train each model component (simplified training)
         self.isolation_forest.fit(&feature_arrays);
@@ -144,12 +136,8 @@ impl AnomalyModel {
     /// Predict anomaly score for a feature vector.
     pub fn predict(&self, features: &FeatureVector) -> PredictionResult {
         // Convert features to array
-        let feature_refs: Vec<&str> = self
-            .config
-            .feature_names
-            .iter()
-            .map(|s| s.as_str())
-            .collect();
+        let feature_refs: Vec<&str> =
+            self.config.feature_names.iter().map(|s| s.as_str()).collect();
         let feature_array = features.to_array(&feature_refs);
 
         // Run ensemble predictions
@@ -308,10 +296,7 @@ impl AnomalyModel {
                 )
             }
             _ => {
-                format!(
-                    "Suspicious behavior detected. Key indicators: {}",
-                    features_str
-                )
+                format!("Suspicious behavior detected. Key indicators: {}", features_str)
             }
         }
     }
@@ -356,10 +341,7 @@ struct IsolationForest {
 
 impl IsolationForest {
     fn new() -> Self {
-        Self {
-            n_trees: 100,
-            sample_size: 256,
-        }
+        Self { n_trees: 100, sample_size: 256 }
     }
 
     fn fit(&mut self, _samples: &[Vec<f64>]) {
@@ -389,10 +371,7 @@ struct OneClassSVM {
 
 impl OneClassSVM {
     fn new() -> Self {
-        Self {
-            nu: 0.1,
-            gamma: 0.1,
-        }
+        Self { nu: 0.1, gamma: 0.1 }
     }
 
     fn fit(&mut self, _samples: &[Vec<f64>]) {
@@ -415,9 +394,7 @@ struct Autoencoder {
 
 impl Autoencoder {
     fn new() -> Self {
-        Self {
-            reconstruction_threshold: 0.5,
-        }
+        Self { reconstruction_threshold: 0.5 }
     }
 
     fn fit(&mut self, _samples: &[Vec<f64>]) {
@@ -452,11 +429,7 @@ impl SignatureDatabase {
     }
 
     fn match_features(&self, features: &FeatureVector) -> SignatureMatch {
-        let mut best_match = SignatureMatch {
-            score: 0.0,
-            threat_type: None,
-            signature_id: None,
-        };
+        let mut best_match = SignatureMatch { score: 0.0, threat_type: None, signature_id: None };
 
         for sig in &self.signatures {
             let score = sig.match_score(features);
