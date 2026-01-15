@@ -77,12 +77,10 @@ async fn test_sandbox_with_shared_engine() {
         .build()
         .expect("valid config");
 
-    let sandbox1 = Sandbox::create_with_engine(config1, engine.clone())
-        .await
-        .expect("sandbox1 creation");
-    let sandbox2 = Sandbox::create_with_engine(config2, engine.clone())
-        .await
-        .expect("sandbox2 creation");
+    let sandbox1 =
+        Sandbox::create_with_engine(config1, engine.clone()).await.expect("sandbox1 creation");
+    let sandbox2 =
+        Sandbox::create_with_engine(config2, engine.clone()).await.expect("sandbox2 creation");
 
     // Both should use cached module
     assert_eq!(engine.cached_module_count(), 1);
@@ -212,10 +210,7 @@ async fn test_sandbox_execution_with_fuel_limit() {
     // The minimal module should complete well under the fuel limit
     assert_eq!(output.exit_code, 0);
     // Fuel should have been consumed
-    assert!(
-        output.resource_usage.fuel_consumed > 0,
-        "Expected some fuel to be consumed"
-    );
+    assert!(output.resource_usage.fuel_consumed > 0, "Expected some fuel to be consumed");
 }
 
 #[tokio::test]
@@ -233,11 +228,7 @@ async fn test_sandbox_cold_start_performance() {
     let cold_start = start.elapsed();
 
     // Cold start should be under 100ms (generous for CI environments)
-    assert!(
-        cold_start.as_millis() < 100,
-        "Cold start took {:?}, expected < 100ms",
-        cold_start
-    );
+    assert!(cold_start.as_millis() < 100, "Cold start took {:?}, expected < 100ms", cold_start);
 }
 
 #[tokio::test]
@@ -251,9 +242,8 @@ async fn test_sandbox_shared_engine_performance() {
         .expect("valid module")
         .build()
         .expect("valid config");
-    let _sandbox1 = Sandbox::create_with_engine(config1, engine.clone())
-        .await
-        .expect("sandbox1 creation");
+    let _sandbox1 =
+        Sandbox::create_with_engine(config1, engine.clone()).await.expect("sandbox1 creation");
     let cold_start = start1.elapsed();
 
     // Second sandbox (warm - module already compiled)
@@ -263,9 +253,8 @@ async fn test_sandbox_shared_engine_performance() {
         .expect("valid module")
         .build()
         .expect("valid config");
-    let _sandbox2 = Sandbox::create_with_engine(config2, engine.clone())
-        .await
-        .expect("sandbox2 creation");
+    let _sandbox2 =
+        Sandbox::create_with_engine(config2, engine.clone()).await.expect("sandbox2 creation");
     let warm_start = start2.elapsed();
 
     // Warm start should be faster (module compilation is cached)
@@ -295,10 +284,7 @@ async fn test_stdout_capture() {
 
     // Verify stdout was captured
     let stdout_str = output.stdout_str();
-    assert_eq!(
-        stdout_str, "Hello from WASM!\n",
-        "Expected stdout to contain hello message"
-    );
+    assert_eq!(stdout_str, "Hello from WASM!\n", "Expected stdout to contain hello message");
 }
 
 #[tokio::test]
@@ -362,10 +348,7 @@ async fn test_timeout_with_infinite_loop() {
     let result = sandbox.run(&[]).await;
 
     // Should timeout or be interrupted - the infinite loop should not complete
-    assert!(
-        result.is_err(),
-        "Expected error from infinite loop, but it completed successfully"
-    );
+    assert!(result.is_err(), "Expected error from infinite loop, but it completed successfully");
 }
 
 #[tokio::test]
@@ -465,11 +448,7 @@ async fn test_args_reader_with_args_capability() {
 
     // Exit code is the number of arguments
     // Should be 3 (our args)
-    assert_eq!(
-        output.exit_code, 3,
-        "Expected 3 args, got exit code: {}",
-        output.exit_code
-    );
+    assert_eq!(output.exit_code, 3, "Expected 3 args, got exit code: {}", output.exit_code);
 }
 
 #[tokio::test]
