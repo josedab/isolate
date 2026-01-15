@@ -11,6 +11,8 @@
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+pub mod reference;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -264,10 +266,7 @@ impl PluginRegistry {
 
         // Register event handlers
         for event_type in &manifest.event_subscriptions {
-            self.event_handlers
-                .entry(*event_type)
-                .or_default()
-                .push(manifest.id.clone());
+            self.event_handlers.entry(*event_type).or_default().push(manifest.id.clone());
         }
 
         // Register host functions
@@ -574,8 +573,7 @@ mod tests {
             &mut self,
             _config: &HashMap<String, serde_json::Value>,
         ) -> Result<(), PluginError> {
-            self.init_called
-                .store(true, std::sync::atomic::Ordering::SeqCst);
+            self.init_called.store(true, std::sync::atomic::Ordering::SeqCst);
             Ok(())
         }
 
@@ -613,9 +611,7 @@ mod tests {
             .plugin_type(PluginType::HostFunctions)
             .build();
 
-        registry
-            .register(manifest, Box::new(NoopHandler::default()))
-            .unwrap();
+        registry.register(manifest, Box::new(NoopHandler::default())).unwrap();
         assert_eq!(registry.list().len(), 1);
     }
 
@@ -625,12 +621,8 @@ mod tests {
 
         let manifest = ManifestBuilder::new("test", "Test").build();
 
-        registry
-            .register(manifest, Box::new(NoopHandler::default()))
-            .unwrap();
-        registry
-            .load(&PluginId::new("test"), HashMap::new())
-            .unwrap();
+        registry.register(manifest, Box::new(NoopHandler::default())).unwrap();
+        registry.load(&PluginId::new("test"), HashMap::new()).unwrap();
 
         let plugin = registry.get(&PluginId::new("test")).unwrap();
         assert_eq!(plugin.state(), PluginState::Active);
@@ -645,12 +637,8 @@ mod tests {
             .subscribe(EventType::SandboxCompleted)
             .build();
 
-        registry
-            .register(manifest, Box::new(TestHandler::new()))
-            .unwrap();
-        registry
-            .load(&PluginId::new("event-handler"), HashMap::new())
-            .unwrap();
+        registry.register(manifest, Box::new(TestHandler::new())).unwrap();
+        registry.load(&PluginId::new("event-handler"), HashMap::new()).unwrap();
 
         let event = Event {
             event_type: EventType::SandboxCreated,
@@ -678,12 +666,8 @@ mod tests {
             })
             .build();
 
-        registry
-            .register(manifest, Box::new(TestHandler::new()))
-            .unwrap();
-        registry
-            .load(&PluginId::new("math"), HashMap::new())
-            .unwrap();
+        registry.register(manifest, Box::new(TestHandler::new())).unwrap();
+        registry.load(&PluginId::new("math"), HashMap::new()).unwrap();
 
         let result = registry
             .invoke_host_function("math", "add", &[serde_json::json!(2), serde_json::json!(3)])
@@ -697,12 +681,8 @@ mod tests {
         let mut registry = PluginRegistry::new();
 
         let manifest = ManifestBuilder::new("test", "Test").build();
-        registry
-            .register(manifest, Box::new(NoopHandler::default()))
-            .unwrap();
-        registry
-            .load(&PluginId::new("test"), HashMap::new())
-            .unwrap();
+        registry.register(manifest, Box::new(NoopHandler::default())).unwrap();
+        registry.load(&PluginId::new("test"), HashMap::new()).unwrap();
 
         registry.disable(&PluginId::new("test")).unwrap();
 
@@ -715,9 +695,7 @@ mod tests {
         let mut registry = PluginRegistry::new();
 
         let manifest = ManifestBuilder::new("temp", "Temporary").build();
-        registry
-            .register(manifest, Box::new(NoopHandler::default()))
-            .unwrap();
+        registry.register(manifest, Box::new(NoopHandler::default())).unwrap();
 
         registry.unregister(&PluginId::new("temp")).unwrap();
         assert!(registry.get(&PluginId::new("temp")).is_none());
@@ -728,9 +706,7 @@ mod tests {
         let mut registry = PluginRegistry::new();
 
         let manifest = ManifestBuilder::new("dup", "Duplicate").build();
-        registry
-            .register(manifest.clone(), Box::new(NoopHandler::default()))
-            .unwrap();
+        registry.register(manifest.clone(), Box::new(NoopHandler::default())).unwrap();
 
         let result = registry.register(manifest, Box::new(NoopHandler::default()));
         assert!(matches!(result, Err(PluginError::AlreadyRegistered(_))));
@@ -760,9 +736,7 @@ mod tests {
             })
             .build();
 
-        registry
-            .register(manifest1, Box::new(NoopHandler::default()))
-            .unwrap();
+        registry.register(manifest1, Box::new(NoopHandler::default())).unwrap();
         let result = registry.register(manifest2, Box::new(NoopHandler::default()));
 
         assert!(matches!(result, Err(PluginError::FunctionConflict(_))));
@@ -789,12 +763,8 @@ mod tests {
             })
             .build();
 
-        registry
-            .register(manifest, Box::new(NoopHandler::default()))
-            .unwrap();
-        registry
-            .load(&PluginId::new("funcs"), HashMap::new())
-            .unwrap();
+        registry.register(manifest, Box::new(NoopHandler::default())).unwrap();
+        registry.load(&PluginId::new("funcs"), HashMap::new()).unwrap();
 
         let funcs = registry.available_host_functions();
         assert_eq!(funcs.len(), 2);

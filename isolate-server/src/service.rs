@@ -173,10 +173,7 @@ impl IsolateService for IsolateServiceImpl {
         Span::current().record("sandbox.module_hash", &module_hash);
 
         // Store sandbox
-        self.sandboxes.insert(
-            sandbox_id.clone(),
-            Arc::new(tokio::sync::Mutex::new(sandbox)),
-        );
+        self.sandboxes.insert(sandbox_id.clone(), Arc::new(tokio::sync::Mutex::new(sandbox)));
 
         tracing::info!(
             sandbox_id = %sandbox_id,
@@ -273,9 +270,7 @@ impl IsolateService for IsolateServiceImpl {
         let guard = sandbox.lock().await;
         let info = Self::sandbox_to_info(&guard);
 
-        Ok(Response::new(GetSandboxResponse {
-            sandbox: Some(info),
-        }))
+        Ok(Response::new(GetSandboxResponse { sandbox: Some(info) }))
     }
 
     #[instrument(
@@ -356,11 +351,7 @@ impl IsolateService for IsolateServiceImpl {
 
         // Apply pagination
         let offset = req.offset.max(0) as usize;
-        let limit = if req.limit > 0 {
-            req.limit as usize
-        } else {
-            sandboxes.len()
-        };
+        let limit = if req.limit > 0 { req.limit as usize } else { sandboxes.len() };
 
         let sandboxes: Vec<_> = sandboxes.into_iter().skip(offset).take(limit).collect();
 
@@ -401,9 +392,7 @@ impl IsolateService for IsolateServiceImpl {
             drop(tx);
         });
 
-        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(
-            rx,
-        )))
+        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(rx)))
     }
 
     #[instrument(
