@@ -1,0 +1,11 @@
+# Developer environment configuration for Isolate.
+#
+# To enforce warnings-as-errors locally (matching CI), run:
+#   RUSTFLAGS="-Dwarnings" cargo check --all-features
+#
+# Or use the task runner:
+#   cargo xtask check
+#   just check
+
+[alias]
+xtask = "run --package xtask --"

@@ -5,6 +5,15 @@ members = [
     "isolate-server",
     "isolate-cli",
     "isolate-python",
+    "xtask",
+]
+# isolate-python requires a Python dev environment (python3-dev / python3-devel)
+# and is excluded from default build/test. Build it explicitly with:
+#   cargo build -p isolate-python
+default-members = [
+    "isolate-core",
+    "isolate-server",
+    "isolate-cli",
 ]
 
 [workspace.package]

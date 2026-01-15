@@ -143,3 +143,22 @@ tree:
 # Check compilation without building
 check-compile:
     cargo check --all-targets --all-features --workspace
+
+# Verify development environment is set up correctly
+doctor:
+    @echo "🔍 Checking development environment..."
+    @echo ""
+    @echo "Rust toolchain:"
+    @rustc --version
+    @cargo --version
+    @echo ""
+    @echo "Checking compilation..."
+    @cargo check --all-features --workspace 2>/dev/null && echo "✅ Compilation OK" || echo "❌ Compilation failed"
+    @echo ""
+    @echo "Checking formatting..."
+    @cargo fmt --all -- --check 2>/dev/null && echo "✅ Formatting OK" || echo "❌ Run 'just fmt' to fix formatting"
+    @echo ""
+    @echo "Running quick tests (core only)..."
+    @cargo test --package isolate-core -q 2>/dev/null && echo "✅ Core tests OK" || echo "❌ Core tests failed"
+    @echo ""
+    @echo "🏁 Environment check complete!"
