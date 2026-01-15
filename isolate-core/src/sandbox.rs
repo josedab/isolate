@@ -62,6 +62,7 @@ use crate::config::{ModuleHash, SandboxConfig};
 use crate::engine::{CompiledModule, WasmEngine, WasmInstance};
 use crate::error::{Error, Result};
 use crate::metrics::SandboxMetrics;
+use crate::ratelimit::SharedRateLimiter;
 use crate::resource::{ResourceMeter, ResourceUsage};
 
 use serde::{Deserialize, Serialize};
@@ -90,6 +91,14 @@ impl Default for SandboxId {
 impl std::fmt::Display for SandboxId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for SandboxId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(Self(Uuid::parse_str(s)?))
     }
 }
 
@@ -249,6 +258,8 @@ pub struct Sandbox {
     enforcer: CapabilityEnforcer,
     /// Resource meter.
     meter: ResourceMeter,
+    /// Rate limiter (if configured).
+    rate_limiter: Option<SharedRateLimiter>,
     /// Metrics collector.
     metrics: SandboxMetrics,
     /// Creation time.
@@ -283,6 +294,13 @@ impl Sandbox {
         // Create metrics
         let metrics = SandboxMetrics::new(id);
 
+        // Create rate limiter if configured
+        let rate_limiter = if config.rate_limit.is_enabled() {
+            Some(SharedRateLimiter::new(config.rate_limit.clone()))
+        } else {
+            None
+        };
+
         let cold_start = start.elapsed();
         tracing::info!(
             sandbox_id = %id,
@@ -300,6 +318,7 @@ impl Sandbox {
             instance: Mutex::new(None),
             enforcer,
             meter,
+            rate_limiter,
             metrics,
             created_at: start,
         })
@@ -348,6 +367,12 @@ impl Sandbox {
     /// Run the sandbox with optional input.
     pub async fn run(&mut self, input: &[u8]) -> Result<Output> {
         self.ensure_state(SandboxState::Ready)?;
+
+        // Enforce rate limit before execution
+        if let Some(ref limiter) = self.rate_limiter {
+            limiter.try_acquire()?;
+        }
+
         self.state = SandboxState::Running;
 
         let start = Instant::now();
@@ -419,9 +444,15 @@ impl Sandbox {
 
                 // Record fuel consumption in the meter
                 if let Some(fuel) = exec_result.fuel_consumed {
-                    // record_fuel can fail if it exceeds limits, but we ignore that here
-                    // since the execution already completed
                     let _ = self.meter.record_fuel(fuel);
+                }
+
+                // Record execution and bandwidth for rate limiting
+                if let Some(ref limiter) = self.rate_limiter {
+                    limiter.record_execution();
+                    let total_bytes = exec_result.stdout.len() as u64
+                        + exec_result.stderr.len() as u64;
+                    let _ = limiter.record_bandwidth(total_bytes);
                 }
 
                 tracing::info!(
