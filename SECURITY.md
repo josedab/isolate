@@ -13,8 +13,9 @@ The Isolate project takes security seriously. If you discover a security vulnera
 ### How to Report
 
 1. **Do NOT open a public GitHub issue** for security vulnerabilities
-2. Email your findings to the maintainers (see repository for contact info)
-3. Include the following in your report:
+2. Use [GitHub's private vulnerability reporting](https://github.com/josedab/isolate/security/advisories/new) to submit your findings
+3. Alternatively, contact the maintainer [@josedab](https://github.com/josedab) directly via their GitHub profile
+4. Include the following in your report:
    - Description of the vulnerability
    - Steps to reproduce
    - Potential impact

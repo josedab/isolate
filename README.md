@@ -13,6 +13,10 @@ A lightweight, secure sandbox runtime written in Rust for executing untrusted WA
 
 ## Features
 
+| Production Ready | Experimental |
+|:-----------------|:-------------|
+| Core sandbox, capabilities, resource limits, metrics, pool, networking, policy engine | Snapshots, WASI Preview2, GPU, distributed mesh, hot-patching, enclave, chaos testing |
+
 - **Fast Cold Start**: <5ms sandbox creation (vs 125ms+ for microVMs)
 - **Memory Safety**: Rust implementation eliminates runtime vulnerabilities
 - **Multi-Language**: Execute any WASM-compiled language (Rust, C/C++, Go, AssemblyScript, etc.)
@@ -21,6 +25,15 @@ A lightweight, secure sandbox runtime written in Rust for executing untrusted WA
 - **Snapshot/Restore**: Sub-millisecond warm starts
 
 ## Quick Start
+
+> ⏱️ **First build:** ~2 minutes · **Hot rebuild:** ~5 seconds · **Run example:** instant
+
+### Try It Now
+
+```bash
+git clone https://github.com/josedab/isolate.git && cd isolate
+cargo run --package isolate-core --example basic_sandbox
+```
 
 ### Installation
 
@@ -240,6 +253,11 @@ Isolate provides defense-in-depth security:
 
 - Rust 1.75.0 or later
 - [just](https://github.com/casey/just) (optional, for task running)
+- Python 3.9+ with development headers (optional, only for `isolate-python` bindings)
+
+> **Note:** The `isolate-python` crate requires a Python development environment and is
+> excluded from the default workspace build. Standard `cargo build` and `cargo test`
+> work without Python installed. To include Python bindings, use `cargo test --workspace`.
 
 ### Quick Commands
 
@@ -247,8 +265,11 @@ Isolate provides defense-in-depth security:
 # Run all checks
 just check
 
-# Run tests
-cargo test --all-features --workspace
+# Run tests (default members, no Python dependency required)
+cargo test
+
+# Run tests including Python bindings (requires python3-dev)
+cargo test --workspace --all-features
 
 # Run benchmarks
 cargo bench --package isolate-core
