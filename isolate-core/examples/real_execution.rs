@@ -25,9 +25,7 @@ const EXIT_42_WASM: &[u8] = include_bytes!("../tests/fixtures/exit_42.wasm");
 #[tokio::main]
 async fn main() -> isolate_core::Result<()> {
     // Initialize logging for better visibility
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
 
     println!("Isolate Real WASM Execution Example");
     println!("=====================================\n");
@@ -103,11 +101,7 @@ async fn run_module(name: &str, wasm: &[u8], needs_stdout: bool) -> isolate_core
 }
 
 async fn track_resources() -> isolate_core::Result<()> {
-    let modules = [
-        ("minimal", MINIMAL_WASM),
-        ("hello", HELLO_WASM),
-        ("exit_42", EXIT_42_WASM),
-    ];
+    let modules = [("minimal", MINIMAL_WASM), ("hello", HELLO_WASM), ("exit_42", EXIT_42_WASM)];
 
     let mut total_fuel = 0u64;
     let mut total_time = Duration::ZERO;

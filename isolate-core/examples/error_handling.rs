@@ -19,18 +19,13 @@ const MINIMAL_WASM: &[u8] = &[
     // Type section
     0x01, 0x08, 0x02, 0x60, 0x01, 0x7f, 0x00, 0x60, 0x00, 0x00,
     // Import section: wasi_snapshot_preview1.proc_exit
-    0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61,
-    0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65,
-    0x77, 0x31, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74,
-    0x00, 0x00,
-    // Function section
-    0x03, 0x02, 0x01, 0x01,
-    // Memory section
-    0x05, 0x03, 0x01, 0x00, 0x01,
-    // Export section
-    0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
-    0x06, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01,
-    // Code section
+    0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f,
+    0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65, 0x77, 0x31, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f,
+    0x65, 0x78, 0x69, 0x74, 0x00, 0x00, // Function section
+    0x03, 0x02, 0x01, 0x01, // Memory section
+    0x05, 0x03, 0x01, 0x00, 0x01, // Export section
+    0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00, 0x06, 0x5f, 0x73, 0x74,
+    0x61, 0x72, 0x74, 0x00, 0x01, // Code section
     0x0a, 0x08, 0x01, 0x06, 0x00, 0x41, 0x00, 0x10, 0x00, 0x0b,
 ];
 
@@ -91,9 +86,7 @@ fn demo_invalid_module() {
 
 fn demo_config_error() {
     // Try to build config without a module
-    let result = SandboxConfig::builder()
-        .memory_limit(64 * 1024 * 1024)
-        .build();
+    let result = SandboxConfig::builder().memory_limit(64 * 1024 * 1024).build();
 
     match result {
         Ok(_) => println!("   Unexpected success!"),
@@ -108,10 +101,8 @@ fn demo_error_categories() {
     let timeout_error = Error::Timeout(Duration::from_secs(30));
     let fuel_error = Error::FuelExhausted { limit: 1_000_000 };
     let capability_error = Error::CapabilityDenied(Capability::stdout());
-    let memory_error = Error::MemoryLimitExceeded {
-        limit: 64 * 1024 * 1024,
-        requested: 128 * 1024 * 1024,
-    };
+    let memory_error =
+        Error::MemoryLimitExceeded { limit: 64 * 1024 * 1024, requested: 128 * 1024 * 1024 };
 
     println!("   Timeout error:");
     println!("     is_timeout: {}", timeout_error.is_timeout());
@@ -134,10 +125,7 @@ fn demo_error_suggestions() {
     let errors: Vec<Error> = vec![
         Error::Compilation("Invalid module format".to_string()),
         Error::FuelExhausted { limit: 1_000_000 },
-        Error::MemoryLimitExceeded {
-            limit: 64 * 1024 * 1024,
-            requested: 128 * 1024 * 1024,
-        },
+        Error::MemoryLimitExceeded { limit: 64 * 1024 * 1024, requested: 128 * 1024 * 1024 },
         Error::CapabilityDenied(Capability::stdout()),
         Error::Timeout(Duration::from_secs(30)),
         Error::FunctionNotFound("custom_entry".to_string()),
@@ -165,10 +153,7 @@ async fn demo_error_matching() {
             println!("   Recommended new limit: {} units", limit * 2);
         }
         Error::MemoryLimitExceeded { limit, requested } => {
-            println!(
-                "   Would retry with more memory (needed {}, had {})",
-                requested, limit
-            );
+            println!("   Would retry with more memory (needed {}, had {})", requested, limit);
         }
         Error::CapabilityDenied(cap) => {
             println!("   Missing capability: {:?}", cap);
@@ -185,10 +170,8 @@ async fn demo_error_matching() {
 
 async fn demo_propagation() -> Result<(), Error> {
     // Pattern 1: Using ? operator for clean propagation
-    let _config = SandboxConfig::builder()
-        .module(MINIMAL_WASM)?
-        .memory_limit(64 * 1024 * 1024)
-        .build()?;
+    let _config =
+        SandboxConfig::builder().module(MINIMAL_WASM)?.memory_limit(64 * 1024 * 1024).build()?;
 
     // Pattern 2: Converting errors with context
     // (shown as demonstration - would require anyhow or similar)
