@@ -28,6 +28,7 @@
 #![allow(dead_code)]
 
 mod context;
+pub mod ebpf;
 mod spans;
 
 pub use context::{extract_context, inject_context, TraceContext};
