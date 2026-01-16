@@ -37,6 +37,7 @@ mod detector;
 mod features;
 mod model;
 mod patterns;
+pub mod pipeline;
 
 pub use detector::{AnomalyConfig, AnomalyDetector, DetectionResult, DetectorAction};
 pub use features::{BehaviorFeatures, FeatureExtractor, FeatureVector};
