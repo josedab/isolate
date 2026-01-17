@@ -16,6 +16,7 @@ pub mod analytics;
 pub mod content_store;
 mod registry;
 pub mod resolver;
+pub mod scanner;
 pub mod search;
 pub mod verification;
 
@@ -29,6 +30,7 @@ pub use search::{
     IndexEntry, SearchEngine, SearchFacets, SearchField, SearchFilter, SearchHit, SearchResults,
 };
 pub use verification::{Badge, ModuleVerifier, RiskScore, VerificationCheck, VerificationReport};
+pub use scanner::{ModuleScanner, ScanResult, ScanFinding, FindingSeverity, RiskLevel};
 
 #[cfg(test)]
 mod tests {
