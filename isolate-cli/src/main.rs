@@ -164,6 +164,9 @@ enum Commands {
     /// Show detailed information about a WASM module
     Info(InfoArgs),
 
+    /// Analyze a WASM module and suggest security capabilities
+    Analyze(AnalyzeArgs),
+
     /// Benchmark sandbox creation performance
     Benchmark(BenchmarkArgs),
 
@@ -331,6 +334,16 @@ struct InfoArgs {
 }
 
 #[derive(Parser, Debug)]
+struct AnalyzeArgs {
+    /// Path to the WASM module
+    module: PathBuf,
+
+    /// Output as JSON
+    #[arg(long)]
+    json: bool,
+}
+
+#[derive(Parser, Debug)]
 struct BenchmarkArgs {
     /// Path to the WASM module
     module: PathBuf,
@@ -444,6 +457,7 @@ async fn main() -> Result<()> {
         Commands::Run(args) => run_command(args, cli.format, cli.quiet).await,
         Commands::Validate(args) => validate_command(args, cli.quiet),
         Commands::Info(args) => info_command(args, cli.quiet),
+        Commands::Analyze(args) => analyze_command(args, cli.quiet),
         Commands::Benchmark(args) => benchmark_command(args, cli.quiet).await,
         Commands::Interactive(args) => interactive_command(args).await,
         Commands::Snapshot(cmd) => snapshot_command(cmd).await,
@@ -937,6 +951,100 @@ fn info_command(args: InfoArgs, quiet: bool) -> Result<()> {
     }
 
     println!("{}", table);
+
+    Ok(())
+}
+
+fn analyze_command(args: AnalyzeArgs, quiet: bool) -> Result<()> {
+    use isolate_core::policy_gen::ModuleAnalyzer;
+
+    let wasm_bytes = std::fs::read(&args.module)
+        .with_context(|| format!("Failed to read module: {}", args.module.display()))?;
+
+    let analyzer = ModuleAnalyzer::new();
+    let report = analyzer.analyze(&wasm_bytes);
+
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
+    if !quiet {
+        print_banner();
+    }
+
+    println!("{}", "Security Analysis Report".cyan().bold());
+    println!("{}", "─".repeat(50).dimmed());
+
+    let risk_str = report.overall_risk.to_string();
+    println!(
+        "  {} {}",
+        "Risk Level:".bold(),
+        match risk_str.as_str() {
+            "low" => risk_str.green(),
+            "medium" => risk_str.yellow(),
+            "high" | "critical" => risk_str.red(),
+            _ => risk_str.normal(),
+        }
+    );
+    println!("  {} {}", "Module Size:".bold(), format_bytes(report.module_size));
+    println!();
+
+    if !report.suggested_capabilities.is_empty() {
+        println!("{}", "Suggested Capabilities".cyan().bold());
+        let mut table = Table::new();
+        table.load_preset(UTF8_FULL_CONDENSED);
+        table.set_header(vec![
+            Cell::new("Capability").add_attribute(Attribute::Bold),
+            Cell::new("Confidence").add_attribute(Attribute::Bold),
+            Cell::new("Risk").add_attribute(Attribute::Bold),
+            Cell::new("Reason").add_attribute(Attribute::Bold),
+        ]);
+        for cap in &report.suggested_capabilities {
+            table.add_row(vec![
+                Cell::new(&cap.capability).fg(Color::Green),
+                Cell::new(format!("{:.0}%", cap.confidence * 100.0)),
+                Cell::new(cap.risk.to_string()),
+                Cell::new(&cap.reason),
+            ]);
+        }
+        println!("{}", table);
+    }
+
+    if !report.security_concerns.is_empty() {
+        println!("\n{}", "Security Concerns".red().bold());
+        let mut table = Table::new();
+        table.load_preset(UTF8_FULL_CONDENSED);
+        table.set_header(vec![
+            Cell::new("Risk").add_attribute(Attribute::Bold),
+            Cell::new("Description").add_attribute(Attribute::Bold),
+            Cell::new("Mitigation").add_attribute(Attribute::Bold),
+        ]);
+        for concern in &report.security_concerns {
+            let risk_text = concern.risk.to_string();
+            let risk_cell = match risk_text.as_str() {
+                "high" | "critical" => Cell::new(&risk_text).fg(Color::Red),
+                "medium" => Cell::new(&risk_text).fg(Color::Yellow),
+                _ => Cell::new(&risk_text).fg(Color::Green),
+            };
+            table.add_row(vec![
+                risk_cell,
+                Cell::new(&concern.description),
+                Cell::new(&concern.mitigation),
+            ]);
+        }
+        println!("{}", table);
+    }
+
+    if !report.imports.is_empty() {
+        println!("\n  {} {}", "Imports detected:".dimmed(), report.imports.len());
+        for imp in &report.imports {
+            let wasi_tag = if imp.is_wasi { " (WASI)" } else { "" };
+            println!("    {} {}.{}{}", "•".dimmed(), imp.module, imp.name, wasi_tag.dimmed());
+        }
+    }
+
+    println!("\n  {}", report.summary.dimmed());
 
     Ok(())
 }
