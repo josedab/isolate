@@ -10,6 +10,8 @@
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+pub mod experiment;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
