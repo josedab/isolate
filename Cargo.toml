@@ -20,8 +20,12 @@ default-members = [
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75.0"
+description = "Secure sandbox runtime for executing untrusted WebAssembly code with capability-based security"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/josedab/isolate"
+readme = "README.md"
+keywords = ["wasm", "sandbox", "security", "isolation", "webassembly"]
+categories = ["wasm", "web-programming"]
 authors = ["Isolate Contributors"]
 
 [workspace.dependencies]
