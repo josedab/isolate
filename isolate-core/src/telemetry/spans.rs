@@ -1,5 +1,9 @@
 //! Pre-defined spans for sandbox operations.
 
+// This module is experimental and not all APIs are used yet.
+// Allow dead code until the feature stabilizes.
+#![allow(dead_code)]
+
 use opentelemetry::{
     global,
     trace::{Span, SpanKind, Status, Tracer},
@@ -359,7 +363,7 @@ mod tests {
 
         span.set_attribute("string", "value");
         span.set_attribute("int", 42i64);
-        span.set_attribute("float", 3.14f64);
+        span.set_attribute("float", 2.5f64);
         span.set_attribute("bool", true);
 
         span.end_ok();
@@ -398,7 +402,7 @@ mod tests {
         let _: AttributeValue = 42i32.into();
         let _: AttributeValue = 42u64.into();
         let _: AttributeValue = 42usize.into();
-        let _: AttributeValue = 3.14f64.into();
+        let _: AttributeValue = 2.5f64.into();
         let _: AttributeValue = true.into();
     }
 }

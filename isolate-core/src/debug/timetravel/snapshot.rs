@@ -738,7 +738,7 @@ mod tests {
         let mut globals = GlobalSnapshot::new();
         globals.set(0, GlobalValue::I32(42));
         globals.set(1, GlobalValue::I64(1000));
-        globals.set(2, GlobalValue::F32(3.14));
+        globals.set(2, GlobalValue::F32(2.5));
 
         assert_eq!(globals.get(0), Some(&GlobalValue::I32(42)));
         assert_eq!(globals.get(1), Some(&GlobalValue::I64(1000)));

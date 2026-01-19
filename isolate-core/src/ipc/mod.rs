@@ -9,7 +9,11 @@
 //! - **Message Types**: Typed messages with serialization
 //! - **Permissions**: Fine-grained send/receive permissions
 //! - **Buffering**: Configurable message queue capacity
-//!
+
+// This module is experimental and not all APIs are used yet.
+// Allow dead code until the feature stabilizes.
+#![allow(dead_code)]
+
 //! # Example
 //!
 //! ```rust,ignore
