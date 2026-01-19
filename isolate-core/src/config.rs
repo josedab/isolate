@@ -57,6 +57,7 @@ use crate::error::{Error, Result};
 use crate::profile::LanguageProfile;
 use crate::ratelimit::RateLimitConfig;
 use crate::resource::ResourceLimits;
+use crate::sandbox_profile::SandboxProfile;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -316,6 +317,18 @@ impl SandboxConfigBuilder {
     pub fn apply_profile(mut self, profile: LanguageProfile) -> Self {
         self.resources = profile.resource_limits();
         for cap in profile.default_capabilities() {
+            self.capabilities.grant(cap);
+        }
+        self
+    }
+
+    /// Apply a use-case-based sandbox profile.
+    ///
+    /// Sets resource limits and capabilities based on the workload type.
+    /// Settings applied by the profile can be overridden by subsequent builder calls.
+    pub fn use_profile(mut self, profile: SandboxProfile) -> Self {
+        self.resources = profile.resource_limits();
+        for cap in profile.capabilities() {
             self.capabilities.grant(cap);
         }
         self
