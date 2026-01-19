@@ -1,6 +1,9 @@
 # Isolate: Secure Sandbox Runtime
 
-[![CI](https://github.com/example/isolate/workflows/CI/badge.svg)](https://github.com/example/isolate/actions)
+[![CI](https://github.com/josedab/isolate/workflows/CI/badge.svg)](https://github.com/josedab/isolate/actions)
+[![Security](https://github.com/josedab/isolate/workflows/Security/badge.svg)](https://github.com/josedab/isolate/actions)
+[![codecov](https://codecov.io/gh/josedab/isolate/branch/main/graph/badge.svg)](https://codecov.io/gh/josedab/isolate)
+[![dependency status](https://deps.rs/repo/github/josedab/isolate/status.svg)](https://deps.rs/repo/github/josedab/isolate)
 [![Crates.io](https://img.shields.io/crates/v/isolate-core.svg)](https://crates.io/crates/isolate-core)
 [![Documentation](https://docs.rs/isolate-core/badge.svg)](https://docs.rs/isolate-core)
 [![License](https://img.shields.io/crates/l/isolate-core.svg)](LICENSE-MIT)
@@ -57,24 +60,75 @@ async fn main() -> isolate_core::Result<()> {
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph Client["Client Application"]
+        API[Public API]
+    end
+
+    subgraph Isolate["Isolate Runtime"]
+        direction TB
+        Config[SandboxConfig Builder]
+        Sandbox[Sandbox Manager]
+
+        subgraph Security["Security Layer"]
+            Cap[Capability Enforcer]
+            Audit[Audit Logger]
+        end
+
+        subgraph Engine["Execution Engine"]
+            Wasmtime[Wasmtime Runtime]
+            WASI[WASI Layer]
+        end
+
+        subgraph Resources["Resource Control"]
+            Fuel[Fuel Metering]
+            Memory[Memory Limits]
+            IO[I/O Quotas]
+            Time[Timeout Control]
+        end
+
+        Metrics[Prometheus Metrics]
+    end
+
+    subgraph WASM["WASM Module"]
+        Code[User Code]
+    end
+
+    API --> Config
+    Config --> Sandbox
+    Sandbox --> Cap
+    Sandbox --> Engine
+    Cap --> Audit
+    Engine --> Resources
+    Wasmtime --> WASI
+    WASI --> Code
+    Resources --> Metrics
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         Isolate                              │
-├─────────────────────────────────────────────────────────────┤
-│  Public API: Sandbox | Pool | Cluster                       │
-├─────────────────────────────────────────────────────────────┤
-│  Capability Manager                                          │
-│  ├── Filesystem, Network, Time, Random, Environment         │
-├─────────────────────────────────────────────────────────────┤
-│  Execution Engine (Wasmtime)                                 │
-│  ├── WASM Runtime with security layers                       │
-├─────────────────────────────────────────────────────────────┤
-│  Resource Controller                                         │
-│  ├── CPU Limits, Memory Limits, I/O Quota, Timeout          │
-├─────────────────────────────────────────────────────────────┤
-│  Snapshot Engine                                             │
-│  ├── Memory Snapshots, Fast Restore, Pre-warming            │
-└─────────────────────────────────────────────────────────────┘
+
+### Execution Flow
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant SB as Sandbox
+    participant Cap as Capability Enforcer
+    participant Engine as WASM Engine
+    participant WASM as WASM Module
+
+    App->>SB: create(config)
+    SB->>Engine: compile(wasm_bytes)
+    Engine-->>SB: CompiledModule
+    SB-->>App: Sandbox (Ready)
+
+    App->>SB: run(input)
+    SB->>Cap: check_capabilities()
+    Cap-->>SB: Ok
+    SB->>Engine: instantiate()
+    Engine->>WASM: _start()
+    WASM-->>Engine: exit_code
+    Engine-->>SB: ExecutionResult
+    SB-->>App: Output
 ```
 
 ## Capability System
@@ -180,6 +234,66 @@ Isolate provides defense-in-depth security:
 | Warm Start (p99) | <1ms |
 | Memory Overhead | <5MB |
 
+## Development
+
+### Prerequisites
+
+- Rust 1.75.0 or later
+- [just](https://github.com/casey/just) (optional, for task running)
+
+### Quick Commands
+
+```bash
+# Run all checks
+just check
+
+# Run tests
+cargo test --all-features --workspace
+
+# Run benchmarks
+cargo bench --package isolate-core
+
+# Run clippy
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Generate docs
+cargo doc --no-deps --all-features --open
+```
+
+### Running Fuzz Tests
+
+```bash
+# Install cargo-fuzz (requires nightly)
+cargo +nightly install cargo-fuzz
+
+# Run a fuzz target
+cd fuzz
+cargo +nightly fuzz run fuzz_wasm_module
+```
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Good First Issues
+
+Look for issues labeled [`good first issue`](https://github.com/josedab/isolate/labels/good%20first%20issue) to get started.
+
+## Comparison with Alternatives
+
+| Feature | Isolate | Wasmtime (bare) | microVMs |
+|---------|---------|-----------------|----------|
+| Cold Start | <5ms | <5ms | 125ms+ |
+| Memory Overhead | <5MB | ~2MB | 128MB+ |
+| Capability System | Built-in | Manual | Varies |
+| Resource Metering | Built-in | Manual | OS-level |
+| Multi-tenant | Yes | Manual | Yes |
+| Language | Rust | Rust | Various |
+
 ## License
 
 MIT OR Apache-2.0
+
+## Acknowledgments
+
+Built on top of the excellent [Wasmtime](https://wasmtime.dev/) runtime by the Bytecode Alliance.

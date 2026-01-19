@@ -55,14 +55,14 @@ jobs:
 
             **From source**
             ```bash
-            git clone https://github.com/OWNER/isolate.git
+            git clone https://github.com/josedab/isolate.git
             cd isolate
             cargo install --path isolate-cli
             ```
 
             ### Changelog
 
-            See [CHANGELOG.md](https://github.com/OWNER/isolate/blob/main/CHANGELOG.md) for details.
+            See [CHANGELOG.md](https://github.com/josedab/isolate/blob/main/CHANGELOG.md) for details.
 
   build-binaries:
     name: Build ${{ matrix.target }}
@@ -144,6 +144,25 @@ jobs:
           cd target/${{ matrix.target }}/release
           7z a ../../../isolate-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }} isolate.exe
           cd ../../..
+
+      - name: Compute artifact hash
+        id: hash
+        shell: bash
+        run: |
+          ARTIFACT="isolate-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}"
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            HASH=$(shasum -a 256 "$ARTIFACT" | cut -d ' ' -f 1)
+          else
+            HASH=$(sha256sum "$ARTIFACT" | cut -d ' ' -f 1)
+          fi
+          echo "$HASH  $ARTIFACT" > "$ARTIFACT.sha256"
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
+      - name: Upload checksum artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksum-${{ matrix.target }}
+          path: "*.sha256"
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
@@ -235,9 +254,108 @@ jobs:
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
 
+  # Generate SBOM (Software Bill of Materials)
+  generate-sbom:
+    name: Generate SBOM
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx
+
+      - name: Generate SBOM for all crates
+        run: |
+          cargo cyclonedx --all --format json > isolate-sbom.json
+          cargo cyclonedx --all --format xml > isolate-sbom.xml
+
+      - name: Upload SBOM to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: isolate-sbom.json
+          asset_name: isolate-${{ needs.create-release.outputs.version }}-sbom.json
+          asset_content_type: application/json
+
+      - name: Upload SBOM XML to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: isolate-sbom.xml
+          asset_name: isolate-${{ needs.create-release.outputs.version }}-sbom.xml
+          asset_content_type: application/xml
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            isolate-sbom.json
+            isolate-sbom.xml
+
+  # Aggregate hashes from all build jobs for SLSA provenance
+  aggregate-hashes:
+    name: Aggregate Artifact Hashes
+    needs: [create-release, build-binaries]
+    runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.aggregate.outputs.hashes }}
+    steps:
+      - name: Download all checksums
+        uses: actions/download-artifact@v4
+        with:
+          pattern: checksum-*
+          path: checksums
+          merge-multiple: true
+
+      - name: Aggregate hashes
+        id: aggregate
+        run: |
+          # Combine all sha256 files and base64 encode for SLSA
+          cat checksums/*.sha256 > all-hashes.txt
+          echo "All hashes:"
+          cat all-hashes.txt
+          # Format: hash  filename (sha256sum format)
+          HASHES=$(cat all-hashes.txt | base64 -w0)
+          echo "hashes=$HASHES" >> $GITHUB_OUTPUT
+
+      - name: Upload combined checksums to release
+        run: |
+          # Create a checksums file for the release
+          cp all-hashes.txt isolate-${{ needs.create-release.outputs.version }}-checksums.txt
+
+      - name: Upload checksums artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: isolate-${{ needs.create-release.outputs.version }}-checksums.txt
+
+  # Generate SLSA provenance attestations for binaries
+  # This provides supply chain security by attesting to how artifacts were built
+  # SLSA Level 3 provenance - see https://slsa.dev/
+  provenance:
+    name: Generate SLSA Provenance
+    needs: [create-release, aggregate-hashes]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.aggregate-hashes.outputs.hashes }}"
+      upload-assets: true
+
   finalize-release:
     name: Finalize Release
-    needs: [build-binaries, publish-crates]
+    needs: [build-binaries, publish-crates, generate-sbom]
     runs-on: ubuntu-latest
     steps:
       - name: Publish release

@@ -113,6 +113,47 @@ jobs:
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
+  # Optional stricter lints - informational only, doesn't fail CI
+  clippy-pedantic:
+    name: Clippy (Pedantic)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-clippy-pedantic-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-clippy-pedantic-
+            ${{ runner.os }}-cargo-
+
+      - name: Run clippy with pedantic lints
+        run: |
+          cargo clippy --all-targets --all-features -- \
+            -W clippy::pedantic \
+            -W clippy::nursery \
+            -A clippy::module_name_repetitions \
+            -A clippy::must_use_candidate \
+            -A clippy::missing_errors_doc \
+            -A clippy::missing_panics_doc \
+            -A clippy::redundant_pub_crate \
+            -A clippy::significant_drop_tightening \
+            -A clippy::future_not_send \
+            -A clippy::useless_vec \
+            2>&1 | head -100 || true
+          echo "::notice::Pedantic lints are informational only"
+
   doc:
     name: Documentation
     runs-on: ubuntu-latest
@@ -256,6 +297,40 @@ jobs:
 
       - name: Run benchmarks
         run: cargo bench --workspace --all-features -- --noplot || true
+
+  # Benchmark tracking with Bencher.dev (only on main)
+  bench-track:
+    name: Benchmark Tracking
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-bench-track-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bench-track-
+            ${{ runner.os }}-cargo-
+
+      - name: Track benchmarks with Bencher
+        uses: bencherdev/bencher@main
+        with:
+          project: isolate
+          token: ${{ secrets.BENCHER_API_TOKEN }}
+          branch: main
+          testbed: ubuntu-latest
+          adapter: rust_criterion
+          command: cargo bench --workspace --all-features
+        if: ${{ secrets.BENCHER_API_TOKEN != '' }}
 
   # Final status check for branch protection
   ci-success:
