@@ -233,6 +233,103 @@ impl Subscribe for BufferedInputStream {
     }
 }
 
+/// A stdout/stderr stream that forwards output chunks to a channel in real-time.
+///
+/// Used by `Sandbox::run_streaming()` to provide live output delivery.
+#[derive(Clone)]
+pub struct StreamingCaptureStream {
+    sender: Arc<tokio::sync::mpsc::Sender<OutputChunk>>,
+    source: OutputSource,
+    buffer: CaptureBuffer,
+    meter: Option<ResourceMeter>,
+}
+
+impl StreamingCaptureStream {
+    /// Create a new streaming capture stream.
+    pub fn new(
+        sender: Arc<tokio::sync::mpsc::Sender<OutputChunk>>,
+        source: OutputSource,
+        buffer: CaptureBuffer,
+        meter: Option<ResourceMeter>,
+    ) -> Self {
+        Self { sender, source, buffer, meter }
+    }
+}
+
+impl StdoutStream for StreamingCaptureStream {
+    fn stream(&self) -> Box<dyn HostOutputStream> {
+        Box::new(StreamingCaptureOutputStream {
+            sender: self.sender.clone(),
+            source: self.source,
+            buffer: self.buffer.clone(),
+            meter: self.meter.clone(),
+        })
+    }
+
+    fn isatty(&self) -> bool {
+        false
+    }
+}
+
+struct StreamingCaptureOutputStream {
+    sender: Arc<tokio::sync::mpsc::Sender<OutputChunk>>,
+    source: OutputSource,
+    buffer: CaptureBuffer,
+    meter: Option<ResourceMeter>,
+}
+
+impl HostOutputStream for StreamingCaptureOutputStream {
+    fn write(&mut self, bytes: Bytes) -> StreamResult<()> {
+        if let Some(ref meter) = self.meter {
+            if meter.record_write(bytes.len() as u64).is_err() {
+                return Err(wasmtime_wasi::StreamError::Closed);
+            }
+        }
+        // Buffer for final output collection
+        self.buffer.write().extend_from_slice(&bytes);
+        // Send chunk to channel (non-blocking best-effort)
+        let chunk = OutputChunk { source: self.source, data: bytes.to_vec() };
+        let _ = self.sender.try_send(chunk);
+        Ok(())
+    }
+
+    fn flush(&mut self) -> StreamResult<()> {
+        Ok(())
+    }
+
+    fn check_write(&mut self) -> StreamResult<usize> {
+        Ok(usize::MAX)
+    }
+}
+
+impl Subscribe for StreamingCaptureOutputStream {
+    fn ready<'a, 'b>(&'a mut self) -> Pin<Box<dyn std::future::Future<Output = ()> + Send + 'b>>
+    where
+        Self: 'b,
+        'a: 'b,
+    {
+        Box::pin(std::future::ready(()))
+    }
+}
+
+/// A chunk of output produced during streaming execution.
+#[derive(Debug, Clone)]
+pub struct OutputChunk {
+    /// Which stream produced this chunk.
+    pub source: OutputSource,
+    /// The raw bytes.
+    pub data: Vec<u8>,
+}
+
+/// Identifies which output stream produced a chunk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputSource {
+    /// Standard output.
+    Stdout,
+    /// Standard error.
+    Stderr,
+}
+
 /// An empty stdin stream that returns EOF immediately.
 ///
 /// Used when stdin capability is not granted or no input is provided.

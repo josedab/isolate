@@ -7,6 +7,7 @@ use crate::resource::ResourceMeter;
 
 use super::capture::{
     new_capture_buffer, BufferedStdin, CaptureBuffer, CaptureStream, EmptyStdin, NullStream,
+    OutputSource, StreamingCaptureStream,
 };
 use super::host::HostState;
 use dashmap::DashMap;
@@ -44,6 +45,11 @@ impl CompiledModule {
     /// Get the module hash.
     pub fn hash(&self) -> &ModuleHash {
         &self.hash
+    }
+
+    /// Get a reference to the underlying Wasmtime module.
+    pub(crate) fn module_ref(&self) -> &Module {
+        &self.module
     }
 }
 
@@ -130,9 +136,27 @@ impl WasmEngine {
         WasmInstance::new(self, module, config, enforcer, meter, input)
     }
 
+    /// Create a new instance wired for streaming output via a channel.
+    pub fn instantiate_streaming(
+        &self,
+        module: &CompiledModule,
+        config: &SandboxConfig,
+        enforcer: CapabilityEnforcer,
+        meter: ResourceMeter,
+        input: Option<Vec<u8>>,
+        sender: Arc<tokio::sync::mpsc::Sender<super::capture::OutputChunk>>,
+    ) -> Result<WasmInstance> {
+        WasmInstance::new_streaming(self, module, config, enforcer, meter, input, sender)
+    }
+
     /// Get the underlying Wasmtime engine.
     pub(crate) fn engine(&self) -> &Engine {
         &self.engine
+    }
+
+    /// Get the engine configuration.
+    pub(crate) fn config(&self) -> &WasmEngineConfig {
+        &self.config
     }
 
     /// Increment the epoch (for interruption).
@@ -171,13 +195,23 @@ pub struct SandboxWasiState {
 }
 
 impl SandboxWasiState {
+    /// Create a new sandbox WASI state.
+    pub(crate) fn new(
+        wasi: WasiP1Ctx,
+        host: HostState,
+        initial_fuel: Option<u64>,
+        limits: StoreLimits,
+    ) -> Self {
+        Self { wasi, host, initial_fuel, limits }
+    }
+
     /// Get mutable reference to WASI context.
-    fn wasi_ctx(&mut self) -> &mut WasiP1Ctx {
+    pub(crate) fn wasi_ctx(&mut self) -> &mut WasiP1Ctx {
         &mut self.wasi
     }
 
     /// Get mutable reference to store limits (for limiter callback).
-    fn store_limits(&mut self) -> &mut StoreLimits {
+    pub(crate) fn store_limits(&mut self) -> &mut StoreLimits {
         &mut self.limits
     }
 }
@@ -352,6 +386,137 @@ impl WasmInstance {
             stdout_buffer,
             stderr_buffer,
         })
+    }
+
+    /// Create a WASM instance that streams output chunks via a channel.
+    fn new_streaming(
+        engine: &WasmEngine,
+        module: &CompiledModule,
+        config: &SandboxConfig,
+        enforcer: CapabilityEnforcer,
+        meter: ResourceMeter,
+        input: Option<Vec<u8>>,
+        sender: Arc<tokio::sync::mpsc::Sender<super::capture::OutputChunk>>,
+    ) -> Result<Self> {
+        let stdout_buffer = new_capture_buffer();
+        let stderr_buffer = new_capture_buffer();
+
+        let mut wasi_builder = WasiCtxBuilder::new();
+
+        // Stdin setup (identical to non-streaming)
+        if enforcer.check_stdin().is_ok() {
+            if let Some(data) = input {
+                if config.resources.io.is_limited() {
+                    wasi_builder.stdin(BufferedStdin::with_meter(data, meter.clone()));
+                } else {
+                    wasi_builder.stdin(BufferedStdin::new(data));
+                }
+            } else {
+                wasi_builder.stdin(EmptyStdin);
+            }
+        } else {
+            wasi_builder.stdin(EmptyStdin);
+        }
+
+        // Stdout — streaming capture
+        if enforcer.check_stdout().is_ok() {
+            let m = if config.resources.io.is_limited() { Some(meter.clone()) } else { None };
+            wasi_builder.stdout(StreamingCaptureStream::new(
+                sender.clone(),
+                OutputSource::Stdout,
+                stdout_buffer.clone(),
+                m,
+            ));
+        } else {
+            wasi_builder.stdout(NullStream);
+        }
+
+        // Stderr — streaming capture
+        if enforcer.check_stderr().is_ok() {
+            let m = if config.resources.io.is_limited() { Some(meter.clone()) } else { None };
+            wasi_builder.stderr(StreamingCaptureStream::new(
+                sender.clone(),
+                OutputSource::Stderr,
+                stderr_buffer.clone(),
+                m,
+            ));
+        } else {
+            wasi_builder.stderr(NullStream);
+        }
+
+        // Environment, args, preopens (same as non-streaming)
+        for (key, value) in &config.env {
+            if enforcer.check_env_var(key).is_ok() {
+                wasi_builder.env(key, value);
+            }
+        }
+        if enforcer.check_args().is_ok() {
+            let args: Vec<&str> = config.args.iter().map(|s| s.as_str()).collect();
+            wasi_builder.args(&args);
+        }
+        for (host_path, guest_path) in enforcer.filesystem_preopens() {
+            if host_path.exists() {
+                let read_only = !enforcer.check_fs_write(&host_path).is_ok();
+                let dir_perms = if read_only {
+                    wasmtime_wasi::DirPerms::READ
+                } else {
+                    wasmtime_wasi::DirPerms::all()
+                };
+                let file_perms = if read_only {
+                    wasmtime_wasi::FilePerms::READ
+                } else {
+                    wasmtime_wasi::FilePerms::all()
+                };
+                let _ = wasi_builder.preopened_dir(&host_path, &guest_path, dir_perms, file_perms);
+            }
+        }
+
+        let wasi = wasi_builder.build_p1();
+        let host = HostState::new(enforcer, meter);
+        let initial_fuel = config.resources.cpu.fuel;
+        let limits = StoreLimitsBuilder::new()
+            .memory_size(config.resources.memory.heap_max)
+            .trap_on_grow_failure(true)
+            .build();
+
+        let state = SandboxWasiState { wasi, host, initial_fuel, limits };
+        let mut store = Store::new(engine.engine(), state);
+        store.limiter(|state| state.store_limits());
+
+        if let Some(fuel) = config.resources.cpu.fuel {
+            store.set_fuel(fuel).map_err(|e| Error::Engine(e.to_string()))?;
+        }
+        if engine.config.enable_epoch_interruption {
+            store.epoch_deadline_trap();
+            store.set_epoch_deadline(u64::MAX);
+        }
+
+        let mut linker: Linker<SandboxWasiState> = Linker::new(engine.engine());
+        preview1::add_to_linker_sync(&mut linker, SandboxWasiState::wasi_ctx)
+            .map_err(|e| Error::Instantiation(e.to_string()))?;
+
+        let instance = linker
+            .instantiate(&mut store, &module.module)
+            .map_err(|e| Error::Instantiation(e.to_string()))?;
+
+        Ok(Self {
+            store,
+            instance,
+            entry_point: config.entry_point.clone(),
+            stdout_buffer,
+            stderr_buffer,
+        })
+    }
+
+    /// Construct from pre-assembled parts (used by PreInitializedPool).
+    pub(crate) fn from_parts(
+        store: Store<SandboxWasiState>,
+        instance: wasmtime::Instance,
+        entry_point: String,
+        stdout_buffer: CaptureBuffer,
+        stderr_buffer: CaptureBuffer,
+    ) -> Self {
+        Self { store, instance, entry_point, stdout_buffer, stderr_buffer }
     }
 
     /// Run the WASM instance.
