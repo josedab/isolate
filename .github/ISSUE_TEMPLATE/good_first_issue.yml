@@ -1,0 +1,74 @@
+name: Good First Issue
+description: Create an issue suitable for new contributors
+title: "[Good First Issue]: "
+labels: ["good first issue", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for creating a good first issue! These help new contributors get started with the project.
+
+        Good first issues should be:
+        - Well-scoped with clear acceptance criteria
+        - Not time-sensitive or blocking other work
+        - Educational about the codebase
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: What needs to be done? Be specific and clear.
+      placeholder: |
+        Example: Add a `--version` flag to the CLI that prints the version number.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Background Context
+      description: What context would help a new contributor understand this task?
+      placeholder: |
+        Example: The CLI is built using clap, which has built-in support for version flags.
+        See the existing --help flag implementation in isolate-cli/src/main.rs.
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Files to Modify
+      description: Which files would likely need changes?
+      placeholder: |
+        - isolate-cli/src/main.rs
+        - isolate-cli/Cargo.toml
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How do we know this is complete?
+      placeholder: |
+        - [ ] Running `isolate --version` prints version information
+        - [ ] CI tests pass
+        - [ ] Documentation is updated if needed
+    validations:
+      required: true
+
+  - type: textarea
+    id: resources
+    attributes:
+      label: Helpful Resources
+      description: Links to documentation, similar PRs, or relevant code
+      placeholder: |
+        - Clap derive documentation: https://docs.rs/clap/latest/clap/_derive/index.html
+        - Similar feature in other CLI: https://github.com/...
+
+  - type: dropdown
+    id: difficulty
+    attributes:
+      label: Estimated Difficulty
+      options:
+        - Easy (< 1 hour)
+        - Medium (1-4 hours)
+        - Challenging (4+ hours, but still suitable for newcomers)
+    validations:
+      required: true
