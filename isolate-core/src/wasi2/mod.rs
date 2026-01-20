@@ -48,8 +48,12 @@ pub mod dual_mode;
 mod host;
 pub mod migration;
 pub mod readiness;
+pub mod resource_handles;
 pub mod runtime;
+pub mod compat_shim;
+pub mod interface_registry;
 pub mod wit;
+pub mod wit_parser;
 
 pub use component::{
     CompiledComponent, ComponentEngine, ComponentEngineConfig, ComponentSandbox, ComponentState,
@@ -58,6 +62,10 @@ pub use context::{
     ComponentConfig, ComponentConfigBuilder, ComponentHash, NetworkConfig, WasmComponent,
 };
 pub use host::{IoLimits, WasiError, WasiHostState};
+pub use dual_mode::{detect_wasi_version, DualModeSandbox, WasiVersion};
+pub use interface_registry::{
+    CapabilityRef, InterfaceBinding, InterfaceRegistry, WorldDefinition,
+};
 
 use crate::Result;
 

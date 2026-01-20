@@ -269,6 +269,12 @@ impl ComponentConfigBuilder {
         self
     }
 
+    /// Set resource limits in bulk.
+    pub fn resources(mut self, resources: crate::resource::ResourceLimits) -> Self {
+        self.resources = resources;
+        self
+    }
+
     /// Build the configuration.
     pub fn build(self) -> Result<ComponentConfig> {
         let component = self
