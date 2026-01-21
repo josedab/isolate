@@ -1,71 +1,47 @@
 {
-  "name": "@isolate/client",
+  "name": "@isolate/sdk",
   "version": "0.1.0",
-  "description": "TypeScript/JavaScript client for Isolate secure sandbox runtime",
+  "description": "TypeScript SDK for the Isolate gRPC sandbox service",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "module": "dist/index.mjs",
-  "exports": {
-    ".": {
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
   "files": [
     "dist",
-    "src"
+    "src",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts",
-    "build:proto": "grpc_tools_node_protoc --ts_out=grpc_js:./src/generated --grpc_out=grpc_js:./src/generated --proto_path=../../proto ../../proto/isolate.proto",
+    "build": "tsc",
     "clean": "rm -rf dist",
     "lint": "eslint src --ext .ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "test": "jest --config jest.config.js"
   },
   "keywords": [
     "isolate",
+    "sandbox",
     "wasm",
     "webassembly",
-    "sandbox",
     "grpc",
-    "serverless"
+    "security"
   ],
-  "author": "Isolate Contributors",
-  "license": "MIT OR Apache-2.0",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.0",
+    "@grpc/proto-loader": "^0.7.12",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {},
   "repository": {
     "type": "git",
     "url": "https://github.com/josedab/isolate.git",
     "directory": "sdk/typescript"
-  },
-  "bugs": {
-    "url": "https://github.com/josedab/isolate/issues"
-  },
-  "homepage": "https://github.com/josedab/isolate#readme",
-  "dependencies": {
-    "@grpc/grpc-js": "^1.9.0",
-    "@grpc/proto-loader": "^0.7.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "eslint": "^8.0.0",
-    "grpc-tools": "^1.12.0",
-    "grpc_tools_node_protoc_ts": "^5.3.0",
-    "tsup": "^8.0.0",
-    "typescript": "^5.0.0",
-    "vitest": "^1.0.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "peerDependencies": {
-    "@grpc/grpc-js": "^1.9.0"
-  },
-  "peerDependenciesMeta": {
-    "@grpc/grpc-js": {
-      "optional": false
-    }
   }
 }
