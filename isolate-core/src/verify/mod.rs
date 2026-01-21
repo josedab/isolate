@@ -8,6 +8,11 @@
 //! - Termination analysis
 //! - Resource bound checking
 //! - Security property validation
+//! - Control flow graph analysis
+//! - Smart contract vulnerability detection
+
+pub mod cfg;
+pub mod vulnerability;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
