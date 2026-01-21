@@ -1,6 +1,6 @@
 # Isolate Go SDK
 
-Go client SDK for [Isolate](https://github.com/josedab/isolate), a secure sandbox runtime for WebAssembly.
+A Go client library for the [Isolate](https://github.com/josedab/isolate) gRPC sandbox service. Isolate provides secure execution of untrusted WebAssembly (WASM) modules with capability-based security and resource controls.
 
 ## Installation
 
@@ -8,256 +8,249 @@ Go client SDK for [Isolate](https://github.com/josedab/isolate), a secure sandbo
 go get github.com/josedab/isolate/sdk/go
 ```
 
+**Requirements:**
+- Go 1.21 or later
+- A running Isolate gRPC server
+
 ## Quick Start
 
 ```go
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
-	"os"
+    "context"
+    "fmt"
+    "log"
+    "os"
 
-	isolate "github.com/josedab/isolate/sdk/go"
+    "github.com/josedab/isolate/sdk/go/isolate"
 )
 
 func main() {
-	// Create a client
-	client, err := isolate.NewClient("localhost:50051")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Close()
+    // Connect to the Isolate server
+    client, err := isolate.NewClient("localhost:50051")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer client.Close()
 
-	// Load your WASM module
-	wasmBytes, err := os.ReadFile("module.wasm")
-	if err != nil {
-		log.Fatal(err)
-	}
+    // Load a WASM module
+    wasmBytes, err := os.ReadFile("module.wasm")
+    if err != nil {
+        log.Fatal(err)
+    }
 
-	// Create and run a sandbox
-	ctx := context.Background()
-	result, err := client.Execute(ctx, wasmBytes, &isolate.ExecuteOptions{
-		MemoryLimit: 64 * 1024 * 1024, // 64MB
-		FuelLimit:   10_000_000,       // 10M instructions
-		Capabilities: []isolate.Capability{
-			isolate.Stdout(),
-			isolate.Stderr(),
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+    ctx := context.Background()
 
-	fmt.Printf("Exit code: %d\n", result.ExitCode)
-	fmt.Printf("Stdout: %s\n", string(result.Stdout))
+    // Create a sandbox
+    createResp, err := client.CreateSandbox(ctx, wasmBytes, &isolate.SandboxConfig{
+        MemoryLimit:  64 * 1024 * 1024, // 64MB
+        FuelLimit:    10_000_000,
+        Capabilities: []isolate.Capability{isolate.Stdout()},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Created sandbox: %s\n", createResp.SandboxID)
+
+    // Run the sandbox
+    runResp, err := client.RunSandbox(ctx, createResp.SandboxID, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Exit code: %d\n", runResp.ExitCode)
+    fmt.Printf("Output: %s\n", string(runResp.Stdout))
 }
 ```
 
-## API Reference
+## Client Options
 
-### Client
-
-The main client struct for interacting with the Isolate server.
-
-#### NewClient
+The client uses the functional options pattern for configuration:
 
 ```go
-client, err := isolate.NewClient(address string, opts ...ClientOptions)
+client, err := isolate.NewClient("localhost:50051",
+    isolate.WithTimeout(10 * time.Second),   // Default RPC timeout
+    isolate.WithRetries(3),                   // Retry transient failures
+    isolate.WithTLS(nil),                     // Enable TLS with system CA pool
+    isolate.WithUserAgent("my-app/1.0"),      // Custom user-agent
+    isolate.WithMaxMessageSize(128*1024*1024), // 128MB max message
+)
 ```
 
-- `address` - Server address (e.g., `"localhost:50051"`)
-- `opts` - Optional configuration
-  - `TLS` - Enable TLS connection
-  - `RootCAs` - Root certificate pool for TLS
-  - `ClientCert` - Client certificate for mTLS
-  - `DialTimeout` - Connection timeout
+### Available Options
 
-#### Methods
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithTimeout(d)` | Default timeout for RPC calls | 30 seconds |
+| `WithRetries(n)` | Max retries for transient failures | 0 (no retries) |
+| `WithTLS(rootCAs)` | Enable TLS (nil uses system CAs) | Disabled |
+| `WithMutualTLS(rootCAs, cert)` | Enable mutual TLS | Disabled |
+| `WithTLSConfig(cfg)` | Custom TLS configuration | None |
+| `WithKeepAlive(params)` | gRPC keep-alive parameters | None |
+| `WithUserAgent(ua)` | User-agent string | `isolate-go-sdk/1.0.0` |
+| `WithMaxMessageSize(n)` | Max gRPC message size in bytes | 64MB |
+| `WithDialOptions(opts...)` | Additional gRPC dial options | None |
 
-##### CreateSandbox
+## API Methods
 
-Create a new sandbox with the given WASM module.
+All methods accept `context.Context` as the first parameter. If the context does not have a deadline, the client's default timeout is applied.
 
-```go
-result, err := client.CreateSandbox(ctx, wasmBytes, &isolate.CreateSandboxOptions{
-	MemoryLimit:       64 * 1024 * 1024,
-	FuelLimit:         10_000_000,
-	WallTimeLimitSecs: 30,
-	Capabilities:      []isolate.Capability{isolate.Stdout()},
-	Env:               map[string]string{"API_KEY": "secret"},
-	Args:              []string{"--verbose"},
-})
+### CreateSandbox
 
-fmt.Printf("Sandbox ID: %s\n", result.SandboxID)
-fmt.Printf("Module Hash: %s\n", result.ModuleHash)
-```
-
-##### RunSandbox
-
-Run an existing sandbox.
+Create a new sandbox with a WASM module and configuration:
 
 ```go
-result, err := client.RunSandbox(ctx, sandboxID, &isolate.RunSandboxOptions{
-	Input:      []byte("Hello"),
-	EntryPoint: "_start",
-})
-
-fmt.Printf("Exit code: %d\n", result.ExitCode)
-fmt.Printf("Stdout: %s\n", string(result.Stdout))
-fmt.Printf("Peak memory: %d\n", result.ResourceUsage.PeakMemory)
-```
-
-##### Execute
-
-Convenience method that creates, runs, and terminates a sandbox in one call.
-
-```go
-result, err := client.Execute(ctx, wasmBytes, &isolate.ExecuteOptions{
-	Capabilities: []isolate.Capability{isolate.Stdout()},
+resp, err := client.CreateSandbox(ctx, wasmBytes, &isolate.SandboxConfig{
+    MemoryLimit:       128 * 1024 * 1024,
+    FuelLimit:         50_000_000,
+    WallTimeLimitSecs: 60,
+    CPUTimeLimitSecs:  30,
+    Capabilities: []isolate.Capability{
+        isolate.Stdout(),
+        isolate.Stderr(),
+        isolate.FsRead("/data"),
+        isolate.HTTP("api.example.com"),
+    },
+    Env:  map[string]string{"LOG_LEVEL": "debug"},
+    Args: []string{"--verbose"},
 })
 ```
 
-##### GetSandbox
+### RunSandbox
 
-Get sandbox status and metrics.
+Run an existing sandbox:
+
+```go
+resp, err := client.RunSandbox(ctx, sandboxID, &isolate.RunSandboxRequest{
+    Input:      []byte("input data"),
+    EntryPoint: "_start", // default if empty
+})
+
+fmt.Printf("Exit: %d, Duration: %.2fms\n", resp.ExitCode, resp.DurationMs)
+fmt.Printf("Memory: %d bytes, Fuel: %d\n",
+    resp.ResourceUsage.PeakMemory, resp.ResourceUsage.FuelConsumed)
+```
+
+### GetSandbox
+
+Retrieve sandbox information:
 
 ```go
 info, err := client.GetSandbox(ctx, sandboxID)
-fmt.Printf("State: %s, Metrics: %+v\n", info.State, info.Metrics)
+fmt.Printf("State: %s, Runs: %d\n", info.State, info.Metrics.RunCount)
 ```
 
-##### ListSandboxes
+### TerminateSandbox
 
-List all sandboxes.
+Terminate a sandbox and get final metrics:
 
 ```go
-result, err := client.ListSandboxes(ctx, &isolate.ListSandboxesOptions{
-	StateFilter: "ready",
-	Limit:       10,
-	Offset:      0,
-})
-
-for _, sandbox := range result.Sandboxes {
-	fmt.Printf("ID: %s, State: %s\n", sandbox.ID, sandbox.State)
+resp, err := client.TerminateSandbox(ctx, sandboxID)
+if resp.Terminated {
+    fmt.Printf("Total runs: %d\n", resp.Metrics.RunCount)
 }
 ```
 
-##### TerminateSandbox
+### ListSandboxes
 
-Terminate a sandbox and get final metrics.
-
-```go
-result, err := client.TerminateSandbox(ctx, sandboxID)
-fmt.Printf("Terminated: %v\n", result.Terminated)
-```
-
-##### GetMetrics
-
-Get server metrics.
+List sandboxes with optional filtering and pagination:
 
 ```go
-metrics, err := client.GetMetrics(ctx, "prometheus")
-fmt.Println(metrics)
-```
+resp, err := client.ListSandboxes(ctx, &isolate.ListSandboxesRequest{
+    StateFilter: "ready",
+    Limit:       10,
+    Offset:      0,
+})
 
-##### Close
-
-Close the client connection.
-
-```go
-err := client.Close()
-```
-
-### Capabilities
-
-Helper functions for creating capability objects:
-
-```go
-import isolate "github.com/josedab/isolate/sdk/go"
-
-caps := []isolate.Capability{
-	isolate.Stdout(),              // stdout access
-	isolate.Stderr(),              // stderr access
-	isolate.Stdin(),               // stdin access
-	isolate.FsRead("/data"),       // read from /data
-	isolate.FsWrite("/tmp"),       // write to /tmp
-	isolate.TempDir(),             // temp directory access
-	isolate.HTTP("api.example.com"), // HTTP to specific host
-	isolate.DNS(),                 // DNS resolution
-	isolate.SystemClock(),         // system clock access
-	isolate.MonotonicClock(),      // monotonic clock access
-	isolate.Random(),              // secure random access
-	isolate.Env("API_KEY"),        // specific env var access
+for _, sb := range resp.Sandboxes {
+    fmt.Printf("%s: %s\n", sb.ID, sb.State)
 }
 ```
 
-## TLS Configuration
+### GetMetrics
 
-### Basic TLS
+Retrieve server metrics:
 
 ```go
-client, err := isolate.NewClient("localhost:50051", isolate.ClientOptions{
-	TLS: true,
-})
+data, err := client.GetMetrics(ctx, "prometheus")
+fmt.Println(data)
 ```
 
-### mTLS with Custom Certificates
+## Capabilities
+
+Capabilities define what the WASM module is allowed to access. Modules have no capabilities by default.
 
 ```go
-import (
-	"crypto/tls"
-	"crypto/x509"
-	"os"
-)
+// Standard I/O
+isolate.Stdout()
+isolate.Stderr()
+isolate.Stdin()
 
-// Load CA certificate
-caCert, _ := os.ReadFile("ca.crt")
-caCertPool := x509.NewCertPool()
-caCertPool.AppendCertsFromPEM(caCert)
+// Filesystem
+isolate.FsRead("/path")
+isolate.FsWrite("/path")
+isolate.TempDir()
 
-// Load client certificate
-clientCert, _ := tls.LoadX509KeyPair("client.crt", "client.key")
+// Network
+isolate.HTTP("host.example.com")
+isolate.DNS()
 
-client, err := isolate.NewClient("localhost:50051", isolate.ClientOptions{
-	TLS:        true,
-	RootCAs:    caCertPool,
-	ClientCert: &clientCert,
-})
+// System
+isolate.SystemClock()
+isolate.MonotonicClock()
+isolate.Random()
+
+// Environment
+isolate.EnvVar("VAR_NAME")
 ```
 
 ## Error Handling
 
-All methods return errors that wrap gRPC errors:
+The SDK provides custom error types with proper wrapping. Errors can be inspected with `errors.Is` and `errors.As`:
 
 ```go
-result, err := client.CreateSandbox(ctx, wasmBytes, nil)
+resp, err := client.RunSandbox(ctx, sandboxID, nil)
 if err != nil {
-	// Check for specific error types
-	if status.Code(err) == codes.InvalidArgument {
-		log.Printf("Invalid module: %v", err)
-	} else if status.Code(err) == codes.ResourceExhausted {
-		log.Printf("Resource limit exceeded: %v", err)
-	} else {
-		log.Printf("Error: %v", err)
-	}
+    // Check for specific error types
+    if isolate.IsNotFound(err) {
+        log.Printf("Sandbox not found")
+    } else if isolate.IsResourceExhausted(err) {
+        log.Printf("Resource limit exceeded")
+    } else if isolate.IsDeadlineExceeded(err) {
+        log.Printf("Execution timed out")
+    } else if isolate.IsPermissionDenied(err) {
+        log.Printf("Missing capability")
+    } else if isolate.IsUnavailable(err) {
+        log.Printf("Server unreachable")
+    } else {
+        log.Printf("Error: %v", err)
+    }
+
+    // Access error details
+    var ie *isolate.IsolateError
+    if errors.As(err, &ie) {
+        log.Printf("Operation: %s, Sandbox: %s, Code: %v",
+            ie.Op, ie.SandboxID, ie.Code)
+    }
 }
 ```
 
-## Requirements
+### Sentinel Errors
 
-- Go 1.21+
-- Running Isolate server
+| Error | Description |
+|-------|-------------|
+| `ErrConnectionFailed` | Could not connect to the server |
+| `ErrClientClosed` | Client has already been closed |
+| `ErrSandboxNotFound` | Sandbox ID does not exist |
+| `ErrInvalidArgument` | Invalid WASM module or configuration |
+| `ErrResourceExhausted` | Memory, fuel, or time limit exceeded |
+| `ErrDeadlineExceeded` | Operation timed out |
+| `ErrPermissionDenied` | Required capability not granted |
+| `ErrUnavailable` | Server is unreachable |
 
-## Proto Regeneration
+## See Also
 
-If you need to regenerate the proto files:
-
-```bash
-make proto
-```
-
-## License
-
-MIT OR Apache-2.0
+- [gRPC Server Documentation](../../website/docs/guides/grpc-server.md) - Running the Isolate server
+- [TypeScript SDK](../../website/docs/guides/sdk-typescript.md) - TypeScript/Node.js client
+- [Proto Definition](../../proto/isolate.proto) - gRPC service definition
