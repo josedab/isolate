@@ -28,6 +28,7 @@
 
 mod router;
 mod types;
+pub mod http_handler;
 pub mod websocket;
 
 pub use router::{GatewayConfig, GatewayRouter, RateLimitConfig, Route, RouteHandler};
