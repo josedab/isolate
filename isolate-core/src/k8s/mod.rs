@@ -13,6 +13,7 @@ pub mod autoscaler;
 pub mod crd_v2;
 pub mod disaster_recovery;
 pub mod helm;
+pub mod isolate_sandbox;
 pub mod network_policy;
 pub mod operator;
 pub mod scheduler;
@@ -63,6 +64,14 @@ pub use tenant::{
 pub use disaster_recovery::{
     Backup, BackupContents, BackupStatus, BackupType, ClusterHealth, DisasterRecoveryManager,
     FailoverConfig, FailoverStatus, FailoverStrategy, RestoreOperation, RestoreStatus, RestoreType,
+};
+
+// Re-export IsolateSandbox CRD types
+pub use isolate_sandbox::{
+    AutoScalingSpec, IsolateConfigMapKeyRef, IsolateEnvVar, IsolateEnvVarSource,
+    IsolateModuleSource, IsolateObjectMeta, IsolateSandbox, IsolateSandboxCondition,
+    IsolateSandboxPhase, IsolateSandboxSpec, IsolateSandboxStatus, IsolateSecretKeyRef,
+    K8sResourceSpec, isolate_sandbox_crd_yaml, parse_capability,
 };
 
 /// Kubernetes API version for Isolate CRDs.

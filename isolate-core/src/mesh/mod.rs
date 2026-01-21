@@ -33,6 +33,7 @@
 
 mod cluster;
 pub mod consensus;
+pub mod discovery;
 pub mod distributed;
 mod failover;
 mod hash;
@@ -47,6 +48,10 @@ pub use cluster::{ClusterConfig, ClusterEvent, MeshCluster};
 pub use consensus::{
     PartitionAction, PartitionEvent, RaftCommand, RaftNode, RaftRole, RaftState,
     SplitBrainDetector, StealableTask, VoteRequest, VoteResponse, WorkStealingQueue,
+};
+pub use discovery::{
+    DiscoveredNode, DiscoveryConfig, DiscoveryMethod, DiscoveryService, NodeCapabilities,
+    PlacementDecision, PlacementRequirements,
 };
 pub use failover::{FailoverCoordinator, FailoverEvent, FailoverPolicy, FailoverState};
 pub use hash::{ConsistentHash, HashRing, VirtualNode};
