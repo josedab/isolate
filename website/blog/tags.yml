@@ -1,0 +1,34 @@
+release:
+  label: Release
+  permalink: /release
+  description: Release announcements and changelogs
+
+security:
+  label: Security
+  permalink: /security
+  description: Security-related updates and best practices
+
+wasm:
+  label: WebAssembly
+  permalink: /wasm
+  description: WebAssembly-related content and updates
+
+tutorial:
+  label: Tutorial
+  permalink: /tutorial
+  description: Tutorials and how-to guides
+
+architecture:
+  label: Architecture
+  permalink: /architecture
+  description: Architecture decisions and design discussions
+
+performance:
+  label: Performance
+  permalink: /performance
+  description: Performance benchmarks and optimizations
+
+announcement:
+  label: Announcement
+  permalink: /announcement
+  description: Project announcements and news
