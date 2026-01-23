@@ -1,4 +1,56 @@
 //! Sandbox configuration.
+//!
+//! This module provides the configuration types for creating sandboxes.
+//!
+//! # Builder Pattern
+//!
+//! Configuration is built using the [`SandboxConfigBuilder`]:
+//!
+//! ```no_run
+//! use isolate_core::{SandboxConfig, capability::Capability};
+//! use std::time::Duration;
+//!
+//! # fn example() -> isolate_core::Result<()> {
+//! let wasm = std::fs::read("module.wasm")?;
+//!
+//! let config = SandboxConfig::builder()
+//!     // Required: WASM module
+//!     .module(&wasm)?
+//!
+//!     // Resource limits
+//!     .memory_limit(128 * 1024 * 1024)   // 128 MB heap
+//!     .fuel(10_000_000)                   // CPU fuel units
+//!     .wall_time_limit(Duration::from_secs(30))
+//!     .io_write_limit(1024 * 1024)       // 1 MB output
+//!
+//!     // Capabilities
+//!     .capability(Capability::stdout())
+//!     .capability(Capability::stderr())
+//!     .capability(Capability::filesystem_read("/data"))
+//!
+//!     // Environment
+//!     .env("API_KEY", "secret")
+//!     .arg("--verbose".to_string())
+//!
+//!     .build()?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Available Options
+//!
+//! | Method | Description | Default |
+//! |--------|-------------|---------|
+//! | `module()` | WASM module bytes | Required |
+//! | `memory_limit()` | Maximum heap memory | 64 MB |
+//! | `fuel()` | CPU fuel units | Unlimited |
+//! | `wall_time_limit()` | Maximum execution time | Unlimited |
+//! | `io_read_limit()` | Maximum bytes read | Unlimited |
+//! | `io_write_limit()` | Maximum bytes written | Unlimited |
+//! | `capability()` | Grant a capability | None |
+//! | `env()` | Set environment variable | Empty |
+//! | `arg()` | Add command-line argument | Empty |
+//! | `entry_point()` | Function to call | `_start` |
 
 use crate::capability::{Capability, CapabilitySet};
 use crate::error::{Error, Result};

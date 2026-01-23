@@ -559,6 +559,7 @@ impl WasmInstance {
     }
 
     /// Get the values of all global variables.
+    #[cfg(feature = "snapshots")]
     pub fn get_globals(&mut self) -> Vec<crate::snapshot::GlobalValue> {
         use crate::snapshot::GlobalValue;
 
@@ -590,6 +591,7 @@ impl WasmInstance {
     }
 
     /// Set global variable values (for snapshot restore).
+    #[cfg(feature = "snapshots")]
     pub fn set_globals(&mut self, values: &[crate::snapshot::GlobalValue]) -> Result<()> {
         use crate::snapshot::GlobalValue;
 

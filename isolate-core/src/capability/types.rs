@@ -114,6 +114,11 @@ impl Capability {
         Self::Environment(EnvironmentCapability::ReadAll)
     }
 
+    /// Create a command-line arguments capability.
+    pub fn args() -> Self {
+        Self::Environment(EnvironmentCapability::Args)
+    }
+
     /// Create a host function capability.
     pub fn host_function(name: impl Into<String>) -> Self {
         Self::HostFunction(HostFunctionCapability::Named(name.into()))
