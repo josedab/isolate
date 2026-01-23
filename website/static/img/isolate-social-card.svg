@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1117"/>
+      <stop offset="100%" style="stop-color:#161b22"/>
+    </linearGradient>
+    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0066ff"/>
+      <stop offset="100%" style="stop-color:#0052cc"/>
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#0066ff"/>
+      <stop offset="100%" style="stop-color:#4d94ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGradient)"/>
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.03" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="100" x2="1200" y2="100"/>
+    <line x1="0" y1="200" x2="1200" y2="200"/>
+    <line x1="0" y1="300" x2="1200" y2="300"/>
+    <line x1="0" y1="400" x2="1200" y2="400"/>
+    <line x1="0" y1="500" x2="1200" y2="500"/>
+    <line x1="200" y1="0" x2="200" y2="630"/>
+    <line x1="400" y1="0" x2="400" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/>
+    <line x1="800" y1="0" x2="800" y2="630"/>
+    <line x1="1000" y1="0" x2="1000" y2="630"/>
+  </g>
+
+  <!-- Logo/Shield -->
+  <g transform="translate(100, 215)">
+    <path d="M100 10 L180 40 L180 100 C180 150 140 180 100 190 C60 180 20 150 20 100 L20 40 Z"
+          fill="url(#shieldGradient)"/>
+    <path d="M100 30 L160 52 L160 100 C160 140 130 162 100 170 C70 162 40 140 40 100 L40 52 Z"
+          fill="#0066ff" opacity="0.3"/>
+    <!-- Hexagons -->
+    <g fill="white" opacity="0.9">
+      <polygon points="100,70 120,80 120,100 100,110 80,100 80,80"/>
+      <polygon points="70,90 90,100 90,120 70,130 50,120 50,100" opacity="0.7"/>
+      <polygon points="130,90 150,100 150,120 130,130 110,120 110,100" opacity="0.7"/>
+    </g>
+    <!-- Lock -->
+    <g fill="white">
+      <rect x="90" y="124" width="20" height="16" rx="2"/>
+      <path d="M94 124 L94 116 C94 110 96 108 100 108 C104 108 106 110 106 116 L106 124"
+            fill="none" stroke="white" stroke-width="4"/>
+    </g>
+  </g>
+
+  <!-- Title -->
+  <text x="320" y="280" font-family="system-ui, -apple-system, sans-serif" font-size="96" font-weight="800" fill="white">
+    Isolate
+  </text>
+
+  <!-- Tagline -->
+  <text x="320" y="350" font-family="system-ui, -apple-system, sans-serif" font-size="36" fill="#8b949e">
+    Run untrusted code safely. In milliseconds.
+  </text>
+
+  <!-- Features bar -->
+  <g transform="translate(320, 400)">
+    <rect width="200" height="40" rx="20" fill="#21262d"/>
+    <text x="100" y="27" font-family="system-ui, sans-serif" font-size="18" fill="#16c79a" text-anchor="middle" font-weight="600">&lt;5ms Cold Start</text>
+  </g>
+  <g transform="translate(540, 400)">
+    <rect width="200" height="40" rx="20" fill="#21262d"/>
+    <text x="100" y="27" font-family="system-ui, sans-serif" font-size="18" fill="#0066ff" text-anchor="middle" font-weight="600">Capability Security</text>
+  </g>
+  <g transform="translate(760, 400)">
+    <rect width="200" height="40" rx="20" fill="#21262d"/>
+    <text x="100" y="27" font-family="system-ui, sans-serif" font-size="18" fill="#e94560" text-anchor="middle" font-weight="600">Resource Limits</text>
+  </g>
+
+  <!-- Bottom bar -->
+  <rect x="0" y="580" width="1200" height="50" fill="#21262d"/>
+  <text x="100" y="612" font-family="monospace" font-size="20" fill="#e94560">$ cargo add isolate-core</text>
+  <text x="1100" y="612" font-family="system-ui, sans-serif" font-size="18" fill="#8b949e" text-anchor="end">github.com/josedab/isolate</text>
+</svg>
