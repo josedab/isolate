@@ -1,0 +1,263 @@
+/**
+ * Isolate Documentation - Custom Styles
+ *
+ * Color palette inspired by security/isolation themes:
+ * - Primary: Electric blue (#0066ff) - trust, security
+ * - Secondary: Coral red (#e94560) - alertness, boundaries
+ * - Accent: Teal (#16c79a) - success, safety
+ */
+
+:root {
+  /* Primary colors */
+  --ifm-color-primary: #0066ff;
+  --ifm-color-primary-dark: #005ce6;
+  --ifm-color-primary-darker: #0056d9;
+  --ifm-color-primary-darkest: #0047b3;
+  --ifm-color-primary-light: #1a75ff;
+  --ifm-color-primary-lighter: #3385ff;
+  --ifm-color-primary-lightest: #4d94ff;
+
+  /* Code highlighting */
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 102, 255, 0.1);
+
+  /* Fonts */
+  --ifm-font-family-base: 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', 'Fira Code', 'Consolas',
+    'Monaco', 'Andale Mono', monospace;
+
+  /* Spacing */
+  --ifm-spacing-horizontal: 1.5rem;
+
+  /* Border radius */
+  --ifm-global-radius: 0.5rem;
+  --ifm-code-border-radius: 0.375rem;
+}
+
+/* Dark mode colors */
+[data-theme='dark'] {
+  --ifm-color-primary: #4d94ff;
+  --ifm-color-primary-dark: #3385ff;
+  --ifm-color-primary-darker: #1a75ff;
+  --ifm-color-primary-darkest: #0066ff;
+  --ifm-color-primary-light: #66a3ff;
+  --ifm-color-primary-lighter: #80b3ff;
+  --ifm-color-primary-lightest: #99c2ff;
+
+  --ifm-background-color: #0d1117;
+  --ifm-background-surface-color: #161b22;
+  --ifm-navbar-background-color: #161b22;
+  --ifm-footer-background-color: #0d1117;
+
+  --docusaurus-highlighted-code-line-bg: rgba(77, 148, 255, 0.15);
+}
+
+/* Navbar styling */
+.navbar {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .navbar {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid #21262d;
+}
+
+.navbar__title {
+  font-weight: 700;
+}
+
+/* Hero section */
+.hero {
+  padding: 4rem 0;
+  text-align: center;
+}
+
+.hero__title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+}
+
+.hero__subtitle {
+  font-size: 1.5rem;
+  color: var(--ifm-color-emphasis-700);
+  max-width: 600px;
+  margin: 0 auto 2rem;
+}
+
+[data-theme='dark'] .hero__subtitle {
+  color: var(--ifm-color-emphasis-500);
+}
+
+/* Feature cards */
+.feature-card {
+  padding: 1.5rem;
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  transition: all 0.2s ease;
+}
+
+.feature-card:hover {
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 4px 12px rgba(0, 102, 255, 0.15);
+}
+
+[data-theme='dark'] .feature-card {
+  border-color: #21262d;
+}
+
+[data-theme='dark'] .feature-card:hover {
+  border-color: var(--ifm-color-primary);
+  box-shadow: 0 4px 12px rgba(77, 148, 255, 0.2);
+}
+
+/* Code blocks */
+.prism-code {
+  font-size: 0.9rem;
+}
+
+/* Install command styling */
+.install-command {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border-radius: var(--ifm-global-radius);
+  padding: 1rem 1.5rem;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 1.1rem;
+  color: #e94560;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid #21262d;
+}
+
+.install-command::before {
+  content: '$';
+  color: #16c79a;
+}
+
+/* Buttons */
+.button--primary {
+  background: linear-gradient(135deg, #0066ff 0%, #0052cc 100%);
+  border: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.button--primary:hover {
+  background: linear-gradient(135deg, #1a75ff 0%, #0066ff 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 102, 255, 0.3);
+}
+
+.button--secondary {
+  border: 2px solid var(--ifm-color-primary);
+  font-weight: 600;
+}
+
+/* Comparison table */
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.comparison-table th {
+  background: var(--ifm-color-primary);
+  color: white;
+  padding: 1rem;
+  text-align: left;
+}
+
+.comparison-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.comparison-table tr:hover td {
+  background: var(--ifm-color-emphasis-100);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.badge--success {
+  background: rgba(22, 199, 154, 0.15);
+  color: #16c79a;
+}
+
+.badge--warning {
+  background: rgba(233, 69, 96, 0.15);
+  color: #e94560;
+}
+
+/* Announcement bar */
+.announcementBar_node_modules-\@docusaurus-theme-classic-lib-theme-AnnouncementBar-styles-module {
+  font-size: 0.875rem;
+}
+
+/* Table of contents */
+.table-of-contents__link--active {
+  font-weight: 600;
+}
+
+/* Admonitions */
+.admonition {
+  border-radius: var(--ifm-global-radius);
+}
+
+/* Mermaid diagrams */
+.mermaid {
+  text-align: center;
+  margin: 2rem 0;
+}
+
+[data-theme='dark'] .mermaid {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Performance metrics highlight */
+.metric-highlight {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--ifm-color-primary);
+  display: block;
+}
+
+.metric-label {
+  font-size: 0.875rem;
+  color: var(--ifm-color-emphasis-600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Responsive */
+@media (max-width: 996px) {
+  .hero__title {
+    font-size: 2.5rem;
+  }
+
+  .hero__subtitle {
+    font-size: 1.25rem;
+  }
+}
+
+/* Print styles */
+@media print {
+  .navbar,
+  .footer,
+  .announcementBar,
+  .pagination-nav {
+    display: none;
+  }
+}
