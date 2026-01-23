@@ -10,6 +10,46 @@ authors.workspace = true
 keywords = ["wasm", "sandbox", "isolation", "security", "runtime"]
 categories = ["wasm", "development-tools"]
 
+[features]
+default = []
+
+# Core experimental features
+snapshots = []           # Snapshot/restore functionality with copy-on-write memory
+wasi-preview2 = []       # WASI Preview2 (Component Model) support
+debug-support = []       # Live debugging with breakpoints and time-travel
+module-signing = []      # Cryptographic signing and verification of WASM modules
+
+# Advanced/optional features
+kubernetes = []          # Kubernetes operator and CRD support
+otel-telemetry = []      # OpenTelemetry distributed tracing
+ai-detection = []        # AI-powered anomaly detection for sandbox behavior
+nlp-policies = []        # Natural language policy definition
+
+# Experimental features (not production ready)
+hotpatch = []            # Hot code patching (simulated, not production ready)
+distributed-mesh = []    # Distributed sandbox execution (network stubs)
+gpu-compute = []         # GPU acceleration (simulated)
+chaos-testing = []       # Chaos engineering and fault injection
+
+# Meta features
+experimental = [
+    "hotpatch",
+    "distributed-mesh",
+    "gpu-compute",
+    "chaos-testing",
+]
+full = [
+    "snapshots",
+    "wasi-preview2",
+    "debug-support",
+    "module-signing",
+    "kubernetes",
+    "otel-telemetry",
+    "ai-detection",
+    "nlp-policies",
+    "experimental",
+]
+
 [dependencies]
 # WASM runtime
 wasmtime = { workspace = true }
@@ -23,6 +63,7 @@ async-trait = { workspace = true }
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
