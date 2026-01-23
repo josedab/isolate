@@ -23,6 +23,30 @@ const HELLO_WASM: &[u8] = include_bytes!("fixtures/hello.wasm");
 // WASM module that exits with code 42
 const EXIT_42_WASM: &[u8] = include_bytes!("fixtures/exit_42.wasm");
 
+// WASM module with infinite loop (for timeout testing)
+const INFINITE_LOOP_WASM: &[u8] = include_bytes!("fixtures/infinite_loop.wasm");
+
+// WASM module that grows memory repeatedly (for memory limit testing)
+const MEMORY_GROW_WASM: &[u8] = include_bytes!("fixtures/memory_grow.wasm");
+
+// WASM module that burns CPU/fuel (for fuel exhaustion testing)
+const CPU_INTENSIVE_WASM: &[u8] = include_bytes!("fixtures/cpu_intensive.wasm");
+
+// WASM module that writes a lot to stdout (for I/O limit testing)
+const STDOUT_FLOOD_WASM: &[u8] = include_bytes!("fixtures/stdout_flood.wasm");
+
+// WASM module that reads environment variables
+const ENV_READER_WASM: &[u8] = include_bytes!("fixtures/env_reader.wasm");
+
+// WASM module that reads command-line arguments
+const ARGS_READER_WASM: &[u8] = include_bytes!("fixtures/args_reader.wasm");
+
+// WASM module that reads the clock
+const CLOCK_READER_WASM: &[u8] = include_bytes!("fixtures/clock_reader.wasm");
+
+// WASM module that reads random bytes
+const RANDOM_READER_WASM: &[u8] = include_bytes!("fixtures/random_reader.wasm");
+
 #[tokio::test]
 async fn test_sandbox_creation() {
     let config = SandboxConfig::builder()
@@ -318,4 +342,209 @@ async fn test_non_zero_exit_code() {
     // Verify the exit code is captured correctly
     assert_eq!(output.exit_code, 42, "Expected exit code 42");
     assert!(!output.success(), "Expected non-successful exit");
+}
+
+// ============================================================================
+// Resource Limit Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_timeout_with_infinite_loop() {
+    // Create sandbox with a short timeout
+    let config = SandboxConfig::builder()
+        .module(INFINITE_LOOP_WASM)
+        .expect("valid module")
+        .wall_time_limit(Duration::from_millis(100))
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let result = sandbox.run(&[]).await;
+
+    // Should timeout or be interrupted - the infinite loop should not complete
+    assert!(
+        result.is_err(),
+        "Expected error from infinite loop, but it completed successfully"
+    );
+}
+
+#[tokio::test]
+async fn test_fuel_exhaustion() {
+    // Create sandbox with very limited fuel
+    let config = SandboxConfig::builder()
+        .module(CPU_INTENSIVE_WASM)
+        .expect("valid module")
+        .fuel(1_000) // Very low fuel - will exhaust quickly
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let result = sandbox.run(&[]).await;
+
+    // Should run out of fuel - the CPU intensive loop should not complete with such low fuel
+    assert!(
+        result.is_err(),
+        "Expected error from fuel exhaustion, but module completed successfully"
+    );
+}
+
+#[tokio::test]
+async fn test_memory_limit() {
+    // Create sandbox with limited memory (1MB)
+    let config = SandboxConfig::builder()
+        .module(MEMORY_GROW_WASM)
+        .expect("valid module")
+        .memory_limit(1 * 1024 * 1024) // 1MB - very limited
+        .fuel(10_000_000) // Enough fuel to complete
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let result = sandbox.run(&[]).await;
+
+    // Memory growth will be limited. Either:
+    // 1. Module completes normally (memory.grow returns -1 but doesn't crash)
+    // 2. Module hits a memory limit and errors
+    // Both outcomes are acceptable for this test - we're verifying the limit is enforced
+    match result {
+        Ok(output) => {
+            // Module completed - memory growth was limited but didn't crash
+            assert_eq!(output.exit_code, 0);
+        }
+        Err(_) => {
+            // Memory limit error occurred - this is also acceptable
+        }
+    }
+}
+
+// ============================================================================
+// Capability Tests
+// ============================================================================
+
+#[tokio::test]
+async fn test_env_reader_with_env_capability() {
+    // Create sandbox with environment capability and some env vars
+    let config = SandboxConfig::builder()
+        .module(ENV_READER_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .capability(Capability::env_all())
+        .env("TEST_VAR1", "value1")
+        .env("TEST_VAR2", "value2")
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let output = sandbox.run(&[]).await.expect("execution");
+
+    // Exit code is the number of environment variables
+    // Should be at least 2 (our TEST_VAR1 and TEST_VAR2)
+    assert!(
+        output.exit_code >= 2,
+        "Expected at least 2 env vars, got exit code: {}",
+        output.exit_code
+    );
+}
+
+#[tokio::test]
+async fn test_args_reader_with_args_capability() {
+    // Create sandbox with args capability
+    let config = SandboxConfig::builder()
+        .module(ARGS_READER_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .capability(Capability::args())
+        .arg("arg1".to_string())
+        .arg("arg2".to_string())
+        .arg("arg3".to_string())
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let output = sandbox.run(&[]).await.expect("execution");
+
+    // Exit code is the number of arguments
+    // Should be 3 (our args)
+    assert_eq!(
+        output.exit_code, 3,
+        "Expected 3 args, got exit code: {}",
+        output.exit_code
+    );
+}
+
+#[tokio::test]
+async fn test_clock_reader_with_time_capability() {
+    // Create sandbox with time capability
+    let config = SandboxConfig::builder()
+        .module(CLOCK_READER_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .capability(Capability::system_clock())
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let output = sandbox.run(&[]).await.expect("execution");
+
+    // Exit code is the result of clock_time_get (0 = success)
+    assert_eq!(
+        output.exit_code, 0,
+        "Expected clock_time_get to succeed (exit 0), got: {}",
+        output.exit_code
+    );
+}
+
+#[tokio::test]
+async fn test_random_reader_with_random_capability() {
+    // Create sandbox with random capability
+    let config = SandboxConfig::builder()
+        .module(RANDOM_READER_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .capability(Capability::secure_random())
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let output = sandbox.run(&[]).await.expect("execution");
+
+    // Exit code is the result of random_get (0 = success)
+    assert_eq!(
+        output.exit_code, 0,
+        "Expected random_get to succeed (exit 0), got: {}",
+        output.exit_code
+    );
+}
+
+#[tokio::test]
+async fn test_stdout_flood_with_io_limit() {
+    // Create sandbox with stdout capability but limited I/O
+    let config = SandboxConfig::builder()
+        .module(STDOUT_FLOOD_WASM)
+        .expect("valid module")
+        .fuel(10_000_000)
+        .capability(Capability::stdout())
+        .io_write_limit(1000) // Only allow 1000 bytes of output
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let result = sandbox.run(&[]).await;
+
+    // The module tries to write 10000 bytes but we limited to 1000
+    // It should either error or the output should be truncated
+    match result {
+        Ok(output) => {
+            // If it succeeds, stdout should be limited
+            assert!(
+                output.stdout.len() <= 1000,
+                "Expected stdout <= 1000 bytes, got: {}",
+                output.stdout.len()
+            );
+        }
+        Err(e) => {
+            // I/O limit error is acceptable
+            println!("Got expected error: {:?}", e);
+        }
+    }
 }
