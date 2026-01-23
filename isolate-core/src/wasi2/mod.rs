@@ -42,10 +42,13 @@
 mod component;
 mod context;
 mod host;
+pub mod wit;
 
-pub use component::{ComponentSandbox, ComponentState};
-pub use context::{ComponentConfig, ComponentConfigBuilder};
-pub use host::WasiHostState;
+pub use component::{
+    CompiledComponent, ComponentEngine, ComponentEngineConfig, ComponentSandbox, ComponentState,
+};
+pub use context::{ComponentConfig, ComponentConfigBuilder, ComponentHash, NetworkConfig, WasmComponent};
+pub use host::{IoLimits, WasiError, WasiHostState};
 
 use crate::Result;
 
