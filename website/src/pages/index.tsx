@@ -1,3 +1,17 @@
+/**
+ * @fileoverview Homepage for the Isolate documentation website.
+ *
+ * This module provides the main landing page components for the Isolate
+ * documentation site built with Docusaurus. It includes:
+ * - Hero section with badges and install command
+ * - Performance metrics display
+ * - Code examples with copy functionality
+ * - Feature comparison table
+ * - Use cases and CTA sections
+ *
+ * @module pages/index
+ */
+
 import type {ReactNode} from 'react';
 import {useState} from 'react';
 import clsx from 'clsx';
@@ -10,6 +24,19 @@ import CodeBlock from '@theme/CodeBlock';
 
 import styles from './index.module.css';
 
+/**
+ * Badge configuration for displaying project status badges.
+ * @typedef {Object} Badge
+ * @property {string} alt - Alt text for the badge image
+ * @property {string} src - URL to the badge image (shields.io)
+ * @property {string} href - Link destination when badge is clicked
+ */
+
+/**
+ * Project status badges displayed in the hero section.
+ * Includes CI status, code coverage, crates.io version, and license.
+ * @type {Badge[]}
+ */
 const badges = [
   {
     alt: 'CI',
@@ -33,6 +60,11 @@ const badges = [
   },
 ];
 
+/**
+ * Example Rust code demonstrating basic Isolate usage.
+ * Shown in the CodeExample section to help users get started quickly.
+ * @type {string}
+ */
 const exampleCode = `use isolate_core::{Sandbox, SandboxConfig, capability::Capability};
 
 #[tokio::main]
@@ -54,6 +86,17 @@ async fn main() -> isolate_core::Result<()> {
     Ok(())
 }`;
 
+/**
+ * A button component that copies text to the clipboard.
+ * Shows "Copied!" feedback for 2 seconds after successful copy.
+ *
+ * @param {Object} props - Component props
+ * @param {string} props.text - The text to copy to clipboard when clicked
+ * @returns {ReactNode} A button element with copy functionality
+ *
+ * @example
+ * <CopyButton text="cargo add isolate-core" />
+ */
 function CopyButton({text}: {text: string}) {
   const [copied, setCopied] = useState(false);
 
@@ -74,6 +117,13 @@ function CopyButton({text}: {text: string}) {
   );
 }
 
+/**
+ * Hero section component for the homepage.
+ * Displays the main headline, tagline, project badges, install command,
+ * and primary call-to-action buttons.
+ *
+ * @returns {ReactNode} The hero section with branding and navigation
+ */
 function HomepageHeader() {
   const {siteConfig} = useDocusaurusContext();
   return (
@@ -124,6 +174,13 @@ function HomepageHeader() {
   );
 }
 
+/**
+ * Performance metrics display section.
+ * Shows key performance indicators including cold start time,
+ * warm start time, memory overhead, and test count.
+ *
+ * @returns {ReactNode} A grid of metric cards
+ */
 function MetricsSection() {
   return (
     <section className={styles.metrics}>
@@ -151,6 +208,13 @@ function MetricsSection() {
   );
 }
 
+/**
+ * Code example section demonstrating the capability-based security model.
+ * Shows a real Rust code example alongside explanatory text about
+ * Isolate's security features.
+ *
+ * @returns {ReactNode} A two-column layout with description and code
+ */
 function CodeExample() {
   return (
     <section className={styles.codeExample}>
@@ -186,6 +250,13 @@ function CodeExample() {
   );
 }
 
+/**
+ * Feature comparison table section.
+ * Compares Isolate against bare Wasmtime and microVM-based solutions
+ * across key dimensions like cold start, memory overhead, and built-in features.
+ *
+ * @returns {ReactNode} A comparison table with visual indicators
+ */
 function ComparisonSection() {
   return (
     <section className={styles.comparison}>
@@ -259,7 +330,20 @@ function ComparisonSection() {
   );
 }
 
+/**
+ * Use cases section showcasing production applications.
+ * Displays cards for plugin systems, serverless functions,
+ * code sandboxing, and edge computing use cases.
+ *
+ * @returns {ReactNode} A grid of use case cards with icons
+ */
 function UseCasesSection() {
+  /**
+   * @typedef {Object} UseCase
+   * @property {string} title - Use case title
+   * @property {string} description - Brief description
+   * @property {string} icon - Emoji icon for visual interest
+   */
   const useCases = [
     {
       title: 'Plugin Systems',
@@ -306,6 +390,13 @@ function UseCasesSection() {
   );
 }
 
+/**
+ * "Built On" section highlighting the technology stack.
+ * Showcases the Wasmtime foundation and key technical attributes
+ * (Rust, memory safety, native speed).
+ *
+ * @returns {ReactNode} Technology showcase with logos and description
+ */
 function BuiltOnSection() {
   return (
     <section className={styles.builtOn}>
@@ -347,6 +438,13 @@ function BuiltOnSection() {
   );
 }
 
+/**
+ * Call-to-action section at the bottom of the homepage.
+ * Encourages users to get started with links to quick start guide
+ * and full documentation.
+ *
+ * @returns {ReactNode} CTA section with action buttons
+ */
 function CTASection() {
   return (
     <section className={styles.cta}>
@@ -372,6 +470,13 @@ function CTASection() {
   );
 }
 
+/**
+ * Main homepage component for the Isolate documentation site.
+ * Composes all section components into the complete landing page
+ * with SEO-optimized metadata.
+ *
+ * @returns {ReactNode} The complete homepage wrapped in Docusaurus Layout
+ */
 export default function Home(): ReactNode {
   return (
     <Layout

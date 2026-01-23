@@ -1,14 +1,45 @@
+/**
+ * @fileoverview Homepage features grid component.
+ *
+ * Displays a responsive grid of feature cards highlighting
+ * Isolate's key capabilities. Used on the main landing page
+ * to showcase what makes Isolate unique.
+ *
+ * @module components/HomepageFeatures
+ */
+
 import type {ReactNode} from 'react';
 import clsx from 'clsx';
 import Heading from '@theme/Heading';
 import styles from './styles.module.css';
 
+/**
+ * Configuration for a single feature card.
+ * @typedef {Object} FeatureItem
+ * @property {string} title - Feature title displayed as heading
+ * @property {string} icon - Emoji icon for visual identification
+ * @property {ReactNode} description - JSX description content
+ */
 type FeatureItem = {
   title: string;
   icon: string;
   description: ReactNode;
 };
 
+/**
+ * List of features displayed on the homepage.
+ * Each feature highlights a key capability of the Isolate runtime.
+ *
+ * Features include:
+ * - Sub-5ms cold start performance
+ * - Capability-based security model
+ * - Resource limits and metering
+ * - Multi-language WebAssembly support
+ * - Production-ready observability
+ * - Memory-safe Rust implementation
+ *
+ * @type {FeatureItem[]}
+ */
 const FeatureList: FeatureItem[] = [
   {
     title: 'Sub-5ms Cold Start',
@@ -72,6 +103,17 @@ const FeatureList: FeatureItem[] = [
   },
 ];
 
+/**
+ * Individual feature card component.
+ * Renders a single feature with icon, title, and description
+ * in a styled card layout.
+ *
+ * @param {FeatureItem} props - Feature configuration
+ * @param {string} props.title - Feature title
+ * @param {string} props.icon - Emoji icon
+ * @param {ReactNode} props.description - Description content
+ * @returns {ReactNode} A styled feature card
+ */
 function Feature({title, icon, description}: FeatureItem) {
   return (
     <div className={clsx('col col--4')}>
@@ -86,6 +128,17 @@ function Feature({title, icon, description}: FeatureItem) {
   );
 }
 
+/**
+ * Homepage features section component.
+ * Renders a responsive 3-column grid of feature cards highlighting
+ * Isolate's key capabilities. Used on the main landing page.
+ *
+ * @returns {ReactNode} Features section with heading and card grid
+ *
+ * @example
+ * // Usage in homepage
+ * <HomepageFeatures />
+ */
 export default function HomepageFeatures(): ReactNode {
   return (
     <section className={styles.features}>
