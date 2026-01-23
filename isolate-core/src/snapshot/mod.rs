@@ -5,6 +5,8 @@
 //! - Restoring sandboxes from snapshots with sub-millisecond warm starts
 //! - Managing warm pools of pre-initialized sandboxes
 //! - Copy-on-write memory optimization for memory-efficient snapshotting
+//! - Incremental snapshots with page-level deduplication
+//! - Snapshot serialization and persistence
 //!
 //! # Example
 //!
@@ -18,14 +20,35 @@
 //! // Later, restore from snapshot for instant cold start
 //! let mut sandbox2 = Sandbox::restore(snapshot_id, &snapshot_engine, config).await?;
 //! ```
+//!
+//! # Copy-on-Write Snapshots
+//!
+//! For efficient memory usage with many similar snapshots:
+//!
+//! ```rust,ignore
+//! use isolate_core::snapshot::cow::{CowMemoryStore, CowSnapshot};
+//!
+//! // Create a CoW store
+//! let store = CowMemoryStore::new(path, 65536, 10000)?;
+//!
+//! // Create a CoW snapshot (pages are deduplicated)
+//! let snapshot = CowSnapshot::from_memory(id, &memory, 65536, &store);
+//!
+//! // Restore efficiently
+//! let restored = snapshot.restore_memory(&store)?;
+//! ```
 
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+pub mod cow;
 mod pool;
+pub mod serialization;
 
+pub use cow::{CowMemoryStore, CowSnapshot, CowSnapshotDiff, CowStats, PageHash, SnapshotVersioner};
 pub use pool::{WarmPool, WarmPoolConfig, WarmPoolStats};
+pub use serialization::{SnapshotSerializer, SnapshotWriter};
 
 use crate::config::ModuleHash;
 use crate::error::{Error, Result};
