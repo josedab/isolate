@@ -19,11 +19,44 @@ isolate-server --addr 0.0.0.0:50051
 ```bash
 isolate-server \
     --addr 0.0.0.0:50051 \
-    --metrics-addr 0.0.0.0:9090 \
+    --health-addr 0.0.0.0:8080 \
     --max-sandboxes 100 \
-    --default-memory-limit 128M \
-    --default-timeout 30s
+    --log-level info
 ```
+
+### Command-Line Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--addr` / `-a` | `0.0.0.0:50051` | gRPC server address |
+| `--health-addr` | `0.0.0.0:8080` | HTTP health check address |
+| `--no-health-http` | false | Disable HTTP health endpoint |
+| `--log-level` / `-l` | `info` | Log level (trace, debug, info, warn, error) |
+| `--json-logs` | false | Enable JSON logging format |
+| `--max-sandboxes` | `100` | Maximum concurrent sandboxes |
+| `--warm-pool` | false | Enable warm sandbox pool |
+| `--warm-pool-size` | `5` | Warm pool size per module |
+
+### OpenTelemetry Options
+
+Enable distributed tracing by providing an OTLP endpoint:
+
+```bash
+isolate-server \
+    --addr 0.0.0.0:50051 \
+    --otlp-endpoint http://localhost:4317 \
+    --service-name my-isolate-service \
+    --sampling-ratio 0.1
+```
+
+| Flag | Environment Variable | Description |
+|------|---------------------|-------------|
+| `--otlp-endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint |
+| `--service-name` | `OTEL_SERVICE_NAME` | Service name (default: `isolate-server`) |
+| `--sampling-ratio` | - | Sampling ratio 0.0-1.0 (default: 1.0) |
+| `--no-tracing` | - | Disable OpenTelemetry |
+
+See [Monitoring](./monitoring.md#opentelemetry-tracing) for details on exported spans and integration.
 
 ## API Overview
 
