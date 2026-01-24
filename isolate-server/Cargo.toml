@@ -12,7 +12,7 @@ name = "isolate-server"
 path = "src/main.rs"
 
 [dependencies]
-isolate-core = { path = "../isolate-core" }
+isolate-core = { path = "../isolate-core", features = ["otel-telemetry"] }
 
 # Async
 tokio = { workspace = true }
@@ -20,8 +20,14 @@ tokio-stream = { workspace = true }
 
 # gRPC
 tonic = { workspace = true }
+tonic-health = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
+
+# HTTP health endpoint
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+http-body-util = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
@@ -30,12 +36,18 @@ serde_json = { workspace = true }
 # Error handling
 anyhow = { workspace = true }
 
-# Logging
+# Logging and tracing
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+
+# OpenTelemetry
+opentelemetry = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
 
 # CLI
-clap = { workspace = true }
+clap = { workspace = true, features = ["env"] }
 
 # Utilities
 uuid = { workspace = true }
