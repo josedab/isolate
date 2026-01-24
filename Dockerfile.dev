@@ -1,0 +1,23 @@
+# Development Dockerfile with hot reload
+# Use: docker compose --profile dev up isolate-server-dev
+
+FROM rust:1.75-bookworm
+
+WORKDIR /app
+
+# Install development tools
+RUN apt-get update && \
+    apt-get install -y protobuf-compiler && \
+    rm -rf /var/lib/apt/lists/* && \
+    cargo install cargo-watch
+
+# Expose gRPC port
+EXPOSE 50051
+
+# Default environment
+ENV RUST_LOG=debug
+ENV ISOLATE_HOST=0.0.0.0
+ENV ISOLATE_PORT=50051
+
+# Use cargo-watch for hot reload
+CMD ["cargo", "watch", "-x", "run --package isolate-server -- --host 0.0.0.0 --port 50051"]
