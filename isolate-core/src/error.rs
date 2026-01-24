@@ -135,6 +135,114 @@ impl Error {
     pub fn is_http_error(&self) -> bool {
         matches!(self, Error::Http(_))
     }
+
+    /// Returns a suggestion for how to fix or investigate this error.
+    ///
+    /// Returns `None` if no specific suggestion is available.
+    pub fn suggestion(&self) -> Option<&'static str> {
+        match self {
+            Error::Create(_) => Some(
+                "Check that the WASM module is valid and all required capabilities are granted.",
+            ),
+            Error::Compilation(_) => Some(
+                "Verify the file is a valid WASM binary (starts with \\0asm magic bytes). \
+                 Use 'isolate validate <file>' to diagnose module issues.",
+            ),
+            Error::Instantiation(_) => Some(
+                "Ensure all required WASI imports are available and memory limits are sufficient. \
+                 The module may require more initial memory than the configured limit.",
+            ),
+            Error::Execution(_) => Some(
+                "Check that the entry point function exists and has the correct signature. \
+                 Enable debug logging with -l debug for more details.",
+            ),
+            Error::Timeout(_) => Some(
+                "Increase the timeout with --timeout <seconds> or optimize the WASM code. \
+                 Consider adding fuel limits to catch infinite loops earlier.",
+            ),
+            Error::FuelExhausted { .. } => Some(
+                "Increase the fuel limit with --fuel <amount> or optimize the WASM code. \
+                 The default fuel limit may be too low for compute-intensive operations.",
+            ),
+            Error::MemoryLimitExceeded { .. } => Some(
+                "Increase the memory limit with --memory-limit <size> (e.g., 256M, 1G). \
+                 Consider if the module has a memory leak or requires more memory for its workload.",
+            ),
+            Error::CapabilityDenied(cap) => match cap {
+                Capability::Stdio(_) => Some(
+                    "Grant stdio capability with --cap-stdout, --cap-stderr, --cap-stdin, or --cap-stdio for all.",
+                ),
+                Capability::Filesystem(_) => Some(
+                    "Grant filesystem capability with --cap-fs-read <path> or --cap-fs-write <path>.",
+                ),
+                Capability::Network(_) => Some(
+                    "Grant network capability with --cap-http <host-pattern> and/or --cap-dns.",
+                ),
+                Capability::Time(_) => Some("Grant time capability with --cap-time."),
+                Capability::Random(_) => Some("Grant random capability with --cap-random."),
+                Capability::Environment(_) => Some(
+                    "Pass environment variables explicitly with --env KEY=VALUE.",
+                ),
+                Capability::HostFunction(_) => Some(
+                    "The required host function is not available. Check the sandbox configuration.",
+                ),
+            },
+            Error::InvalidCapability(_) => Some(
+                "Review the capability configuration syntax. Use 'isolate --help' for examples.",
+            ),
+            Error::InvalidConfig(_) => Some(
+                "Review the configuration. Use 'isolate --help' for valid options and examples.",
+            ),
+            Error::InvalidState { .. } => Some(
+                "This may indicate a bug or misuse of the API. Ensure operations are called in the correct order.",
+            ),
+            Error::Snapshot(_) => Some(
+                "Snapshot operations may fail due to incompatible module state. \
+                 Try creating a fresh sandbox instead.",
+            ),
+            Error::SnapshotNotFound(_) => Some(
+                "List available snapshots with 'isolate snapshot list'. \
+                 The snapshot may have been deleted or never created.",
+            ),
+            Error::Io { .. } => Some(
+                "Check file permissions and that the path exists. \
+                 Ensure the filesystem capability is granted for the required paths.",
+            ),
+            Error::FilesystemAccessDenied { .. } => Some(
+                "Grant filesystem read/write capability for the required path with \
+                 --cap-fs-read <path> or --cap-fs-write <path>.",
+            ),
+            Error::NetworkAccessDenied { .. } => Some(
+                "Grant HTTP capability with --cap-http <host-pattern>. \
+                 Use '*' to allow all hosts (not recommended for untrusted code).",
+            ),
+            Error::Engine(_) => Some(
+                "This is an internal error. Please report this issue with the error details \
+                 at https://github.com/josedab/isolate/issues",
+            ),
+            Error::ModuleValidation(_) => Some(
+                "The WASM module failed validation. Ensure it was compiled correctly and \
+                 is a valid WASM binary. Use 'isolate validate <file>' for details.",
+            ),
+            Error::FunctionNotFound(_) => Some(
+                "Check that the entry point function exists in the module's exports. \
+                 Use 'isolate info <file> --exports' to list available functions. \
+                 The default entry point is '_start' for WASI modules.",
+            ),
+            Error::InvalidSignature { .. } => Some(
+                "The function signature doesn't match what's expected. \
+                 WASI entry points should have signature () -> () or (i32, i32) -> i32.",
+            ),
+            Error::PoolExhausted => Some(
+                "All pre-warmed sandboxes are in use. Wait for running sandboxes to complete \
+                 or increase the pool size in the server configuration.",
+            ),
+            Error::Http(_) => Some(
+                "Check network connectivity and that the target URL is correct. \
+                 Ensure --cap-http includes the required host pattern.",
+            ),
+        }
+    }
 }
 
 #[cfg(test)]
