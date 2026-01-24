@@ -1,6 +1,14 @@
-# ⚠️ Deprecated — use `sdks/` instead
+# Isolate Client SDKs
 
-This directory is superseded by the [`sdks/`](../sdks/) directory, which contains
-the canonical client SDKs for all supported languages (Go, Java, Python, TypeScript).
+Client SDKs for interacting with the Isolate sandbox runtime.
 
-Please use `sdks/` for all new development. This directory will be removed in a future release.
+## Available SDKs
+
+| Language | Directory | Status |
+|----------|-----------|--------|
+| Go | [`go/`](go/) | Stable |
+| TypeScript | [`typescript/`](typescript/) | Stable |
+| Python | [`python/`](python/) | Beta |
+| Java | [`java/`](java/) | Beta |
+
+See each SDK's README for installation and usage instructions.
