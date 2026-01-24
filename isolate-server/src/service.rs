@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
 use tonic::{Request, Response, Status};
+use tracing::{instrument, Span};
 
 /// The Isolate gRPC service implementation.
 pub struct IsolateServiceImpl {
@@ -95,6 +96,16 @@ impl IsolateServiceImpl {
 
 #[tonic::async_trait]
 impl IsolateService for IsolateServiceImpl {
+    #[instrument(
+        name = "grpc.create_sandbox",
+        skip(self, request),
+        fields(
+            otel.kind = "server",
+            rpc.system = "grpc",
+            rpc.service = "isolate.v1.IsolateService",
+            rpc.method = "CreateSandbox",
+        )
+    )]
     async fn create_sandbox(
         &self,
         request: Request<CreateSandboxRequest>,
@@ -157,6 +168,10 @@ impl IsolateService for IsolateServiceImpl {
         let module_hash = sandbox.module_hash().to_string();
         let creation_time = start.elapsed();
 
+        // Record span attributes
+        Span::current().record("sandbox.id", &sandbox_id);
+        Span::current().record("sandbox.module_hash", &module_hash);
+
         // Store sandbox
         self.sandboxes.insert(
             sandbox_id.clone(),
@@ -165,6 +180,7 @@ impl IsolateService for IsolateServiceImpl {
 
         tracing::info!(
             sandbox_id = %sandbox_id,
+            module_hash = %module_hash,
             creation_time_ms = creation_time.as_secs_f64() * 1000.0,
             "Sandbox created via gRPC"
         );
@@ -176,6 +192,17 @@ impl IsolateService for IsolateServiceImpl {
         }))
     }
 
+    #[instrument(
+        name = "grpc.run_sandbox",
+        skip(self, request),
+        fields(
+            otel.kind = "server",
+            rpc.system = "grpc",
+            rpc.service = "isolate.v1.IsolateService",
+            rpc.method = "RunSandbox",
+            sandbox.id = %request.get_ref().sandbox_id,
+        )
+    )]
     async fn run_sandbox(
         &self,
         request: Request<RunSandboxRequest>,
@@ -195,6 +222,15 @@ impl IsolateService for IsolateServiceImpl {
             .await
             .map_err(|e| Status::internal(format!("Execution failed: {}", e)))?;
 
+        // Record execution results in span
+        Span::current().record("sandbox.exit_code", output.exit_code);
+        tracing::info!(
+            sandbox_id = %req.sandbox_id,
+            exit_code = output.exit_code,
+            duration_ms = output.duration.as_secs_f64() * 1000.0,
+            "Sandbox execution completed"
+        );
+
         let usage = &output.resource_usage;
         Ok(Response::new(RunSandboxResponse {
             exit_code: output.exit_code,
@@ -212,6 +248,17 @@ impl IsolateService for IsolateServiceImpl {
         }))
     }
 
+    #[instrument(
+        name = "grpc.get_sandbox",
+        skip(self, request),
+        fields(
+            otel.kind = "server",
+            rpc.system = "grpc",
+            rpc.service = "isolate.v1.IsolateService",
+            rpc.method = "GetSandbox",
+            sandbox.id = %request.get_ref().sandbox_id,
+        )
+    )]
     async fn get_sandbox(
         &self,
         request: Request<GetSandboxRequest>,
@@ -231,6 +278,17 @@ impl IsolateService for IsolateServiceImpl {
         }))
     }
 
+    #[instrument(
+        name = "grpc.terminate_sandbox",
+        skip(self, request),
+        fields(
+            otel.kind = "server",
+            rpc.system = "grpc",
+            rpc.service = "isolate.v1.IsolateService",
+            rpc.method = "TerminateSandbox",
+            sandbox.id = %request.get_ref().sandbox_id,
+        )
+    )]
     async fn terminate_sandbox(
         &self,
         request: Request<TerminateSandboxRequest>,
@@ -265,6 +323,16 @@ impl IsolateService for IsolateServiceImpl {
         }))
     }
 
+    #[instrument(
+        name = "grpc.list_sandboxes",
+        skip(self, request),
+        fields(
+            otel.kind = "server",
+            rpc.system = "grpc",
+            rpc.service = "isolate.v1.IsolateService",
+            rpc.method = "ListSandboxes",
+        )
+    )]
     async fn list_sandboxes(
         &self,
         request: Request<ListSandboxesRequest>,
@@ -301,6 +369,17 @@ impl IsolateService for IsolateServiceImpl {
 
     type StreamOutputStream = tokio_stream::wrappers::ReceiverStream<Result<OutputChunk, Status>>;
 
+    #[instrument(
+        name = "grpc.stream_output",
+        skip(self, request),
+        fields(
+            otel.kind = "server",
+            rpc.system = "grpc",
+            rpc.service = "isolate.v1.IsolateService",
+            rpc.method = "StreamOutput",
+            sandbox.id = %request.get_ref().sandbox_id,
+        )
+    )]
     async fn stream_output(
         &self,
         request: Request<StreamOutputRequest>,
@@ -327,6 +406,16 @@ impl IsolateService for IsolateServiceImpl {
         )))
     }
 
+    #[instrument(
+        name = "grpc.get_metrics",
+        skip(self, request),
+        fields(
+            otel.kind = "server",
+            rpc.system = "grpc",
+            rpc.service = "isolate.v1.IsolateService",
+            rpc.method = "GetMetrics",
+        )
+    )]
     async fn get_metrics(
         &self,
         request: Request<GetMetricsRequest>,
