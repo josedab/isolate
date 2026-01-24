@@ -73,7 +73,82 @@ Key panels to include:
 
 ## OpenTelemetry Tracing
 
-### Setup
+The gRPC server includes built-in OpenTelemetry support for distributed tracing. Enable it by providing an OTLP endpoint.
+
+### Server Configuration
+
+```bash
+# Enable OTLP export to a local Jaeger/OTEL collector
+isolate-server --otlp-endpoint http://localhost:4317
+
+# With custom service name and sampling
+isolate-server \
+    --otlp-endpoint http://otel-collector:4317 \
+    --service-name my-isolate-service \
+    --sampling-ratio 0.1
+
+# Using environment variables
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export OTEL_SERVICE_NAME=my-isolate-service
+isolate-server
+```
+
+### Server CLI Options
+
+| Flag | Environment Variable | Description |
+|------|---------------------|-------------|
+| `--otlp-endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP gRPC endpoint (e.g., `http://localhost:4317`) |
+| `--service-name` | `OTEL_SERVICE_NAME` | Service name for traces (default: `isolate-server`) |
+| `--sampling-ratio` | - | Trace sampling ratio, 0.0-1.0 (default: 1.0) |
+| `--no-tracing` | - | Disable OpenTelemetry tracing |
+
+### Exported Spans
+
+The server exports the following spans for each gRPC operation:
+
+| Span Name | Description |
+|-----------|-------------|
+| `grpc.create_sandbox` | Sandbox creation including WASM compilation |
+| `grpc.run_sandbox` | Sandbox execution with input/output |
+| `grpc.terminate_sandbox` | Sandbox cleanup and termination |
+| `grpc.get_sandbox` | Sandbox status retrieval |
+| `grpc.list_sandboxes` | List sandbox operations |
+| `grpc.stream_output` | Output streaming |
+| `grpc.get_metrics` | Metrics retrieval |
+
+### Span Attributes
+
+All gRPC spans include standard OpenTelemetry semantic conventions:
+
+- `otel.kind`: `server`
+- `rpc.system`: `grpc`
+- `rpc.service`: `isolate.v1.IsolateService`
+- `rpc.method`: The specific method name
+
+Sandbox-specific spans include:
+
+- `sandbox.id`: The sandbox UUID
+- `sandbox.module_hash`: Hash of the WASM module
+- `sandbox.exit_code`: Exit code (for run operations)
+
+### Example: Running with Jaeger
+
+```bash
+# Start Jaeger
+docker run -d --name jaeger \
+    -p 16686:16686 \
+    -p 4317:4317 \
+    jaegertracing/all-in-one:latest
+
+# Start isolate-server with OTEL
+isolate-server --otlp-endpoint http://localhost:4317
+
+# View traces at http://localhost:16686
+```
+
+### Custom Library Integration
+
+For custom applications using `isolate-core`, you can also integrate OpenTelemetry:
 
 ```rust
 use opentelemetry::global;
