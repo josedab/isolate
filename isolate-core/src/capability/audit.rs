@@ -142,11 +142,7 @@ impl AuditLog {
 
     /// Record a capability denied event.
     pub fn record_denied(&self, capability: Capability, context: Option<String>) {
-        self.record(AuditEvent::denied(
-            self.inner.sandbox_id,
-            capability,
-            context,
-        ));
+        self.record(AuditEvent::denied(self.inner.sandbox_id, capability, context));
     }
 
     /// Record a capability granted event.
@@ -161,23 +157,12 @@ impl AuditLog {
 
     /// Get events of a specific type.
     pub fn events_by_type(&self, event_type: AuditEventType) -> Vec<AuditEvent> {
-        self.inner
-            .events
-            .read()
-            .iter()
-            .filter(|e| e.event_type == event_type)
-            .cloned()
-            .collect()
+        self.inner.events.read().iter().filter(|e| e.event_type == event_type).cloned().collect()
     }
 
     /// Get the number of denied events.
     pub fn denied_count(&self) -> usize {
-        self.inner
-            .events
-            .read()
-            .iter()
-            .filter(|e| e.event_type == AuditEventType::Denied)
-            .count()
+        self.inner.events.read().iter().filter(|e| e.event_type == AuditEventType::Denied).count()
     }
 
     /// Clear all events.
@@ -198,11 +183,8 @@ mod tests {
     #[test]
     fn test_audit_event_creation() {
         let sandbox_id = Uuid::new_v4();
-        let event = AuditEvent::used(
-            sandbox_id,
-            Capability::stdout(),
-            Some("writing output".to_string()),
-        );
+        let event =
+            AuditEvent::used(sandbox_id, Capability::stdout(), Some("writing output".to_string()));
 
         assert_eq!(event.sandbox_id, sandbox_id);
         assert_eq!(event.event_type, AuditEventType::Used);

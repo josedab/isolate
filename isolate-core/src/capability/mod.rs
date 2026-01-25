@@ -67,6 +67,7 @@
 //! ```
 
 mod audit;
+pub mod designer;
 mod enforcer;
 mod types;
 
@@ -103,6 +104,14 @@ impl CapabilitySet {
         self.capabilities.contains(cap)
     }
 
+    /// Check if any capability of the same category (variant) is granted.
+    ///
+    /// For example, `has_category(Capability::stdout())` returns true if any
+    /// `Stdio` capability is granted (stdin, stdout, or stderr).
+    pub fn has_category(&self, cap: &Capability) -> bool {
+        self.capabilities.iter().any(|c| std::mem::discriminant(c) == std::mem::discriminant(cap))
+    }
+
     /// Check if any capability matching the predicate is granted.
     pub fn has_any<F>(&self, predicate: F) -> bool
     where
@@ -136,9 +145,7 @@ impl CapabilitySet {
 
 impl FromIterator<Capability> for CapabilitySet {
     fn from_iter<T: IntoIterator<Item = Capability>>(iter: T) -> Self {
-        Self {
-            capabilities: iter.into_iter().collect(),
-        }
+        Self { capabilities: iter.into_iter().collect() }
     }
 }
 
@@ -166,9 +173,8 @@ mod tests {
 
     #[test]
     fn test_capability_set_from_iterator() {
-        let caps: CapabilitySet = vec![Capability::stdout(), Capability::stderr()]
-            .into_iter()
-            .collect();
+        let caps: CapabilitySet =
+            vec![Capability::stdout(), Capability::stderr()].into_iter().collect();
 
         assert_eq!(caps.len(), 2);
         assert!(caps.has(&Capability::stdout()));

@@ -59,9 +59,7 @@ impl Capability {
 
     /// Create an HTTP client capability.
     pub fn http_client(hosts: Vec<impl Into<String>>) -> Self {
-        Self::Network(NetworkCapability::HttpClient(
-            hosts.into_iter().map(Into::into).collect(),
-        ))
+        Self::Network(NetworkCapability::HttpClient(hosts.into_iter().map(Into::into).collect()))
     }
 
     /// Create a TCP connect capability.
@@ -423,10 +421,7 @@ mod tests {
     #[test]
     fn test_capability_display() {
         assert_eq!(Capability::stdout().to_string(), "stdio:stdout");
-        assert_eq!(
-            Capability::filesystem_read("/data").to_string(),
-            "fs:read:/data"
-        );
+        assert_eq!(Capability::filesystem_read("/data").to_string(), "fs:read:/data");
         assert_eq!(
             Capability::http_client(vec!["api.example.com"]).to_string(),
             "net:http:api.example.com"
