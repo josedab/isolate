@@ -29,11 +29,7 @@ pub struct WasmEngineConfig {
 
 impl Default for WasmEngineConfig {
     fn default() -> Self {
-        Self {
-            enable_fuel: true,
-            enable_epoch_interruption: true,
-            max_cached_modules: 100,
-        }
+        Self { enable_fuel: true, enable_epoch_interruption: true, max_cached_modules: 100 }
     }
 }
 
@@ -87,11 +83,7 @@ impl WasmEngine {
 
         let engine = Engine::new(&engine_config).map_err(|e| Error::Engine(e.to_string()))?;
 
-        Ok(Self {
-            engine,
-            module_cache: Arc::new(DashMap::new()),
-            config,
-        })
+        Ok(Self { engine, module_cache: Arc::new(DashMap::new()), config })
     }
 
     /// Compile a WASM module.
@@ -100,10 +92,7 @@ impl WasmEngine {
 
         // Check cache first
         if let Some(cached) = self.module_cache.get(&hash) {
-            return Ok(CompiledModule {
-                module: cached.clone(),
-                hash,
-            });
+            return Ok(CompiledModule { module: cached.clone(), hash });
         }
 
         // Compile the module
@@ -239,10 +228,8 @@ impl WasmInstance {
         // Include metering if I/O limits are configured
         if enforcer.check_stdout().is_ok() {
             if config.resources.io.is_limited() {
-                wasi_builder.stdout(CaptureStream::with_meter(
-                    stdout_buffer.clone(),
-                    meter.clone(),
-                ));
+                wasi_builder
+                    .stdout(CaptureStream::with_meter(stdout_buffer.clone(), meter.clone()));
             } else {
                 wasi_builder.stdout(CaptureStream::new(stdout_buffer.clone()));
             }
@@ -254,10 +241,8 @@ impl WasmInstance {
         // Include metering if I/O limits are configured
         if enforcer.check_stderr().is_ok() {
             if config.resources.io.is_limited() {
-                wasi_builder.stderr(CaptureStream::with_meter(
-                    stderr_buffer.clone(),
-                    meter.clone(),
-                ));
+                wasi_builder
+                    .stderr(CaptureStream::with_meter(stderr_buffer.clone(), meter.clone()));
             } else {
                 wasi_builder.stderr(CaptureStream::new(stderr_buffer.clone()));
             }
@@ -327,12 +312,7 @@ impl WasmInstance {
             .build();
 
         // Create store
-        let state = SandboxWasiState {
-            wasi,
-            host,
-            initial_fuel,
-            limits,
-        };
+        let state = SandboxWasiState { wasi, host, initial_fuel, limits };
         let mut store = Store::new(engine.engine(), state);
 
         // Configure memory limiter
@@ -340,9 +320,7 @@ impl WasmInstance {
 
         // Configure fuel if enabled
         if let Some(fuel) = config.resources.cpu.fuel {
-            store
-                .set_fuel(fuel)
-                .map_err(|e| Error::Engine(e.to_string()))?;
+            store.set_fuel(fuel).map_err(|e| Error::Engine(e.to_string()))?;
         }
 
         // Configure epoch deadline if enabled
@@ -564,11 +542,8 @@ impl WasmInstance {
         use crate::snapshot::GlobalValue;
 
         // Collect globals first since we can't iterate and read at the same time
-        let globals: Vec<_> = self
-            .instance
-            .exports(&mut self.store)
-            .filter_map(|e| e.into_global())
-            .collect();
+        let globals: Vec<_> =
+            self.instance.exports(&mut self.store).filter_map(|e| e.into_global()).collect();
 
         let mut result = Vec::new();
         for (idx, global) in globals.iter().enumerate() {
@@ -596,11 +571,8 @@ impl WasmInstance {
         use crate::snapshot::GlobalValue;
 
         // Collect globals first since we can't iterate and mutate at the same time
-        let globals: Vec<_> = self
-            .instance
-            .exports(&mut self.store)
-            .filter_map(|e| e.into_global())
-            .collect();
+        let globals: Vec<_> =
+            self.instance.exports(&mut self.store).filter_map(|e| e.into_global()).collect();
 
         for (idx, global) in globals.into_iter().enumerate() {
             if idx >= values.len() {
@@ -712,9 +684,7 @@ mod tests {
         let enforcer = CapabilityEnforcer::new(config.capabilities.clone(), uuid::Uuid::new_v4());
         let meter = ResourceMeter::new(config.resources.clone());
 
-        let mut instance = engine
-            .instantiate(&compiled, &config, enforcer, meter)
-            .unwrap();
+        let mut instance = engine.instantiate(&compiled, &config, enforcer, meter).unwrap();
         let result = instance.run();
 
         match result {

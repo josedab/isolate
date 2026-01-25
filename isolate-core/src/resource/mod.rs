@@ -8,6 +8,11 @@
 
 mod limits;
 mod metering;
+pub mod profiler;
 
 pub use limits::{CpuLimits, IoLimits, MemoryLimits, ResourceLimits, TimeLimits};
 pub use metering::{ResourceMeter, ResourceUsage};
+pub use profiler::{
+    CloudProvider, CostEstimate, ExecutionProfile, PricingModel, ProfileSummary, Recommendation,
+    ResourceProfiler,
+};

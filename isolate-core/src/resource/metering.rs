@@ -145,12 +145,8 @@ impl ResourceMeter {
 
     /// Record fuel consumption.
     pub fn record_fuel(&self, amount: u64) -> Result<()> {
-        let consumed = self
-            .inner
-            .counters
-            .fuel_consumed
-            .fetch_add(amount, Ordering::Relaxed)
-            + amount;
+        let consumed =
+            self.inner.counters.fuel_consumed.fetch_add(amount, Ordering::Relaxed) + amount;
 
         if let Some(limit) = self.inner.limits.cpu.fuel {
             if consumed > limit {
@@ -201,28 +197,14 @@ impl ResourceMeter {
 
     /// Record bytes read.
     pub fn record_read(&self, bytes: u64) -> Result<()> {
-        let total = self
-            .inner
-            .counters
-            .bytes_read
-            .fetch_add(bytes, Ordering::Relaxed)
-            + bytes;
-        self.inner
-            .counters
-            .io_operations
-            .fetch_add(1, Ordering::Relaxed);
+        let total = self.inner.counters.bytes_read.fetch_add(bytes, Ordering::Relaxed) + bytes;
+        self.inner.counters.io_operations.fetch_add(1, Ordering::Relaxed);
 
         if let Some(limit) = self.inner.limits.io.read_bytes {
             if total > limit {
                 // Rollback the addition since we exceeded the limit
-                self.inner
-                    .counters
-                    .bytes_read
-                    .fetch_sub(bytes, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .io_operations
-                    .fetch_sub(1, Ordering::Relaxed);
+                self.inner.counters.bytes_read.fetch_sub(bytes, Ordering::Relaxed);
+                self.inner.counters.io_operations.fetch_sub(1, Ordering::Relaxed);
                 return Err(Error::Execution(format!(
                     "I/O read limit exceeded: {} > {}",
                     total, limit
@@ -235,28 +217,14 @@ impl ResourceMeter {
 
     /// Record bytes written.
     pub fn record_write(&self, bytes: u64) -> Result<()> {
-        let total = self
-            .inner
-            .counters
-            .bytes_written
-            .fetch_add(bytes, Ordering::Relaxed)
-            + bytes;
-        self.inner
-            .counters
-            .io_operations
-            .fetch_add(1, Ordering::Relaxed);
+        let total = self.inner.counters.bytes_written.fetch_add(bytes, Ordering::Relaxed) + bytes;
+        self.inner.counters.io_operations.fetch_add(1, Ordering::Relaxed);
 
         if let Some(limit) = self.inner.limits.io.write_bytes {
             if total > limit {
                 // Rollback the addition since we exceeded the limit
-                self.inner
-                    .counters
-                    .bytes_written
-                    .fetch_sub(bytes, Ordering::Relaxed);
-                self.inner
-                    .counters
-                    .io_operations
-                    .fetch_sub(1, Ordering::Relaxed);
+                self.inner.counters.bytes_written.fetch_sub(bytes, Ordering::Relaxed);
+                self.inner.counters.io_operations.fetch_sub(1, Ordering::Relaxed);
                 return Err(Error::Execution(format!(
                     "I/O write limit exceeded: {} > {}",
                     total, limit
@@ -274,19 +242,10 @@ impl ResourceMeter {
         usage.peak_memory = 0;
         usage.cpu_time = Duration::ZERO;
 
-        self.inner
-            .counters
-            .fuel_consumed
-            .store(0, Ordering::Relaxed);
+        self.inner.counters.fuel_consumed.store(0, Ordering::Relaxed);
         self.inner.counters.bytes_read.store(0, Ordering::Relaxed);
-        self.inner
-            .counters
-            .bytes_written
-            .store(0, Ordering::Relaxed);
-        self.inner
-            .counters
-            .io_operations
-            .store(0, Ordering::Relaxed);
+        self.inner.counters.bytes_written.store(0, Ordering::Relaxed);
+        self.inner.counters.io_operations.store(0, Ordering::Relaxed);
     }
 }
 
@@ -297,11 +256,7 @@ mod tests {
     #[test]
     fn test_resource_meter_memory() {
         let limits = ResourceLimits {
-            memory: super::super::MemoryLimits {
-                heap_max: 1024,
-                stack_max: 256,
-                total_max: 2048,
-            },
+            memory: super::super::MemoryLimits { heap_max: 1024, stack_max: 256, total_max: 2048 },
             ..Default::default()
         };
 
@@ -328,10 +283,7 @@ mod tests {
     #[test]
     fn test_resource_meter_fuel() {
         let limits = ResourceLimits {
-            cpu: super::super::CpuLimits {
-                fuel: Some(1000),
-                ..Default::default()
-            },
+            cpu: super::super::CpuLimits { fuel: Some(1000), ..Default::default() },
             ..Default::default()
         };
 
