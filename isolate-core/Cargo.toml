@@ -13,17 +13,31 @@ categories = ["wasm", "development-tools"]
 [features]
 default = []
 
+# Optional module groups (compile only what you need)
+pool = []                # Warm sandbox pool with predictive autoscaling
+networking = ["dep:url"]          # HTTP client and network policy modules
+agent = []               # AI agent framework for tool-using sandboxes
+policy-engine = []       # Policy rules engine, audit logging, composition
+platform = ["dep:serde_yaml"]    # Admin, gateway, orchestrator, KV store, secrets, IPC,
+                         #   marketplace, plugins, workflows, VFS, provenance
+
 # Core experimental features
-snapshots = []           # Snapshot/restore functionality with copy-on-write memory
+snapshots = ["dep:async-trait"]  # Snapshot/restore functionality with copy-on-write memory
 wasi-preview2 = []       # WASI Preview2 (Component Model) support
 debug-support = []       # Live debugging with breakpoints and time-travel
 module-signing = []      # Cryptographic signing and verification of WASM modules
 
 # Advanced/optional features
-kubernetes = []          # Kubernetes operator and CRD support
-otel-telemetry = []      # OpenTelemetry distributed tracing
+kubernetes = ["dep:serde_yaml"]  # Kubernetes operator and CRD support
+otel-telemetry = [       # OpenTelemetry distributed tracing
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-otlp",
+    "dep:tracing-opentelemetry",
+]
 ai-detection = []        # AI-powered anomaly detection for sandbox behavior
 nlp-policies = []        # Natural language policy definition
+extras = []              # AI exec, carbon tracking, enclave, JS runtime, OS security, verification
 
 # Experimental features (not production ready)
 hotpatch = []            # Hot code patching (simulated, not production ready)
@@ -39,6 +53,12 @@ experimental = [
     "chaos-testing",
 ]
 full = [
+    "pool",
+    "networking",
+    "agent",
+    "policy-engine",
+    "platform",
+    "extras",
     "snapshots",
     "wasi-preview2",
     "debug-support",
@@ -58,12 +78,11 @@ wasmtime-wasi = { workspace = true }
 # Async
 tokio = { workspace = true }
 tokio-util = { workspace = true }
-async-trait = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
-serde_yaml = { workspace = true }
+serde_yaml = { workspace = true, optional = true }
 
 # Error handling
 thiserror = { workspace = true }
@@ -71,16 +90,19 @@ thiserror = { workspace = true }
 # Logging and tracing
 tracing = { workspace = true }
 
-# OpenTelemetry
-opentelemetry = { workspace = true }
-opentelemetry_sdk = { workspace = true }
-opentelemetry-otlp = { workspace = true }
-tracing-opentelemetry = { workspace = true }
+# OpenTelemetry (optional, enabled by otel-telemetry feature)
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
 
 # Metrics
 prometheus = { workspace = true }
 
-# Utilities
+# Utilities (optional where only needed by feature-gated modules)
+async-trait = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
 uuid = { workspace = true }
 dashmap = { workspace = true }
 bytes = { workspace = true }
@@ -88,10 +110,6 @@ parking_lot = { workspace = true }
 chrono = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
-url = { workspace = true }
-
-# HTTP client
-reqwest = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
@@ -107,4 +125,12 @@ harness = false
 
 [[bench]]
 name = "engine"
+harness = false
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[[bench]]
+name = "capability_io"
 harness = false
