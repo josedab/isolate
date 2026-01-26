@@ -259,15 +259,13 @@ impl ComponentConfigBuilder {
 
     /// Grant filesystem read access.
     pub fn filesystem_read(mut self, path: impl Into<PathBuf>) -> Self {
-        self.capabilities
-            .grant(Capability::filesystem_read(path.into()));
+        self.capabilities.grant(Capability::filesystem_read(path.into()));
         self
     }
 
     /// Grant filesystem write access.
     pub fn filesystem_write(mut self, path: impl Into<PathBuf>) -> Self {
-        self.capabilities
-            .grant(Capability::filesystem_write(path.into()));
+        self.capabilities.grant(Capability::filesystem_write(path.into()));
         self
     }
 
@@ -341,17 +339,10 @@ impl ComponentHostState {
         let table = ResourceTable::new();
 
         // Create store limits from config
-        let limits = StoreLimitsBuilder::new()
-            .memory_size(config.resources.memory.heap_max)
-            .build();
+        let limits =
+            StoreLimitsBuilder::new().memory_size(config.resources.memory.heap_max).build();
 
-        Ok(Self {
-            ctx,
-            table,
-            limits,
-            stdout_buffer: Vec::new(),
-            stderr_buffer: Vec::new(),
-        })
+        Ok(Self { ctx, table, limits, stdout_buffer: Vec::new(), stderr_buffer: Vec::new() })
     }
 
     /// Get captured stdout.

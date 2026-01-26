@@ -107,11 +107,7 @@ pub struct WitType {
 impl WitType {
     /// Create a new type definition.
     pub fn new(name: impl Into<String>, kind: WitTypeKind) -> Self {
-        Self {
-            name: name.into(),
-            kind,
-            docs: None,
-        }
+        Self { name: name.into(), kind, docs: None }
     }
 
     /// Add documentation.
@@ -290,11 +286,8 @@ impl WitFunction {
         wit.push_str(&self.name);
         wit.push_str(": func(");
 
-        let params: Vec<_> = self
-            .params
-            .iter()
-            .map(|(name, ty)| format!("{}: {}", name, ty))
-            .collect();
+        let params: Vec<_> =
+            self.params.iter().map(|(name, ty)| format!("{}: {}", name, ty)).collect();
         wit.push_str(&params.join(", "));
 
         wit.push(')');
@@ -319,28 +312,16 @@ impl IsolateWitInterfaces {
         let mut interfaces = HashMap::new();
 
         // Filesystem capability interface
-        interfaces.insert(
-            "filesystem".to_string(),
-            Self::filesystem_interface(),
-        );
+        interfaces.insert("filesystem".to_string(), Self::filesystem_interface());
 
         // Network capability interface
-        interfaces.insert(
-            "network".to_string(),
-            Self::network_interface(),
-        );
+        interfaces.insert("network".to_string(), Self::network_interface());
 
         // Environment capability interface
-        interfaces.insert(
-            "environment".to_string(),
-            Self::environment_interface(),
-        );
+        interfaces.insert("environment".to_string(), Self::environment_interface());
 
         // Resource limits interface
-        interfaces.insert(
-            "resources".to_string(),
-            Self::resources_interface(),
-        );
+        interfaces.insert("resources".to_string(), Self::resources_interface());
 
         Self { interfaces }
     }
@@ -357,11 +338,7 @@ impl IsolateWitInterfaces {
 
     /// Generate all WIT definitions.
     pub fn to_wit(&self) -> String {
-        self.interfaces
-            .values()
-            .map(|i| i.to_wit())
-            .collect::<Vec<_>>()
-            .join("\n")
+        self.interfaces.values().map(|i| i.to_wit()).collect::<Vec<_>>().join("\n")
     }
 
     fn filesystem_interface() -> WitInterface {
@@ -370,10 +347,7 @@ impl IsolateWitInterfaces {
             .with_type(
                 WitType::new(
                     "access-mode",
-                    WitTypeKind::Enum(vec![
-                        "read-only".to_string(),
-                        "read-write".to_string(),
-                    ]),
+                    WitTypeKind::Enum(vec!["read-only".to_string(), "read-write".to_string()]),
                 )
                 .with_docs("File access mode"),
             )
@@ -516,8 +490,8 @@ mod tests {
 
     #[test]
     fn test_wit_interface_creation() {
-        let interface = WitInterface::new("test", "isolate:test/interface")
-            .with_docs("Test interface");
+        let interface =
+            WitInterface::new("test", "isolate:test/interface").with_docs("Test interface");
 
         assert_eq!(interface.name, "test");
         assert_eq!(interface.package, "isolate:test/interface");
@@ -544,10 +518,7 @@ mod tests {
     fn test_wit_type_enum() {
         let ty = WitType::new(
             "my-enum",
-            WitTypeKind::Enum(vec![
-                "value1".to_string(),
-                "value2".to_string(),
-            ]),
+            WitTypeKind::Enum(vec!["value1".to_string(), "value2".to_string()]),
         );
 
         let wit = ty.to_wit();

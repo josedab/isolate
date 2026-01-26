@@ -66,14 +66,7 @@ impl ComponentSandbox {
 
         let memory_limit = config.resources.memory.heap_max;
 
-        Ok(Self {
-            id,
-            state: ComponentState::Ready,
-            engine,
-            component,
-            config,
-            memory_limit,
-        })
+        Ok(Self { id, state: ComponentState::Ready, engine, component, config, memory_limit })
     }
 
     /// Create with a shared engine.
@@ -86,14 +79,7 @@ impl ComponentSandbox {
 
         let memory_limit = config.resources.memory.heap_max;
 
-        Ok(Self {
-            id,
-            state: ComponentState::Ready,
-            engine,
-            component,
-            config,
-            memory_limit,
-        })
+        Ok(Self { id, state: ComponentState::Ready, engine, component, config, memory_limit })
     }
 
     /// Get the sandbox ID.
@@ -127,9 +113,7 @@ impl ComponentSandbox {
 
         // Set fuel if configured
         if let Some(fuel) = self.config.resources.cpu.fuel {
-            store
-                .set_fuel(fuel)
-                .map_err(|e| Error::Engine(e.to_string()))?;
+            store.set_fuel(fuel).map_err(|e| Error::Engine(e.to_string()))?;
         }
 
         // Set up epoch deadline for timeout
@@ -159,12 +143,7 @@ impl ComponentSandbox {
         let wall_time = start_time.elapsed();
         let fuel_consumed = if self.config.resources.cpu.fuel.is_some() {
             let remaining = store.get_fuel().unwrap_or(0);
-            self.config
-                .resources
-                .cpu
-                .fuel
-                .unwrap_or(0)
-                .saturating_sub(remaining)
+            self.config.resources.cpu.fuel.unwrap_or(0).saturating_sub(remaining)
         } else {
             0
         };
@@ -240,10 +219,7 @@ impl ComponentSandbox {
                             // Parse exit code from error message if possible
                             Ok(1)
                         } else {
-                            Err(Error::Execution(format!(
-                                "Component execution failed: {}",
-                                e
-                            )))
+                            Err(Error::Execution(format!("Component execution failed: {}", e)))
                         }
                     }
                 }
@@ -338,11 +314,7 @@ impl ComponentEngine {
         let engine = Engine::new(&engine_config)
             .map_err(|e| Error::Engine(format!("Failed to create engine: {}", e)))?;
 
-        Ok(Self {
-            engine: Arc::new(engine),
-            component_cache: Arc::new(DashMap::new()),
-            config,
-        })
+        Ok(Self { engine: Arc::new(engine), component_cache: Arc::new(DashMap::new()), config })
     }
 
     /// Get the shared engine.
@@ -354,10 +326,7 @@ impl ComponentEngine {
     pub fn compile(&self, bytes: &[u8], hash: ModuleHash) -> Result<CompiledComponent> {
         // Check cache first
         if let Some(cached) = self.component_cache.get(&hash) {
-            return Ok(CompiledComponent {
-                component: cached.clone(),
-                hash,
-            });
+            return Ok(CompiledComponent { component: cached.clone(), hash });
         }
 
         // Compile the component
@@ -385,19 +354,21 @@ impl ComponentEngine {
     /// # Safety
     /// The caller must ensure that the bytes were produced by `precompile`
     /// on a compatible version of Wasmtime.
-    pub unsafe fn load_precompiled(&self, bytes: &[u8], hash: ModuleHash) -> Result<CompiledComponent> {
+    pub unsafe fn load_precompiled(
+        &self,
+        bytes: &[u8],
+        hash: ModuleHash,
+    ) -> Result<CompiledComponent> {
         // Check cache first
         if let Some(cached) = self.component_cache.get(&hash) {
-            return Ok(CompiledComponent {
-                component: cached.clone(),
-                hash,
-            });
+            return Ok(CompiledComponent { component: cached.clone(), hash });
         }
 
         // Load from pre-compiled bytes
         let component = unsafe {
-            Component::deserialize(&self.engine, bytes)
-                .map_err(|e| Error::ModuleValidation(format!("Failed to load precompiled component: {}", e)))?
+            Component::deserialize(&self.engine, bytes).map_err(|e| {
+                Error::ModuleValidation(format!("Failed to load precompiled component: {}", e))
+            })?
         };
 
         // Cache if under limit

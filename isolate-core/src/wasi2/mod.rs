@@ -39,15 +39,22 @@
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+pub mod async_io;
+pub mod capability_bridge;
 mod component;
 mod context;
+pub mod dual_mode;
 mod host;
+pub mod migration;
+pub mod runtime;
 pub mod wit;
 
 pub use component::{
     CompiledComponent, ComponentEngine, ComponentEngineConfig, ComponentSandbox, ComponentState,
 };
-pub use context::{ComponentConfig, ComponentConfigBuilder, ComponentHash, NetworkConfig, WasmComponent};
+pub use context::{
+    ComponentConfig, ComponentConfigBuilder, ComponentHash, NetworkConfig, WasmComponent,
+};
 pub use host::{IoLimits, WasiError, WasiHostState};
 
 use crate::Result;
@@ -80,15 +87,11 @@ pub fn is_component(bytes: &[u8]) -> bool {
 /// Validate a WASM component.
 pub fn validate_component(bytes: &[u8]) -> Result<()> {
     if bytes.len() < 8 {
-        return Err(crate::Error::ModuleValidation(
-            "Component too small".to_string(),
-        ));
+        return Err(crate::Error::ModuleValidation("Component too small".to_string()));
     }
 
     if &bytes[0..4] != b"\0asm" {
-        return Err(crate::Error::ModuleValidation(
-            "Invalid WASM magic number".to_string(),
-        ));
+        return Err(crate::Error::ModuleValidation("Invalid WASM magic number".to_string()));
     }
 
     Ok(())
