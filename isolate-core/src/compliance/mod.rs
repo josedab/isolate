@@ -13,11 +13,13 @@
 #![allow(dead_code)]
 
 pub mod audit_trail;
+pub mod ci;
 pub mod evidence;
 pub mod frameworks;
 pub mod reports;
 
 pub use audit_trail::{AuditTrail, AuditEntry, AuditChain};
+pub use ci::{CiCheckResult, CiConfig, run_ci_check, to_ci_json};
 pub use evidence::{EvidenceCollector, Evidence, EvidenceType};
 pub use frameworks::{ComplianceFramework, FrameworkId, Control, ControlStatus, FrameworkTemplate};
 pub use reports::{ComplianceReport, ReportGenerator, ControlCoverage};
