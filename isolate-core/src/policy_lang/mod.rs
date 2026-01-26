@@ -26,9 +26,11 @@
 //! ```
 
 mod eval;
+pub mod lint;
 mod parser;
 
 pub use eval::{PolicyEvaluator, ResolvedPolicy};
+pub use lint::{LintFinding, LintResult, LintSeverity, PolicyLinter, PolicyTest, run_policy_tests};
 pub use parser::{
     CapabilityBlock, NetworkBlock, ParseError, PolicyDocument, PolicyParser, ResourceBlock,
     SandboxPolicy,
