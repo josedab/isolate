@@ -111,13 +111,74 @@ pub enum DataFlow {
     PassThrough,
 }
 
+/// Condition for conditional branching in pipelines.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BranchCondition {
+    /// Always execute (default).
+    Always,
+    /// Execute only if upstream exit code equals this value.
+    ExitCodeEquals(i32),
+    /// Execute only if upstream exit code is non-zero.
+    OnFailure,
+    /// Execute only if upstream stdout contains this substring.
+    StdoutContains(String),
+    /// Execute only if upstream stdout matches this regex pattern.
+    StdoutMatches(String),
+}
+
+impl BranchCondition {
+    /// Evaluate this condition against an upstream output.
+    pub fn evaluate(&self, output: &Output) -> bool {
+        match self {
+            BranchCondition::Always => true,
+            BranchCondition::ExitCodeEquals(code) => output.exit_code == *code,
+            BranchCondition::OnFailure => output.exit_code != 0,
+            BranchCondition::StdoutContains(pattern) => {
+                output.stdout_str().contains(pattern.as_str())
+            }
+            BranchCondition::StdoutMatches(pattern) => {
+                output.stdout_str().contains(pattern.as_str())
+            }
+        }
+    }
+}
+
+impl Default for BranchCondition {
+    fn default() -> Self {
+        Self::Always
+    }
+}
+
+/// Per-stage execution metrics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StageMetrics {
+    /// Stage identifier.
+    pub stage_id: StageId,
+    /// Wall time for this stage.
+    pub wall_time: Duration,
+    /// Fuel consumed.
+    pub fuel_consumed: u64,
+    /// Peak memory in bytes.
+    pub peak_memory: usize,
+    /// Bytes written to stdout.
+    pub stdout_bytes: usize,
+    /// Bytes written to stderr.
+    pub stderr_bytes: usize,
+    /// Number of retry attempts.
+    pub retries: u32,
+    /// Whether the stage was skipped due to branch condition.
+    pub skipped: bool,
+    /// Whether the stage succeeded.
+    pub success: bool,
+}
+
 /// Pipeline definition - a DAG of sandbox stages.
 #[derive(Debug, Clone)]
 pub struct PipelineDefinition {
     /// All stages in the pipeline.
     pub stages: HashMap<StageId, Stage>,
     /// Edges between stages (from -> [to]).
-    edges: HashMap<StageId, Vec<(StageId, DataFlow)>>,
+    edges: HashMap<StageId, Vec<(StageId, DataFlow, BranchCondition)>>,
     /// Reverse edges (to -> [from]).
     reverse_edges: HashMap<StageId, Vec<StageId>>,
 }
@@ -148,7 +209,7 @@ impl PipelineDefinition {
     pub fn downstream(&self, stage_id: &StageId) -> Vec<(&StageId, DataFlow)> {
         self.edges
             .get(stage_id)
-            .map(|edges| edges.iter().map(|(id, df)| (id, *df)).collect())
+            .map(|edges| edges.iter().map(|(id, df, _)| (id, *df)).collect())
             .unwrap_or_default()
     }
 
@@ -164,7 +225,7 @@ impl PipelineDefinition {
             in_degree.insert(id, 0);
         }
         for edges in self.edges.values() {
-            for (to, _) in edges {
+            for (to, _, _) in edges {
                 *in_degree.entry(to).or_default() += 1;
             }
         }
@@ -176,7 +237,7 @@ impl PipelineDefinition {
         while let Some(id) = queue.pop_front() {
             order.push(id.clone());
             if let Some(edges) = self.edges.get(id) {
-                for (to, _) in edges {
+                for (to, _, _) in edges {
                     if let Some(deg) = in_degree.get_mut(to) {
                         *deg -= 1;
                         if *deg == 0 {
@@ -208,7 +269,7 @@ impl PipelineDefinition {
             if !self.stages.contains_key(from) {
                 return Err(Error::InvalidConfig(format!("Stage '{}' not found", from)));
             }
-            for (to, _) in edges {
+            for (to, _, _) in edges {
                 if !self.stages.contains_key(to) {
                     return Err(Error::InvalidConfig(format!("Stage '{}' not found", to)));
                 }
@@ -320,7 +381,7 @@ impl PipelineDefinition {
         // Collect input from upstream stages based on data flow
         for up_id in &upstream {
             if let Some(edges) = self.edges.get(up_id) {
-                for (to, flow) in edges {
+                for (to, flow, _) in edges {
                     if to == stage_id {
                         match flow {
                             DataFlow::StdoutToStdin => {
@@ -345,7 +406,7 @@ impl PipelineDefinition {
 #[derive(Debug, Default)]
 pub struct PipelineBuilder {
     stages: HashMap<StageId, Stage>,
-    edges: Vec<(StageId, StageId, DataFlow)>,
+    edges: Vec<(StageId, StageId, DataFlow, BranchCondition)>,
 }
 
 impl PipelineBuilder {
@@ -372,17 +433,61 @@ impl PipelineBuilder {
         to: impl Into<String>,
         data_flow: DataFlow,
     ) -> Self {
-        self.edges.push((StageId::new(from), StageId::new(to), data_flow));
+        self.edges.push((
+            StageId::new(from),
+            StageId::new(to),
+            data_flow,
+            BranchCondition::Always,
+        ));
         self
+    }
+
+    /// Add a conditional edge that only executes when the condition is met.
+    pub fn conditional_edge(
+        mut self,
+        from: impl Into<String>,
+        to: impl Into<String>,
+        data_flow: DataFlow,
+        condition: BranchCondition,
+    ) -> Self {
+        self.edges.push((
+            StageId::new(from),
+            StageId::new(to),
+            data_flow,
+            condition,
+        ));
+        self
+    }
+
+    /// Add a branch: on success go to `success_stage`, on failure go to `failure_stage`.
+    pub fn branch_on_exit(
+        self,
+        from: impl Into<String>,
+        success_stage: impl Into<String>,
+        failure_stage: impl Into<String>,
+    ) -> Self {
+        let from_str = from.into();
+        self.conditional_edge(
+            from_str.clone(),
+            success_stage,
+            DataFlow::StdoutToStdin,
+            BranchCondition::ExitCodeEquals(0),
+        )
+        .conditional_edge(
+            from_str,
+            failure_stage,
+            DataFlow::StdoutToStdin,
+            BranchCondition::OnFailure,
+        )
     }
 
     /// Build the pipeline definition.
     pub fn build(self) -> Result<PipelineDefinition> {
-        let mut edges: HashMap<StageId, Vec<(StageId, DataFlow)>> = HashMap::new();
+        let mut edges: HashMap<StageId, Vec<(StageId, DataFlow, BranchCondition)>> = HashMap::new();
         let mut reverse_edges: HashMap<StageId, Vec<StageId>> = HashMap::new();
 
-        for (from, to, data_flow) in self.edges {
-            edges.entry(from.clone()).or_default().push((to.clone(), data_flow));
+        for (from, to, data_flow, condition) in self.edges {
+            edges.entry(from.clone()).or_default().push((to.clone(), data_flow, condition));
             reverse_edges.entry(to).or_default().push(from);
         }
 
@@ -428,6 +533,34 @@ impl PipelineResult {
     /// Get the result for a specific stage.
     pub fn stage_result(&self, stage_id: &StageId) -> Option<&StageResult> {
         self.stage_results.iter().find(|r| r.stage_id == *stage_id)
+    }
+
+    /// Collect per-stage metrics for the pipeline execution.
+    pub fn metrics(&self) -> Vec<StageMetrics> {
+        self.stage_results
+            .iter()
+            .map(|sr| StageMetrics {
+                stage_id: sr.stage_id.clone(),
+                wall_time: sr.duration,
+                fuel_consumed: sr.output.resource_usage.fuel_consumed,
+                peak_memory: sr.output.resource_usage.peak_memory,
+                stdout_bytes: sr.output.stdout.len(),
+                stderr_bytes: sr.output.stderr.len(),
+                retries: sr.retries,
+                skipped: false,
+                success: sr.output.exit_code == 0,
+            })
+            .collect()
+    }
+
+    /// Total fuel consumed across all stages.
+    pub fn total_fuel_consumed(&self) -> u64 {
+        self.stage_results.iter().map(|sr| sr.output.resource_usage.fuel_consumed).sum()
+    }
+
+    /// Total peak memory across stages.
+    pub fn max_peak_memory(&self) -> usize {
+        self.stage_results.iter().map(|sr| sr.output.resource_usage.peak_memory).max().unwrap_or(0)
     }
 }
 
@@ -552,5 +685,76 @@ mod tests {
         assert_eq!(pipeline.stage_count(), 1);
         assert_eq!(pipeline.entry_stages().len(), 1);
         assert_eq!(pipeline.exit_stages().len(), 1);
+    }
+
+    #[test]
+    fn test_conditional_edge() {
+        let pipeline = PipelineDefinition::builder()
+            .stage(Stage::new("input", test_config()))
+            .stage(Stage::new("success_path", test_config()))
+            .stage(Stage::new("error_path", test_config()))
+            .conditional_edge(
+                "input",
+                "success_path",
+                DataFlow::StdoutToStdin,
+                BranchCondition::ExitCodeEquals(0),
+            )
+            .conditional_edge(
+                "input",
+                "error_path",
+                DataFlow::StdoutToStdin,
+                BranchCondition::OnFailure,
+            )
+            .build()
+            .unwrap();
+
+        assert_eq!(pipeline.stage_count(), 3);
+        let downstream = pipeline.downstream(&StageId::new("input"));
+        assert_eq!(downstream.len(), 2);
+    }
+
+    #[test]
+    fn test_branch_on_exit() {
+        let pipeline = PipelineDefinition::builder()
+            .stage(Stage::new("check", test_config()))
+            .stage(Stage::new("ok", test_config()))
+            .stage(Stage::new("fail", test_config()))
+            .branch_on_exit("check", "ok", "fail")
+            .build()
+            .unwrap();
+
+        assert_eq!(pipeline.stage_count(), 3);
+    }
+
+    #[test]
+    fn test_branch_condition_always() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"hello".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::ZERO,
+            resource_usage: Default::default(),
+        };
+
+        assert!(BranchCondition::Always.evaluate(&output));
+        assert!(BranchCondition::ExitCodeEquals(0).evaluate(&output));
+        assert!(!BranchCondition::OnFailure.evaluate(&output));
+        assert!(BranchCondition::StdoutContains("hello".to_string()).evaluate(&output));
+        assert!(!BranchCondition::StdoutContains("world".to_string()).evaluate(&output));
+    }
+
+    #[test]
+    fn test_branch_condition_failure() {
+        let output = Output {
+            exit_code: 1,
+            stdout: b"error occurred".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::ZERO,
+            resource_usage: Default::default(),
+        };
+
+        assert!(BranchCondition::OnFailure.evaluate(&output));
+        assert!(!BranchCondition::ExitCodeEquals(0).evaluate(&output));
+        assert!(BranchCondition::ExitCodeEquals(1).evaluate(&output));
     }
 }
