@@ -19,7 +19,11 @@
 
 mod health;
 mod overview;
+pub mod api_keys;
 
+pub use api_keys::{
+    Action, ApiKey, ApiKeyManager, QuotaStatus, Role, Team, TeamMember, UsageQuota, UsageRecord,
+};
 pub use health::{ComponentHealth, ComponentStatus, HealthCheck, HealthReport};
 pub use overview::{
     ResourceOverview, SandboxSummary, SystemAlert, SystemAlertLevel, SystemOverview,
