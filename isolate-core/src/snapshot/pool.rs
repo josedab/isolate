@@ -163,10 +163,7 @@ impl WarmPool {
                 self.pool
                     .entry(module_hash.clone())
                     .or_default()
-                    .push(PoolEntry {
-                        snapshot_id,
-                        created_at: std::time::Instant::now(),
-                    });
+                    .push(PoolEntry { snapshot_id, created_at: std::time::Instant::now() });
 
                 self.total_count.fetch_add(1, Ordering::Relaxed);
 
@@ -313,8 +310,7 @@ mod tests {
         let sandbox_id = SandboxId::new();
 
         // Put and get
-        pool.put(Snapshot::new(sandbox_id, module_hash.clone()))
-            .unwrap();
+        pool.put(Snapshot::new(sandbox_id, module_hash.clone())).unwrap();
         pool.get(&module_hash);
         pool.get(&module_hash); // Miss
 
@@ -332,8 +328,7 @@ mod tests {
 
         // Try to add more than max_per_module
         for _ in 0..5 {
-            pool.put(Snapshot::new(sandbox_id, module_hash.clone()))
-                .ok();
+            pool.put(Snapshot::new(sandbox_id, module_hash.clone())).ok();
         }
 
         // Should be capped at max_per_module
@@ -346,10 +341,8 @@ mod tests {
         let module_hash = ModuleHash("test123".to_string());
         let sandbox_id = SandboxId::new();
 
-        pool.put(Snapshot::new(sandbox_id, module_hash.clone()))
-            .unwrap();
-        pool.put(Snapshot::new(sandbox_id, module_hash.clone()))
-            .unwrap();
+        pool.put(Snapshot::new(sandbox_id, module_hash.clone())).unwrap();
+        pool.put(Snapshot::new(sandbox_id, module_hash.clone())).unwrap();
 
         assert_eq!(pool.size(), 2);
 

@@ -42,11 +42,22 @@
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+pub mod clone_pool;
 pub mod cow;
+pub mod manager;
+pub mod orchestrator;
 mod pool;
 pub mod serialization;
+pub mod storage;
 
-pub use cow::{CowMemoryStore, CowSnapshot, CowSnapshotDiff, CowStats, PageHash, SnapshotVersioner};
+pub use clone_pool::{ClonePool, ClonePoolConfig, ClonePoolStats};
+pub use cow::{
+    CowMemoryStore, CowSnapshot, CowSnapshotDiff, CowStats, PageHash, SnapshotVersioner,
+};
+pub use manager::{
+    GcResult, RestoredState, SnapshotInfo, SnapshotManager, SnapshotManagerConfig,
+    SnapshotManagerStats,
+};
 pub use pool::{WarmPool, WarmPoolConfig, WarmPoolStats};
 pub use serialization::{SnapshotSerializer, SnapshotWriter};
 
@@ -92,10 +103,7 @@ pub enum MemoryPage {
     /// Page has data.
     Data(Vec<u8>),
     /// Page references a parent snapshot (for incremental snapshots).
-    Reference {
-        parent_id: SnapshotId,
-        page_index: usize,
-    },
+    Reference { parent_id: SnapshotId, page_index: usize },
 }
 
 /// Global variable value.
@@ -253,10 +261,7 @@ impl Snapshot {
                 // Reference parent page
                 memory_pages.insert(
                     page_idx,
-                    MemoryPage::Reference {
-                        parent_id: parent.id,
-                        page_index: page_idx,
-                    },
+                    MemoryPage::Reference { parent_id: parent.id, page_index: page_idx },
                 );
             }
         }
@@ -297,10 +302,7 @@ impl Snapshot {
             let page_data = match page {
                 MemoryPage::Zero => continue, // Already zero
                 MemoryPage::Data(data) => data.clone(),
-                MemoryPage::Reference {
-                    parent_id,
-                    page_index,
-                } => {
+                MemoryPage::Reference { parent_id, page_index } => {
                     // Resolve from parent snapshot
                     let engine = snapshot_engine.ok_or_else(|| {
                         Error::Snapshot("Snapshot engine required for incremental restore".into())
@@ -422,11 +424,7 @@ impl SnapshotEngine {
             std::fs::create_dir_all(&config.storage_path)?;
         }
 
-        Ok(Self {
-            config,
-            snapshots: dashmap::DashMap::new(),
-            by_module: dashmap::DashMap::new(),
-        })
+        Ok(Self { config, snapshots: dashmap::DashMap::new(), by_module: dashmap::DashMap::new() })
     }
 
     /// Create a snapshot with default configuration.
@@ -440,11 +438,7 @@ impl SnapshotEngine {
         let module_hash = snapshot.module_hash.clone();
 
         // Check storage limits
-        let current_count = self
-            .by_module
-            .get(&module_hash)
-            .map(|v| v.len())
-            .unwrap_or(0);
+        let current_count = self.by_module.get(&module_hash).map(|v| v.len()).unwrap_or(0);
 
         if current_count >= self.config.max_snapshots_per_module {
             // Remove oldest snapshot for this module
@@ -474,10 +468,7 @@ impl SnapshotEngine {
 
     /// Get snapshots for a module.
     pub fn get_for_module(&self, module_hash: &ModuleHash) -> Vec<SnapshotId> {
-        self.by_module
-            .get(module_hash)
-            .map(|v| v.clone())
-            .unwrap_or_default()
+        self.by_module.get(module_hash).map(|v| v.clone()).unwrap_or_default()
     }
 
     /// Remove a snapshot.
@@ -608,10 +599,8 @@ mod tests {
         assert_eq!(incremental.parent_id, Some(parent.id));
 
         // Should have references for unchanged pages
-        let has_reference = incremental
-            .memory_pages
-            .values()
-            .any(|p| matches!(p, MemoryPage::Reference { .. }));
+        let has_reference =
+            incremental.memory_pages.values().any(|p| matches!(p, MemoryPage::Reference { .. }));
         assert!(has_reference);
     }
 
@@ -667,15 +656,9 @@ mod tests {
         let hash1 = ModuleHash("module1".to_string());
         let hash2 = ModuleHash("module2".to_string());
 
-        engine
-            .store(Snapshot::new(sandbox_id, hash1.clone()))
-            .unwrap();
-        engine
-            .store(Snapshot::new(sandbox_id, hash1.clone()))
-            .unwrap();
-        engine
-            .store(Snapshot::new(sandbox_id, hash2.clone()))
-            .unwrap();
+        engine.store(Snapshot::new(sandbox_id, hash1.clone())).unwrap();
+        engine.store(Snapshot::new(sandbox_id, hash1.clone())).unwrap();
+        engine.store(Snapshot::new(sandbox_id, hash2.clone())).unwrap();
 
         assert_eq!(engine.get_for_module(&hash1).len(), 2);
         assert_eq!(engine.get_for_module(&hash2).len(), 1);
