@@ -43,6 +43,7 @@ mod migration;
 mod region;
 mod router;
 mod scheduler;
+pub mod streaming;
 
 pub use cluster::{ClusterConfig, ClusterEvent, MeshCluster};
 pub use consensus::{
