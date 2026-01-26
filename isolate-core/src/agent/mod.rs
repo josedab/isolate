@@ -46,11 +46,16 @@
 
 mod session;
 mod tools;
+pub mod trace;
 mod types;
 pub mod function_calling;
 
 pub use session::{AgentSession, ExecutionRecord};
 pub use tools::{ToolDefinition, ToolParameter, ToolParameterType, ToolRegistry};
+pub use trace::{
+    ExecutionTrace, ResourceBudget, SpanKind, SpanStatus, TraceBuilder, TraceSpan, TraceStats,
+    TraceStore,
+};
 pub use types::{
     AgentConfig, AgentConfigBuilder, CodeExecutionRequest, CodeExecutionResult, ExecutionStatus,
     ResourceUsageSummary,

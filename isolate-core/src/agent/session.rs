@@ -1,6 +1,9 @@
 //! Agent session management with execution history and budgets.
 
 use super::tools::ToolRegistry;
+use super::trace::{
+    ExecutionTrace, ResourceBudget, SpanKind, SpanStatus, TraceBuilder, TraceSpan, TraceStore,
+};
 use super::types::*;
 use crate::capability::Capability;
 use crate::config::SandboxConfig;
@@ -32,6 +35,8 @@ pub struct AgentSession {
     total_fuel_consumed: u64,
     /// Number of tool calls made.
     tool_call_count: usize,
+    /// Execution traces.
+    traces: TraceStore,
     /// Session creation time.
     created_at: DateTime<Utc>,
 }
@@ -53,6 +58,7 @@ impl AgentSession {
             history: Vec::new(),
             total_fuel_consumed: 0,
             tool_call_count: 0,
+            traces: TraceStore::new(),
             created_at: Utc::now(),
         }
     }
@@ -100,6 +106,11 @@ impl AgentSession {
     /// Check if the session has exceeded its tool call limit.
     pub fn is_tool_limit_reached(&self) -> bool {
         self.tool_call_count >= self.config.max_tool_calls
+    }
+
+    /// Get the execution trace store.
+    pub fn traces(&self) -> &TraceStore {
+        &self.traces
     }
 
     /// Execute a code request in the sandbox.
@@ -166,8 +177,27 @@ impl AgentSession {
 
         let config = builder.build()?;
 
+        // Build per-call resource budget
+        let budget = ResourceBudget::default()
+            .with_fuel(fuel)
+            .with_memory(self.config.memory_limit)
+            .with_wall_time(timeout);
+
+        // Start trace
+        let mut trace_builder = TraceBuilder::new(self.id).with_budget(budget);
+
+        // Record compilation span
+        let compile_start = std::time::Instant::now();
+
         // Execute
         let mut sandbox = Sandbox::create_with_engine(config, self.engine.clone()).await?;
+
+        trace_builder.record_span(
+            TraceSpan::new("sandbox_create", SpanKind::SandboxCreate)
+                .with_duration(compile_start.elapsed()),
+        );
+
+        let exec_start = std::time::Instant::now();
         let output = sandbox.run(&input_json).await;
 
         let result = match output {
@@ -229,6 +259,22 @@ impl AgentSession {
             },
             Err(e) => return Err(e),
         };
+
+        // Record execution span and finish trace
+        let exec_status = if result.success() {
+            SpanStatus::Ok
+        } else {
+            SpanStatus::Error(result.stderr.clone())
+        };
+        trace_builder.record_span(
+            TraceSpan::new("wasm_execution", SpanKind::Execution)
+                .with_duration(exec_start.elapsed())
+                .with_status(exec_status),
+        );
+
+        let tool_name_for_trace = request.tool_name.as_deref().unwrap_or("anonymous");
+        let trace = trace_builder.finish(tool_name_for_trace, &request.input, &result);
+        self.traces.push(trace);
 
         // Record execution
         self.tool_call_count += 1;
