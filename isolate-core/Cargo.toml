@@ -18,9 +18,13 @@ default = []
 pool = []                # Warm sandbox pool with predictive autoscaling
 networking = ["dep:url"]          # HTTP client and network policy modules
 agent = []               # AI agent framework for tool-using sandboxes
-policy-engine = []       # Policy rules engine, audit logging, composition
+policy-engine = []       # Policy rules engine, audit logging, composition, policy language
 platform = ["dep:serde_yaml"]    # Admin, gateway, orchestrator, KV store, secrets, IPC,
-                         #   marketplace, plugins, workflows, VFS, provenance
+                         #   marketplace, plugins, workflows, VFS, provenance, GraphQL, etc.
+observability = []       # Dashboard, tracing context, WASM analytics
+billing = []             # Billing and cloud cost tracking
+deployment = []          # Autoscale, deploy, hot reload, module/OCI registry
+federation = []          # Federation and geo-replication
 
 # Core experimental features
 snapshots = ["dep:async-trait"]  # Snapshot/restore functionality with copy-on-write memory
@@ -60,6 +64,10 @@ full = [
     "policy-engine",
     "platform",
     "extras",
+    "observability",
+    "billing",
+    "deployment",
+    "federation",
     "snapshots",
     "wasi-preview2",
     "debug-support",

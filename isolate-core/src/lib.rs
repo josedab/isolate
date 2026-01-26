@@ -64,10 +64,14 @@
 //! |---------|---------|-------------|
 //! | `pool` | `pool`, `predict` | Warm sandbox pool with predictive autoscaling |
 //! | `networking` | `http`, `network` | HTTP client and network policy |
-//! | `agent` | `agent` | AI agent framework for tool-using sandboxes |
-//! | `policy-engine` | `policy`, `audit`, `compose` | Policy rules, audit logging, composition |
-//! | `platform` | `admin`, `gateway`, `orchestrator`, `kv`, `secrets`, `ipc`, `marketplace`, `plugin`, `workflow`, `vfs`, `provenance` | Full platform services |
-//! | `extras` | `ai_exec`, `carbon`, `enclave`, `jsrt`, `security`, `verify` | Additional integrations |
+//! | `agent` | `agent`, `llm` | AI agent framework for tool-using sandboxes |
+//! | `policy-engine` | `policy`, `audit`, `compose`, `compliance`, `policy_builder`, `policy_file`, `policy_gen`, `policy_lang` | Policy rules, audit logging, composition, policy language |
+//! | `platform` | `admin`, `gateway`, `orchestrator`, `kv`, `secrets`, `ipc`, `marketplace`, `plugin`, `workflow`, `vfs`, `provenance`, `graphql_schema`, `pipeline`, `playground`, `rpc`, `sandbox_kv`, `workflow_engine` | Full platform services |
+//! | `extras` | `ai_exec`, `ai_sandbox`, `benchmark`, `carbon`, `enclave`, `jsrt`, `replay`, `security`, `transpiler`, `verify` | Additional integrations |
+//! | `observability` | `dashboard`, `dashboard_api`, `observability`, `tracing_ctx`, `wasm_analytics` | Dashboard, tracing, analytics |
+//! | `billing` | `billing`, `cloud_cost` | Billing and cloud cost tracking |
+//! | `deployment` | `autoscale`, `deploy`, `hot_reload`, `module_registry`, `oci_registry` | Deployment and registry tools |
+//! | `federation` | `federation`, `georep` | Federation and geo-replication |
 //!
 //! ### Experimental Feature-Gated Modules
 //!
@@ -132,9 +136,13 @@
 //! - `pool` - Warm sandbox pool with predictive autoscaling
 //! - `networking` - HTTP client and network policy modules
 //! - `agent` - AI agent framework
-//! - `policy-engine` - Policy rules, audit logging, composition
+//! - `policy-engine` - Policy rules, audit logging, composition, policy language
 //! - `platform` - Admin, gateway, orchestrator, KV, secrets, IPC, marketplace, etc.
-//! - `extras` - AI exec, carbon tracking, enclave, JS runtime, OS security, verification
+//! - `extras` - AI sandbox, benchmark, carbon tracking, enclave, JS runtime, security, verification
+//! - `observability` - Dashboard, tracing context, WASM analytics
+//! - `billing` - Billing and cloud cost tracking
+//! - `deployment` - Autoscale, deploy, hot reload, module/OCI registry
+//! - `federation` - Federation and geo-replication
 //!
 //! Experimental features:
 //! - `snapshots` - Copy-on-write snapshot/restore
@@ -150,48 +158,19 @@
 //! - `full` - Enable all features
 
 // Core modules (always available)
-pub mod ai_sandbox;
-pub mod autoscale;
-pub mod benchmark;
-pub mod billing;
 pub mod capability;
-pub mod cloud_cost;
 pub mod coldstart;
-pub mod compliance;
 pub mod config;
-pub mod dashboard;
-pub mod dashboard_api;
-pub mod deploy;
 pub mod engine;
 pub mod error;
-pub mod federation;
-pub mod georep;
-pub mod graphql_schema;
-pub mod hot_reload;
 pub mod metrics;
-pub mod module_registry;
-pub mod observability;
-pub mod oci_registry;
-pub mod pipeline;
-pub mod playground;
-pub mod policy_builder;
-pub mod policy_file;
-pub mod policy_gen;
-pub mod policy_lang;
 pub mod profile;
 pub mod ratelimit;
-pub mod replay;
 pub mod resource;
-pub mod rpc;
 pub mod sandbox;
-pub mod sandbox_kv;
 pub mod sandbox_profile;
 pub mod stability;
-pub mod tracing_ctx;
-pub mod transpiler;
 pub mod version;
-pub mod wasm_analytics;
-pub mod workflow_engine;
 
 // Optional module groups (enabled via feature flags)
 #[cfg(feature = "pool")]
@@ -206,34 +185,54 @@ pub mod network;
 
 #[cfg(feature = "agent")]
 pub mod agent;
-
 #[cfg(feature = "agent")]
 pub mod llm;
 
 #[cfg(feature = "policy-engine")]
 pub mod audit;
 #[cfg(feature = "policy-engine")]
+pub mod compliance;
+#[cfg(feature = "policy-engine")]
 pub mod compose;
 #[cfg(feature = "policy-engine")]
 pub mod policy;
+#[cfg(feature = "policy-engine")]
+pub mod policy_builder;
+#[cfg(feature = "policy-engine")]
+pub mod policy_file;
+#[cfg(feature = "policy-engine")]
+pub mod policy_gen;
+#[cfg(feature = "policy-engine")]
+pub mod policy_lang;
 
 #[cfg(feature = "platform")]
 pub mod admin;
 #[cfg(feature = "platform")]
 pub mod gateway;
 #[cfg(feature = "platform")]
+pub mod graphql_schema;
+#[cfg(feature = "platform")]
 pub mod iac;
 #[cfg(feature = "platform")]
 pub mod ipc;
 #[cfg(feature = "platform")]
 pub mod kv;
+#[cfg(feature = "platform")]
 pub mod marketplace;
 #[cfg(feature = "platform")]
 pub mod orchestrator;
 #[cfg(feature = "platform")]
+pub mod pipeline;
+#[cfg(feature = "platform")]
+pub mod playground;
+#[cfg(feature = "platform")]
 pub mod plugin;
 #[cfg(feature = "platform")]
 pub mod provenance;
+#[cfg(feature = "platform")]
+pub mod rpc;
+#[cfg(feature = "platform")]
+pub mod sandbox_kv;
 #[cfg(feature = "platform")]
 pub mod secrets;
 #[cfg(feature = "platform")]
@@ -242,9 +241,15 @@ pub mod serverless;
 pub mod vfs;
 #[cfg(feature = "platform")]
 pub mod workflow;
+#[cfg(feature = "platform")]
+pub mod workflow_engine;
 
 #[cfg(feature = "extras")]
 pub mod ai_exec;
+#[cfg(feature = "extras")]
+pub mod ai_sandbox;
+#[cfg(feature = "extras")]
+pub mod benchmark;
 #[cfg(feature = "extras")]
 pub mod carbon;
 #[cfg(feature = "extras")]
@@ -252,9 +257,45 @@ pub mod enclave;
 #[cfg(feature = "extras")]
 pub mod jsrt;
 #[cfg(feature = "extras")]
+pub mod replay;
+#[cfg(feature = "extras")]
 pub mod security;
 #[cfg(feature = "extras")]
+pub mod transpiler;
+#[cfg(feature = "extras")]
 pub mod verify;
+
+#[cfg(feature = "observability")]
+pub mod dashboard;
+#[cfg(feature = "observability")]
+pub mod dashboard_api;
+#[cfg(feature = "observability")]
+pub mod observability;
+#[cfg(feature = "observability")]
+pub mod tracing_ctx;
+#[cfg(feature = "observability")]
+pub mod wasm_analytics;
+
+#[cfg(feature = "billing")]
+pub mod billing;
+#[cfg(feature = "billing")]
+pub mod cloud_cost;
+
+#[cfg(feature = "deployment")]
+pub mod autoscale;
+#[cfg(feature = "deployment")]
+pub mod deploy;
+#[cfg(feature = "deployment")]
+pub mod hot_reload;
+#[cfg(feature = "deployment")]
+pub mod module_registry;
+#[cfg(feature = "deployment")]
+pub mod oci_registry;
+
+#[cfg(feature = "federation")]
+pub mod federation;
+#[cfg(feature = "federation")]
+pub mod georep;
 
 // Feature-gated experimental modules
 #[cfg(feature = "snapshots")]

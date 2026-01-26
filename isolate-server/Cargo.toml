@@ -12,7 +12,7 @@ name = "isolate-server"
 path = "src/main.rs"
 
 [dependencies]
-isolate-core = { path = "../isolate-core", features = ["otel-telemetry"] }
+isolate-core = { path = "../isolate-core", features = ["otel-telemetry", "observability"] }
 
 # Async
 tokio = { workspace = true }
