@@ -44,6 +44,7 @@
 
 pub mod auto_warm;
 pub mod checkout_pool;
+pub mod checkpoint;
 pub mod clone_pool;
 pub mod cow;
 pub mod live_migration;
