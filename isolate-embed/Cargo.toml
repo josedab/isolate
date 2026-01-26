@@ -1,0 +1,25 @@
+[package]
+name = "isolate-embed"
+description = "Minimal embeddable sandbox runtime for executing WASM code - sync API with optional C FFI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords = ["wasm", "sandbox", "embedded", "ffi"]
+categories = ["wasm", "api-bindings"]
+
+[features]
+default = []
+cffi = []  # Enable C FFI bindings
+
+[dependencies]
+wasmtime = { workspace = true }
+wasmtime-wasi = { workspace = true }
+thiserror = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
