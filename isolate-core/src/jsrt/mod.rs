@@ -43,11 +43,13 @@
 #![allow(dead_code)]
 
 mod runtime;
+pub mod transpiler;
 
 pub use runtime::{
     HostBinding, HostBindingType, JsRequest, JsResult, JsRuntime, JsRuntimeConfig, JsValidation,
     TranspileConfig,
 };
+pub use transpiler::{TranspileResult, TsTranspiler};
 
 #[cfg(test)]
 mod tests {
