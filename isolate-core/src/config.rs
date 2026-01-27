@@ -147,6 +147,31 @@ impl Default for SnapshotConfig {
 }
 
 /// Configuration for creating a sandbox.
+///
+/// Use the builder pattern via [`SandboxConfig::builder()`] to construct.
+///
+/// # Examples
+///
+/// ```
+/// use isolate_core::{SandboxConfig, capability::Capability};
+///
+/// // Minimal valid WASM module (empty)
+/// let wasm = &[0x00u8, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+///
+/// let config = SandboxConfig::builder()
+///     .module(wasm)
+///     .unwrap()
+///     .memory_limit(64 * 1024 * 1024)
+///     .fuel(1_000_000)
+///     .capability(Capability::stdout())
+///     .env("MODE", "production")
+///     .build()
+///     .unwrap();
+///
+/// assert_eq!(config.resources.memory.heap_max, 64 * 1024 * 1024);
+/// assert_eq!(config.resources.cpu.fuel, Some(1_000_000));
+/// assert_eq!(config.entry_point, "_start");
+/// ```
 #[derive(Debug, Clone)]
 pub struct SandboxConfig {
     /// The WASM module to execute.
@@ -350,6 +375,18 @@ impl SandboxConfigBuilder {
     }
 
     /// Build the configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no WASM module was provided.
+    ///
+    /// ```
+    /// use isolate_core::SandboxConfig;
+    ///
+    /// // Fails without a module
+    /// let result = SandboxConfig::builder().build();
+    /// assert!(result.is_err());
+    /// ```
     pub fn build(self) -> Result<SandboxConfig> {
         let module = self
             .module

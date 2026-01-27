@@ -132,6 +132,26 @@ impl std::fmt::Display for SandboxState {
 }
 
 /// Output from sandbox execution.
+///
+/// # Examples
+///
+/// ```
+/// use isolate_core::Output;
+/// use isolate_core::resource::ResourceUsage;
+/// use std::time::Duration;
+///
+/// let output = Output {
+///     exit_code: 0,
+///     stdout: b"Hello, World!".to_vec(),
+///     stderr: Vec::new(),
+///     duration: Duration::from_millis(42),
+///     resource_usage: ResourceUsage::default(),
+/// };
+///
+/// assert!(output.success());
+/// assert_eq!(output.stdout_str(), "Hello, World!");
+/// assert_eq!(output.stderr_str(), "");
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Output {
     /// Exit code (0 for success).

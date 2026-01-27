@@ -5,6 +5,29 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 /// A capability that can be granted to a sandbox.
+///
+/// Capabilities define what resources and operations a sandbox is allowed to access.
+/// By default, a sandbox has no capabilities (default-deny). You must explicitly
+/// grant each capability needed.
+///
+/// # Examples
+///
+/// ```
+/// use isolate_core::capability::Capability;
+///
+/// // Grant stdout and stderr
+/// let stdout = Capability::stdout();
+/// let stderr = Capability::stderr();
+///
+/// // Grant filesystem read access
+/// let fs_read = Capability::filesystem_read("/data");
+///
+/// // Grant HTTP access to specific hosts
+/// let http = Capability::http_client(vec!["api.example.com"]);
+///
+/// // Check capability descriptions
+/// assert_eq!(stdout.to_string(), "stdio:stdout");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum Capability {

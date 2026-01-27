@@ -8,6 +8,25 @@ use thiserror::Error;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Main error type for Isolate.
+///
+/// # Examples
+///
+/// ```
+/// use isolate_core::Error;
+/// use std::time::Duration;
+///
+/// // Check error categories
+/// let timeout_err = Error::Timeout(Duration::from_secs(30));
+/// assert!(timeout_err.is_timeout());
+/// assert!(timeout_err.is_resource_limit());
+///
+/// let fuel_err = Error::FuelExhausted { limit: 1_000_000 };
+/// assert!(fuel_err.is_resource_limit());
+/// assert!(!fuel_err.is_timeout());
+///
+/// // Get fix suggestions
+/// assert!(timeout_err.suggestion().is_some());
+/// ```
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
