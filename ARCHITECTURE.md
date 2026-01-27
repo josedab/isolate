@@ -16,7 +16,7 @@ isolate/
 ├── isolate-server/         # gRPC server wrapping isolate-core
 ├── isolate-cli/            # CLI tool for running WASM locally
 ├── isolate-python/         # Python bindings via PyO3 (excluded from default build)
-├── sdks/                   # Client SDKs (Go, Java, Python, TypeScript)
+├── sdk/                    # Client SDKs (Go, Java, Python, TypeScript)
 ├── proto/                  # Protocol buffer definitions
 ├── fuzz/                   # Fuzz testing targets
 ├── docs/                   # mdBook documentation site
