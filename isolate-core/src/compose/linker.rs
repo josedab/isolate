@@ -652,18 +652,18 @@ mod tests {
         let app =
             consumer_module("app", "logger", "log", vec![ValueType::I32, ValueType::I32], vec![]);
 
-        linker.register(logger).unwrap();
-        linker.register(app).unwrap();
+        linker.register(logger).expect("register module logger");
+        linker.register(app).expect("register module app");
 
-        let composition = linker.link().unwrap();
+        let composition = linker.link().expect("link modules");
         assert_eq!(composition.execution_order.len(), 2);
         // "logger" must come before "app" because "app" depends on "logger".
         assert_eq!(composition.execution_order[0], "logger");
         assert_eq!(composition.execution_order[1], "app");
 
         // Verify resolved imports.
-        let app_linked = composition.modules.iter().find(|m| m.name == "app").unwrap();
-        assert_eq!(app_linked.resolved_imports.get("log").unwrap(), "logger");
+        let app_linked = composition.modules.iter().find(|m| m.name == "app").expect("find module app");
+        assert_eq!(app_linked.resolved_imports.get("log").expect("resolve import log"), "logger");
     }
 
     #[test]
@@ -679,8 +679,8 @@ mod tests {
             }],
         };
 
-        linker.register(standalone).unwrap();
-        let composition = linker.link().unwrap();
+        linker.register(standalone).expect("register module standalone");
+        let composition = linker.link().expect("link modules");
         assert_eq!(composition.execution_order, vec!["standalone"]);
     }
 
@@ -710,20 +710,20 @@ mod tests {
         };
         let c = consumer_module("c", "b", "fb", vec![ValueType::I64], vec![ValueType::I64]);
 
-        linker.register(a).unwrap();
-        linker.register(b).unwrap();
-        linker.register(c).unwrap();
+        linker.register(a).expect("register module a");
+        linker.register(b).expect("register module b");
+        linker.register(c).expect("register module c");
 
-        let composition = linker.link().unwrap();
+        let composition = linker.link().expect("link modules");
         // Must be a -> b -> c.
         let order = &composition.execution_order;
         assert!(
-            order.iter().position(|n| n == "a").unwrap()
-                < order.iter().position(|n| n == "b").unwrap()
+            order.iter().position(|n| n == "a").expect("find position of a")
+                < order.iter().position(|n| n == "b").expect("find position of b")
         );
         assert!(
-            order.iter().position(|n| n == "b").unwrap()
-                < order.iter().position(|n| n == "c").unwrap()
+            order.iter().position(|n| n == "b").expect("find position of b")
+                < order.iter().position(|n| n == "c").expect("find position of c")
         );
     }
 
@@ -736,7 +736,7 @@ mod tests {
         let mut linker = ModuleLinker::new();
 
         let app = consumer_module("app", "nonexistent", "foo", vec![], vec![]);
-        linker.register(app).unwrap();
+        linker.register(app).expect("register module app");
 
         let err = linker.link().unwrap_err();
         let msg = err.to_string();
@@ -750,8 +750,8 @@ mod tests {
         let logger = provider_module("logger", "log", vec![], vec![]);
         let app = consumer_module("app", "logger", "missing_fn", vec![], vec![]);
 
-        linker.register(logger).unwrap();
-        linker.register(app).unwrap();
+        linker.register(logger).expect("register module logger");
+        linker.register(app).expect("register module app");
 
         let err = linker.link().unwrap_err();
         let msg = err.to_string();
@@ -792,8 +792,8 @@ mod tests {
             }],
         };
 
-        linker.register(a).unwrap();
-        linker.register(b).unwrap();
+        linker.register(a).expect("register module a");
+        linker.register(b).expect("register module b");
 
         let err = linker.link().unwrap_err();
         let msg = err.to_string();
@@ -842,9 +842,9 @@ mod tests {
             }],
         };
 
-        linker.register(a).unwrap();
-        linker.register(b).unwrap();
-        linker.register(c).unwrap();
+        linker.register(a).expect("register module a");
+        linker.register(b).expect("register module b");
+        linker.register(c).expect("register module c");
 
         let err = linker.link().unwrap_err();
         let msg = err.to_string();
@@ -908,13 +908,13 @@ mod tests {
             exports: vec![],
         };
 
-        graph.add_module(a).unwrap();
-        graph.add_module(b).unwrap();
-        graph.add_module(c).unwrap();
-        graph.add_module(d).unwrap();
+        graph.add_module(a).expect("add module a");
+        graph.add_module(b).expect("add module b");
+        graph.add_module(c).expect("add module c");
+        graph.add_module(d).expect("add module d");
 
-        let order = graph.topological_sort().unwrap();
-        let pos = |name: &str| order.iter().position(|n| n == name).unwrap();
+        let order = graph.topological_sort().expect("topological sort");
+        let pos = |name: &str| order.iter().position(|n| n == name).expect("find position of module");
 
         // "a" must come before "b" and "c", which must come before "d".
         assert!(pos("a") < pos("b"));
@@ -931,11 +931,11 @@ mod tests {
         let y = provider_module("y", "fy", vec![], vec![]);
         let z = provider_module("z", "fz", vec![], vec![]);
 
-        graph.add_module(x).unwrap();
-        graph.add_module(y).unwrap();
-        graph.add_module(z).unwrap();
+        graph.add_module(x).expect("add module x");
+        graph.add_module(y).expect("add module y");
+        graph.add_module(z).expect("add module z");
 
-        let order = graph.topological_sort().unwrap();
+        let order = graph.topological_sort().expect("topological sort");
         assert_eq!(order.len(), 3);
         // All three should be present (order among them is deterministic
         // because we sort alphabetically).
@@ -955,8 +955,8 @@ mod tests {
         // app imports log(i64) -> () -- wrong parameter types
         let app = consumer_module("app", "logger", "log", vec![ValueType::I64], vec![]);
 
-        linker.register(logger).unwrap();
-        linker.register(app).unwrap();
+        linker.register(logger).expect("register module logger");
+        linker.register(app).expect("register module app");
 
         let err = linker.link().unwrap_err();
         let msg = err.to_string();
@@ -973,8 +973,8 @@ mod tests {
         let consumer =
             consumer_module("consumer", "provider", "compute", vec![], vec![ValueType::I64]);
 
-        linker.register(provider).unwrap();
-        linker.register(consumer).unwrap();
+        linker.register(provider).expect("register module provider");
+        linker.register(consumer).expect("register module consumer");
 
         let err = linker.link().unwrap_err();
         let msg = err.to_string();
@@ -1004,8 +1004,8 @@ mod tests {
             exports: vec![],
         };
 
-        graph.add_module(provider).unwrap();
-        graph.add_module(consumer).unwrap();
+        graph.add_module(provider).expect("add module provider");
+        graph.add_module(consumer).expect("add module consumer");
 
         let err = graph.validate().unwrap_err();
         assert!(matches!(err, LinkError::TypeMismatch { .. }));
@@ -1057,7 +1057,7 @@ mod tests {
     fn test_duplicate_module_registration() {
         let mut graph = CompositionGraph::new();
         let m = provider_module("m", "f", vec![], vec![]);
-        graph.add_module(m.clone()).unwrap();
+        graph.add_module(m.clone()).expect("add module m");
 
         let err = graph.add_module(m);
         assert!(err.is_err());
@@ -1067,7 +1067,7 @@ mod tests {
     fn test_add_link_unknown_module() {
         let mut graph = CompositionGraph::new();
         let m = provider_module("m", "f", vec![], vec![]);
-        graph.add_module(m).unwrap();
+        graph.add_module(m).expect("add module m");
 
         assert!(graph.add_link("m", "unknown", "f").is_err());
         assert!(graph.add_link("unknown", "m", "f").is_err());
@@ -1078,8 +1078,8 @@ mod tests {
         let mut graph = CompositionGraph::new();
         let a = provider_module("a", "fa", vec![], vec![]);
         let b = consumer_module("b", "a", "fa", vec![], vec![]);
-        graph.add_module(a).unwrap();
-        graph.add_module(b).unwrap();
+        graph.add_module(a).expect("add module a");
+        graph.add_module(b).expect("add module b");
 
         assert!(graph.is_valid());
     }
@@ -1111,8 +1111,8 @@ mod tests {
                 export_type: ExportType::Function { params: vec![], results: vec![] },
             }],
         };
-        graph.add_module(a).unwrap();
-        graph.add_module(b).unwrap();
+        graph.add_module(a).expect("add module a");
+        graph.add_module(b).expect("add module b");
 
         assert!(!graph.is_valid());
     }

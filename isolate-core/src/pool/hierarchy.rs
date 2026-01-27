@@ -337,16 +337,16 @@ mod tests {
     #[test]
     fn test_create_root_namespace() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("acme", TenantQuota::new()).unwrap();
+        h.create_namespace("acme", TenantQuota::new()).expect("create namespace acme");
         assert!(h.contains("acme"));
     }
 
     #[test]
     fn test_create_nested_namespace() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("acme", TenantQuota::new()).unwrap();
-        h.create_namespace("acme/platform", TenantQuota::new()).unwrap();
-        h.create_namespace("acme/platform/api", TenantQuota::new()).unwrap();
+        h.create_namespace("acme", TenantQuota::new()).expect("create namespace acme");
+        h.create_namespace("acme/platform", TenantQuota::new()).expect("create namespace acme/platform");
+        h.create_namespace("acme/platform/api", TenantQuota::new()).expect("create namespace acme/platform/api");
 
         assert!(h.contains("acme"));
         assert!(h.contains("acme/platform"));
@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn test_create_namespace_duplicate() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("acme", TenantQuota::new()).unwrap();
+        h.create_namespace("acme", TenantQuota::new()).expect("create namespace acme");
         let result = h.create_namespace("acme", TenantQuota::new());
         assert!(result.is_err());
     }
@@ -380,10 +380,10 @@ mod tests {
     #[test]
     fn test_list_children() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("acme", TenantQuota::new()).unwrap();
-        h.create_namespace("acme/alpha", TenantQuota::new()).unwrap();
-        h.create_namespace("acme/beta", TenantQuota::new()).unwrap();
-        h.create_namespace("acme/alpha/svc", TenantQuota::new()).unwrap();
+        h.create_namespace("acme", TenantQuota::new()).expect("create namespace acme");
+        h.create_namespace("acme/alpha", TenantQuota::new()).expect("create namespace acme/alpha");
+        h.create_namespace("acme/beta", TenantQuota::new()).expect("create namespace acme/beta");
+        h.create_namespace("acme/alpha/svc", TenantQuota::new()).expect("create namespace acme/alpha/svc");
 
         let mut children = h.list_children("acme");
         children.sort();
@@ -396,7 +396,7 @@ mod tests {
     #[test]
     fn test_list_children_empty() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("acme", TenantQuota::new()).unwrap();
+        h.create_namespace("acme", TenantQuota::new()).expect("create namespace acme");
         assert!(h.list_children("acme").is_empty());
     }
 
@@ -406,26 +406,26 @@ mod tests {
     fn test_check_quota_allowed() {
         let h = QuotaHierarchy::new();
         h.create_namespace("org", TenantQuota::new().with_max_memory(gb(4)).with_max_sandboxes(100))
-            .unwrap();
+            .expect("create namespace org");
         h.create_namespace(
             "org/team",
             TenantQuota::new().with_max_memory(gb(2)).with_max_sandboxes(50),
         )
-        .unwrap();
+        .expect("create namespace org/team");
 
         let req = ResourceRequest::new(mb(512), 1);
-        let result = h.check_quota("org/team", &req).unwrap();
+        let result = h.check_quota("org/team", &req).expect("check quota for org/team");
         assert!(result.is_allowed());
     }
 
     #[test]
     fn test_check_quota_denied_at_leaf() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("org", TenantQuota::new().with_max_memory(gb(4))).unwrap();
-        h.create_namespace("org/team", TenantQuota::new().with_max_memory(mb(100))).unwrap();
+        h.create_namespace("org", TenantQuota::new().with_max_memory(gb(4))).expect("create namespace org");
+        h.create_namespace("org/team", TenantQuota::new().with_max_memory(mb(100))).expect("create namespace org/team");
 
         let req = ResourceRequest::new(mb(200), 0);
-        let result = h.check_quota("org/team", &req).unwrap();
+        let result = h.check_quota("org/team", &req).expect("check quota for org/team");
         assert!(result.is_denied());
 
         if let QuotaCheckResult::Denied { namespace, .. } = result {
@@ -436,16 +436,16 @@ mod tests {
     #[test]
     fn test_check_quota_denied_at_ancestor() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("org", TenantQuota::new().with_max_memory(mb(100))).unwrap();
-        h.create_namespace("org/team", TenantQuota::new().with_max_memory(gb(1))).unwrap();
+        h.create_namespace("org", TenantQuota::new().with_max_memory(mb(100))).expect("create namespace org");
+        h.create_namespace("org/team", TenantQuota::new().with_max_memory(gb(1))).expect("create namespace org/team");
 
         // Record usage at the org level via a sibling.
-        h.create_namespace("org/other", TenantQuota::new().with_max_memory(gb(1))).unwrap();
-        h.record_usage("org/other", mb(90), 0).unwrap();
+        h.create_namespace("org/other", TenantQuota::new().with_max_memory(gb(1))).expect("create namespace org/other");
+        h.record_usage("org/other", mb(90), 0).expect("record usage for org/other");
 
         // Now the org has 90 MB used; requesting 20 MB on team should fail at org.
         let req = ResourceRequest::new(mb(20), 0);
-        let result = h.check_quota("org/team", &req).unwrap();
+        let result = h.check_quota("org/team", &req).expect("check quota for org/team");
         assert!(result.is_denied());
 
         if let QuotaCheckResult::Denied { namespace, .. } = result {
@@ -456,14 +456,14 @@ mod tests {
     #[test]
     fn test_check_quota_sandbox_limit() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("org", TenantQuota::new().with_max_sandboxes(5)).unwrap();
-        h.create_namespace("org/team", TenantQuota::new().with_max_sandboxes(10)).unwrap();
+        h.create_namespace("org", TenantQuota::new().with_max_sandboxes(5)).expect("create namespace org");
+        h.create_namespace("org/team", TenantQuota::new().with_max_sandboxes(10)).expect("create namespace org/team");
 
-        h.record_usage("org/team", 0, 4).unwrap();
+        h.record_usage("org/team", 0, 4).expect("record usage for org/team");
 
         // 4 + 2 > 5 at the org level
         let req = ResourceRequest::new(0, 2);
-        let result = h.check_quota("org/team", &req).unwrap();
+        let result = h.check_quota("org/team", &req).expect("check quota for org/team");
         assert!(result.is_denied());
 
         if let QuotaCheckResult::Denied { namespace, .. } = result {
@@ -476,47 +476,47 @@ mod tests {
     #[test]
     fn test_record_usage_propagates() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("org", TenantQuota::new()).unwrap();
-        h.create_namespace("org/team", TenantQuota::new()).unwrap();
-        h.create_namespace("org/team/proj", TenantQuota::new()).unwrap();
+        h.create_namespace("org", TenantQuota::new()).expect("create namespace org");
+        h.create_namespace("org/team", TenantQuota::new()).expect("create namespace org/team");
+        h.create_namespace("org/team/proj", TenantQuota::new()).expect("create namespace org/team/proj");
 
-        h.record_usage("org/team/proj", 1000, 2).unwrap();
+        h.record_usage("org/team/proj", 1000, 2).expect("record usage for org/team/proj");
 
         // Usage should be visible at every level.
-        assert_eq!(h.namespaces.get("org/team/proj").unwrap().memory_usage(), 1000);
-        assert_eq!(h.namespaces.get("org/team").unwrap().memory_usage(), 1000);
-        assert_eq!(h.namespaces.get("org").unwrap().memory_usage(), 1000);
+        assert_eq!(h.namespaces.get("org/team/proj").expect("namespace org/team/proj should exist").memory_usage(), 1000);
+        assert_eq!(h.namespaces.get("org/team").expect("namespace org/team should exist").memory_usage(), 1000);
+        assert_eq!(h.namespaces.get("org").expect("namespace org should exist").memory_usage(), 1000);
 
-        assert_eq!(h.namespaces.get("org/team/proj").unwrap().active_sandboxes(), 2);
-        assert_eq!(h.namespaces.get("org").unwrap().active_sandboxes(), 2);
+        assert_eq!(h.namespaces.get("org/team/proj").expect("namespace org/team/proj should exist").active_sandboxes(), 2);
+        assert_eq!(h.namespaces.get("org").expect("namespace org should exist").active_sandboxes(), 2);
     }
 
     #[test]
     fn test_release_usage_propagates() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("org", TenantQuota::new()).unwrap();
-        h.create_namespace("org/team", TenantQuota::new()).unwrap();
+        h.create_namespace("org", TenantQuota::new()).expect("create namespace org");
+        h.create_namespace("org/team", TenantQuota::new()).expect("create namespace org/team");
 
-        h.record_usage("org/team", 5000, 3).unwrap();
-        h.release_usage("org/team", 2000, 1).unwrap();
+        h.record_usage("org/team", 5000, 3).expect("record usage for org/team");
+        h.release_usage("org/team", 2000, 1).expect("release usage for org/team");
 
-        assert_eq!(h.namespaces.get("org/team").unwrap().memory_usage(), 3000);
-        assert_eq!(h.namespaces.get("org").unwrap().memory_usage(), 3000);
-        assert_eq!(h.namespaces.get("org/team").unwrap().active_sandboxes(), 2);
-        assert_eq!(h.namespaces.get("org").unwrap().active_sandboxes(), 2);
+        assert_eq!(h.namespaces.get("org/team").expect("namespace org/team should exist").memory_usage(), 3000);
+        assert_eq!(h.namespaces.get("org").expect("namespace org should exist").memory_usage(), 3000);
+        assert_eq!(h.namespaces.get("org/team").expect("namespace org/team should exist").active_sandboxes(), 2);
+        assert_eq!(h.namespaces.get("org").expect("namespace org should exist").active_sandboxes(), 2);
     }
 
     #[test]
     fn test_release_usage_saturates() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("org", TenantQuota::new()).unwrap();
+        h.create_namespace("org", TenantQuota::new()).expect("create namespace org");
 
-        h.record_usage("org", 100, 1).unwrap();
+        h.record_usage("org", 100, 1).expect("record usage for org");
         // Release more than recorded — should saturate at zero.
-        h.release_usage("org", 500, 5).unwrap();
+        h.release_usage("org", 500, 5).expect("release usage for org");
 
-        assert_eq!(h.namespaces.get("org").unwrap().memory_usage(), 0);
-        assert_eq!(h.namespaces.get("org").unwrap().active_sandboxes(), 0);
+        assert_eq!(h.namespaces.get("org").expect("namespace org should exist").memory_usage(), 0);
+        assert_eq!(h.namespaces.get("org").expect("namespace org should exist").active_sandboxes(), 0);
     }
 
     // ── effective quota ─────────────────────────────────────────────────
@@ -528,9 +528,9 @@ mod tests {
             "org",
             TenantQuota::new().with_max_memory(gb(2)).with_max_sandboxes(50),
         )
-        .unwrap();
+        .expect("create namespace org");
 
-        let eff = h.get_effective_quota("org").unwrap();
+        let eff = h.get_effective_quota("org").expect("get effective quota for org");
         assert_eq!(eff.max_memory, gb(2));
         assert_eq!(eff.max_sandboxes, 50);
     }
@@ -545,7 +545,7 @@ mod tests {
                 .with_max_sandboxes(20)
                 .with_max_cpu_time_ms(60_000),
         )
-        .unwrap();
+        .expect("create namespace org");
         h.create_namespace(
             "org/team",
             TenantQuota::new()
@@ -553,9 +553,9 @@ mod tests {
                 .with_max_sandboxes(100)
                 .with_max_cpu_time_ms(30_000),
         )
-        .unwrap();
+        .expect("create namespace org/team");
 
-        let eff = h.get_effective_quota("org/team").unwrap();
+        let eff = h.get_effective_quota("org/team").expect("get effective quota for org/team");
         // memory: min(8G, 4G) = 4G
         assert_eq!(eff.max_memory, gb(4));
         // sandboxes: min(100, 20) = 20
@@ -567,11 +567,11 @@ mod tests {
     #[test]
     fn test_effective_quota_three_levels() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("org", TenantQuota::new().with_max_memory(gb(10))).unwrap();
-        h.create_namespace("org/team", TenantQuota::new().with_max_memory(gb(5))).unwrap();
-        h.create_namespace("org/team/proj", TenantQuota::new().with_max_memory(gb(2))).unwrap();
+        h.create_namespace("org", TenantQuota::new().with_max_memory(gb(10))).expect("create namespace org");
+        h.create_namespace("org/team", TenantQuota::new().with_max_memory(gb(5))).expect("create namespace org/team");
+        h.create_namespace("org/team/proj", TenantQuota::new().with_max_memory(gb(2))).expect("create namespace org/team/proj");
 
-        let eff = h.get_effective_quota("org/team/proj").unwrap();
+        let eff = h.get_effective_quota("org/team/proj").expect("get effective quota for org/team/proj");
         assert_eq!(eff.max_memory, gb(2));
     }
 
@@ -588,33 +588,33 @@ mod tests {
     fn test_denied_after_recording_usage() {
         let h = QuotaHierarchy::new();
         h.create_namespace("org", TenantQuota::new().with_max_memory(mb(100)).with_max_sandboxes(5))
-            .unwrap();
+            .expect("create namespace org");
         h.create_namespace(
             "org/team",
             TenantQuota::new().with_max_memory(mb(80)).with_max_sandboxes(5),
         )
-        .unwrap();
+        .expect("create namespace org/team");
 
-        h.record_usage("org/team", mb(70), 3).unwrap();
+        h.record_usage("org/team", mb(70), 3).expect("record usage for org/team");
 
         // 70 + 20 > 80 at team level
         let req = ResourceRequest::new(mb(20), 1);
-        let result = h.check_quota("org/team", &req).unwrap();
+        let result = h.check_quota("org/team", &req).expect("check quota for org/team");
         assert!(result.is_denied());
     }
 
     #[test]
     fn test_allowed_after_releasing_usage() {
         let h = QuotaHierarchy::new();
-        h.create_namespace("org", TenantQuota::new().with_max_memory(mb(100))).unwrap();
+        h.create_namespace("org", TenantQuota::new().with_max_memory(mb(100))).expect("create namespace org");
 
-        h.record_usage("org", mb(90), 0).unwrap();
+        h.record_usage("org", mb(90), 0).expect("record usage for org");
 
         let req = ResourceRequest::new(mb(20), 0);
-        assert!(h.check_quota("org", &req).unwrap().is_denied());
+        assert!(h.check_quota("org", &req).expect("check quota for org").is_denied());
 
-        h.release_usage("org", mb(30), 0).unwrap();
-        assert!(h.check_quota("org", &req).unwrap().is_allowed());
+        h.release_usage("org", mb(30), 0).expect("release usage for org");
+        assert!(h.check_quota("org", &req).expect("check quota for org").is_allowed());
     }
 
     // ── parent_path helper ──────────────────────────────────────────────
