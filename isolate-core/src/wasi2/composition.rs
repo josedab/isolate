@@ -341,6 +341,185 @@ impl Default for ComponentComposer {
     }
 }
 
+/// Semantic version range matching for interface compatibility.
+pub struct VersionMatcher;
+
+impl VersionMatcher {
+    /// Check if an available version satisfies a constraint.
+    ///
+    /// Supports exact match ("1.0.0"), wildcard ("*"), caret ("^1.2"),
+    /// and tilde ("~1.2") constraints.
+    pub fn satisfies(available: &str, constraint: &str) -> bool {
+        if constraint == "*" || constraint.is_empty() {
+            return true;
+        }
+
+        let (prefix, constraint_version) = if let Some(stripped) = constraint.strip_prefix('^') {
+            ("^", stripped)
+        } else if let Some(stripped) = constraint.strip_prefix('~') {
+            ("~", stripped)
+        } else {
+            ("=", constraint)
+        };
+
+        let avail_parts = Self::parse_semver(available);
+        let constraint_parts = Self::parse_semver(constraint_version);
+
+        match prefix {
+            "=" => avail_parts == constraint_parts,
+            "^" => {
+                // Compatible with: same major, >= minor.patch
+                avail_parts.0 == constraint_parts.0
+                    && (avail_parts.1 > constraint_parts.1
+                        || (avail_parts.1 == constraint_parts.1
+                            && avail_parts.2 >= constraint_parts.2))
+            }
+            "~" => {
+                // Approximately: same major.minor, >= patch
+                avail_parts.0 == constraint_parts.0
+                    && avail_parts.1 == constraint_parts.1
+                    && avail_parts.2 >= constraint_parts.2
+            }
+            _ => avail_parts == constraint_parts,
+        }
+    }
+
+    fn parse_semver(version: &str) -> (u32, u32, u32) {
+        let parts: Vec<u32> =
+            version.split('.').filter_map(|s| s.parse().ok()).collect();
+        (
+            parts.first().copied().unwrap_or(0),
+            parts.get(1).copied().unwrap_or(0),
+            parts.get(2).copied().unwrap_or(0),
+        )
+    }
+}
+
+/// Result of validating a composition graph before execution.
+#[derive(Debug, Clone)]
+pub struct CompositionValidation {
+    /// Whether the composition is valid and can execute.
+    pub is_valid: bool,
+    /// Critical errors that prevent execution.
+    pub errors: Vec<String>,
+    /// Non-critical warnings.
+    pub warnings: Vec<String>,
+    /// Total number of components.
+    pub component_count: usize,
+    /// Total number of resolved bindings.
+    pub binding_count: usize,
+    /// Maximum depth of the dependency chain.
+    pub max_depth: usize,
+}
+
+impl ComponentComposer {
+    /// Validate the full composition graph with version compatibility checks.
+    pub fn validate(&self) -> CompositionValidation {
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+
+        // Check for version compatibility on all bindings
+        let mut export_versions: HashMap<&str, (&str, &str)> = HashMap::new();
+        for (name, comp) in &self.components {
+            for export in &comp.exports {
+                export_versions.insert(&export.interface, (name, &export.version_constraint));
+            }
+        }
+
+        for (name, comp) in &self.components {
+            for import in &comp.imports {
+                if let Some(&(provider, export_version)) =
+                    export_versions.get(import.interface.as_str())
+                {
+                    if !VersionMatcher::satisfies(export_version, &import.version_constraint) {
+                        errors.push(format!(
+                            "Version mismatch: {} requires {} {} but {} provides {}",
+                            name,
+                            import.interface,
+                            import.version_constraint,
+                            provider,
+                            export_version
+                        ));
+                    }
+                } else if !import.optional {
+                    errors.push(format!(
+                        "Unresolved import: {} requires {}",
+                        name, import.interface
+                    ));
+                }
+            }
+        }
+
+        // Calculate max dependency depth
+        let max_depth = self.calculate_max_depth();
+
+        let is_valid = errors.is_empty();
+        if self.components.len() > 20 {
+            warnings.push(format!(
+                "Large composition graph ({} components) may impact startup time",
+                self.components.len()
+            ));
+        }
+
+        CompositionValidation {
+            is_valid,
+            errors,
+            warnings,
+            component_count: self.components.len(),
+            binding_count: self.components.values().map(|c| c.imports.len()).sum(),
+            max_depth,
+        }
+    }
+
+    fn calculate_max_depth(&self) -> usize {
+        let mut export_index: HashMap<&str, &str> = HashMap::new();
+        for (name, comp) in &self.components {
+            for export in &comp.exports {
+                export_index.insert(&export.interface, name);
+            }
+        }
+
+        let mut max_depth = 0;
+        for name in self.components.keys() {
+            let depth = self.depth_of(name, &export_index, &mut HashMap::new());
+            if depth > max_depth {
+                max_depth = depth;
+            }
+        }
+        max_depth
+    }
+
+    fn depth_of<'a>(
+        &self,
+        name: &'a str,
+        export_index: &HashMap<&str, &'a str>,
+        cache: &mut HashMap<&'a str, usize>,
+    ) -> usize {
+        if let Some(&cached) = cache.get(name) {
+            return cached;
+        }
+
+        let Some(comp) = self.components.get(name) else {
+            return 0;
+        };
+
+        let mut max_dep = 0;
+        for import in &comp.imports {
+            if let Some(&provider) = export_index.get(import.interface.as_str()) {
+                if provider != name {
+                    let dep_depth = self.depth_of(provider, export_index, cache);
+                    if dep_depth + 1 > max_dep {
+                        max_dep = dep_depth + 1;
+                    }
+                }
+            }
+        }
+
+        cache.insert(name, max_dep);
+        max_dep
+    }
+}
+
 /// Registry for discovering and sharing WIT interfaces.
 pub struct WitRegistry {
     interfaces: HashMap<String, Vec<WitInterface>>,
@@ -519,5 +698,68 @@ mod tests {
         assert_eq!(comp.name, "myapp");
         assert_eq!(comp.imports.len(), 1);
         assert_eq!(comp.exports.len(), 1);
+    }
+
+    #[test]
+    fn test_version_matcher_exact() {
+        assert!(VersionMatcher::satisfies("1.0.0", "1.0.0"));
+        assert!(!VersionMatcher::satisfies("1.0.1", "1.0.0"));
+    }
+
+    #[test]
+    fn test_version_matcher_wildcard() {
+        assert!(VersionMatcher::satisfies("1.0.0", "*"));
+        assert!(VersionMatcher::satisfies("99.99.99", "*"));
+        assert!(VersionMatcher::satisfies("0.0.1", ""));
+    }
+
+    #[test]
+    fn test_version_matcher_caret() {
+        assert!(VersionMatcher::satisfies("1.2.0", "^1.0"));
+        assert!(VersionMatcher::satisfies("1.5.3", "^1.2"));
+        assert!(!VersionMatcher::satisfies("2.0.0", "^1.2"));
+        assert!(!VersionMatcher::satisfies("0.9.0", "^1.0"));
+    }
+
+    #[test]
+    fn test_version_matcher_tilde() {
+        assert!(VersionMatcher::satisfies("1.2.3", "~1.2.0"));
+        assert!(VersionMatcher::satisfies("1.2.9", "~1.2.0"));
+        assert!(!VersionMatcher::satisfies("1.3.0", "~1.2.0"));
+    }
+
+    #[test]
+    fn test_composition_validation_valid() {
+        let mut composer = ComponentComposer::new();
+        composer.register_component(test_component("auth", vec![], vec!["auth-api"]));
+        composer.register_component(test_component("app", vec!["auth-api"], vec![]));
+
+        let validation = composer.validate();
+        assert!(validation.is_valid);
+        assert_eq!(validation.component_count, 2);
+        assert!(validation.errors.is_empty());
+        assert_eq!(validation.max_depth, 1);
+    }
+
+    #[test]
+    fn test_composition_validation_unresolved() {
+        let mut composer = ComponentComposer::new();
+        composer.register_component(test_component("app", vec!["missing-api"], vec![]));
+
+        let validation = composer.validate();
+        assert!(!validation.is_valid);
+        assert!(validation.errors.iter().any(|e| e.contains("Unresolved")));
+    }
+
+    #[test]
+    fn test_composition_max_depth_chain() {
+        let mut composer = ComponentComposer::new();
+        composer.register_component(test_component("db", vec![], vec!["storage"]));
+        composer.register_component(test_component("auth", vec!["storage"], vec!["auth-api"]));
+        composer.register_component(test_component("app", vec!["auth-api"], vec![]));
+
+        let validation = composer.validate();
+        assert!(validation.is_valid);
+        assert_eq!(validation.max_depth, 2);
     }
 }
