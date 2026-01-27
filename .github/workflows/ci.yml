@@ -270,7 +270,6 @@ jobs:
       - name: Run Python tests
         working-directory: isolate-python
         run: python -c "import isolate; print('Python bindings work!')"
-    if: false  # Enable when Python tests are ready
 
   # Docker build test
   docker:
