@@ -144,8 +144,9 @@ impl PrecompileCache {
         // Load pre-compiled bytes from disk
         let bytes = std::fs::read(&path)?;
 
-        // SAFETY: Deserializing a module requires trust that the bytes haven't
-        // been tampered with. We trust our own cache directory.
+        // SAFETY: Deserializing a module requires that the bytes are a valid
+        // serialized Wasmtime module and have not been tampered with. We trust
+        // our own cache directory which we control exclusively.
         let module = unsafe {
             Module::deserialize(engine.engine(), &bytes)
                 .map_err(|e| Error::Engine(format!("Failed to deserialize module: {}", e)))?

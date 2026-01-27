@@ -47,6 +47,11 @@ impl CompiledModule {
         &self.hash
     }
 
+    /// Check if the module exports a function with the given name.
+    pub fn has_export(&self, name: &str) -> bool {
+        self.module.exports().any(|e| e.name() == name)
+    }
+
     /// Get a reference to the underlying Wasmtime module.
     pub(crate) fn module_ref(&self) -> &Module {
         &self.module

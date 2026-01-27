@@ -364,7 +364,9 @@ impl ComponentEngine {
             return Ok(CompiledComponent { component: cached.clone(), hash });
         }
 
-        // Load from pre-compiled bytes
+        // SAFETY: The caller guarantees that `bytes` were produced by `precompile`
+        // on a compatible Wasmtime version. Deserializing untrusted or mismatched
+        // bytes would be unsound.
         let component = unsafe {
             Component::deserialize(&self.engine, bytes).map_err(|e| {
                 Error::ModuleValidation(format!("Failed to load precompiled component: {}", e))

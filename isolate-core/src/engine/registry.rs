@@ -246,7 +246,10 @@ impl ModuleRegistry {
                     Error::Engine(format!("Failed to read compiled artifact: {}", e))
                 })?;
 
-                // Safety: we trust artifacts we wrote ourselves
+                // SAFETY: We trust artifacts produced by our own `precompile` method.
+                // The serialized module bytes were written to a path we control and
+                // are deserialized with the same Wasmtime engine version that produced them.
+                // On version mismatch, deserialization fails and we remove the stale artifact.
                 let module = unsafe {
                     Module::deserialize(engine, &compiled_bytes).map_err(|e| {
                         // Stale artifact (e.g., wasmtime version mismatch) → remove it
