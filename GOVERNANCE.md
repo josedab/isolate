@@ -63,6 +63,8 @@ Architectural or cross-cutting changes require an RFC before implementation:
 
 #### RFC Template
 
+See [`docs/RFC_TEMPLATE.md`](docs/RFC_TEMPLATE.md) for the full template.
+
 ```markdown
 # RFC: <Title>
 
