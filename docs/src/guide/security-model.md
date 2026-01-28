@@ -233,9 +233,9 @@ cargo audit
 
 ## Security Advisories
 
-Security issues should be reported to: security@example.com
+Security issues should be reported via [GitHub's private vulnerability reporting](https://github.com/josedab/isolate/security/advisories/new). **Do not open a public issue for security vulnerabilities.**
 
-See [SECURITY.md](https://github.com/josedab/isolate/blob/main/SECURITY.md) for our security policy.
+See [SECURITY.md](https://github.com/josedab/isolate/blob/main/SECURITY.md) for our full security policy.
 
 ## See Also
 
