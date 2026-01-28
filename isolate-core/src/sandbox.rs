@@ -835,7 +835,7 @@ mod tests {
     const HELLO_WASM: &[u8] = include_bytes!("../tests/fixtures/minimal.wasm");
 
     // Use a minimal valid WASM for basic tests
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Reserved for future unit tests requiring raw WASM bytes
     const MINIMAL_WASM: &[u8] = &[
         0x00, 0x61, 0x73, 0x6d, // magic
         0x01, 0x00, 0x00, 0x00, // version

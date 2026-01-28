@@ -191,7 +191,7 @@ pub struct SandboxWasiState {
     /// WASI preview1 context.
     wasi: WasiP1Ctx,
     /// Host state for sandbox operations.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Retained for future host-function access from the store
     host: HostState,
     /// Initial fuel amount (for calculating consumed fuel).
     initial_fuel: Option<u64>,

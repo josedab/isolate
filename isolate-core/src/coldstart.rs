@@ -48,7 +48,7 @@ pub struct PrecompileCache {
 }
 
 struct CacheEntry {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Tracked for future cache eviction policies (LRU by age)
     loaded_at: Instant,
     access_count: u64,
 }

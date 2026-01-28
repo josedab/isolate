@@ -106,7 +106,7 @@ impl HostState {
 }
 
 /// A simple logging host function.
-#[allow(dead_code)]
+#[allow(dead_code)] // Public API: available for consumers to register as a host function
 pub struct LogFunction;
 
 impl HostFn for LogFunction {
@@ -122,7 +122,7 @@ impl HostFn for LogFunction {
 }
 
 /// A host function that returns the current time.
-#[allow(dead_code)]
+#[allow(dead_code)] // Public API: available for consumers to register as a host function
 pub struct TimeFunction;
 
 impl HostFn for TimeFunction {
