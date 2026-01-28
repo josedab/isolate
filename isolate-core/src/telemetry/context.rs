@@ -105,11 +105,7 @@ pub fn extract_from_http_headers(headers: &[(String, String)]) -> TraceContext {
 
 /// Create HTTP headers from trace context.
 pub fn create_http_headers(context: &TraceContext) -> Vec<(String, String)> {
-    context
-        .headers
-        .iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect()
+    context.headers.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
 }
 
 /// W3C TraceContext format constants.
@@ -205,11 +201,7 @@ impl BaggageContext {
 
     /// Encode to baggage header format.
     pub fn to_header(&self) -> String {
-        self.items
-            .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
-            .collect::<Vec<_>>()
-            .join(",")
+        self.items.iter().map(|(k, v)| format!("{}={}", k, v)).collect::<Vec<_>>().join(",")
     }
 
     /// Parse from baggage header format.
@@ -261,10 +253,7 @@ mod tests {
     #[test]
     fn test_trace_id_extraction() {
         let mut ctx = TraceContext::new();
-        ctx.set(
-            "traceparent",
-            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
-        );
+        ctx.set("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
 
         assert_eq!(ctx.trace_id(), Some("0af7651916cd43dd8448eb211c80319c"));
     }
@@ -290,10 +279,7 @@ mod tests {
             true,
         );
 
-        assert_eq!(
-            header,
-            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
-        );
+        assert_eq!(header, "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
     }
 
     #[test]
