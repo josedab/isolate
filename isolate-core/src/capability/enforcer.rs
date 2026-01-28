@@ -220,11 +220,49 @@ impl CapabilityEnforcer {
     }
 
     /// Get the audit log.
+    ///
+    /// Returns the [`AuditLog`] recording all capability checks (granted, used,
+    /// and denied) for this enforcer's lifetime.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isolate_core::capability::{CapabilityEnforcer, CapabilitySet, Capability};
+    /// use uuid::Uuid;
+    ///
+    /// let mut caps = CapabilitySet::new();
+    /// caps.grant(Capability::stdout());
+    /// let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+    ///
+    /// enforcer.check_stdout().unwrap();
+    /// let _ = enforcer.check_stderr(); // denied
+    ///
+    /// let log = enforcer.audit_log();
+    /// assert_eq!(log.denied_count(), 1);
+    /// ```
     pub fn audit_log(&self) -> &AuditLog {
         &self.audit_log
     }
 
     /// Get the granted capabilities.
+    ///
+    /// Returns the full [`CapabilitySet`] that was granted when this enforcer
+    /// was created.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isolate_core::capability::{CapabilityEnforcer, CapabilitySet, Capability};
+    /// use uuid::Uuid;
+    ///
+    /// let mut caps = CapabilitySet::new();
+    /// caps.grant(Capability::stdout());
+    /// caps.grant(Capability::stderr());
+    /// let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+    ///
+    /// assert!(enforcer.granted().has(&Capability::stdout()));
+    /// assert!(!enforcer.granted().has(&Capability::secure_random()));
+    /// ```
     pub fn granted(&self) -> &CapabilitySet {
         &self.granted
     }
@@ -232,6 +270,23 @@ impl CapabilityEnforcer {
     /// Get the list of directories that should be preopened for filesystem access.
     /// Returns pairs of (host_path, guest_path) where guest_path is the path
     /// visible inside the sandbox.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isolate_core::capability::{CapabilityEnforcer, CapabilitySet, Capability};
+    /// use uuid::Uuid;
+    /// use std::path::PathBuf;
+    ///
+    /// let mut caps = CapabilitySet::new();
+    /// caps.grant(Capability::filesystem_read("/data"));
+    /// let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+    ///
+    /// let preopens = enforcer.filesystem_preopens();
+    /// assert_eq!(preopens.len(), 1);
+    /// assert_eq!(preopens[0].0, PathBuf::from("/data"));
+    /// assert_eq!(preopens[0].1, "/data");
+    /// ```
     pub fn filesystem_preopens(&self) -> Vec<(std::path::PathBuf, String)> {
         let mut preopens = Vec::new();
 
