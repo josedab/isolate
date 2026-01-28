@@ -384,7 +384,75 @@ impl Sandbox {
         self.created_at.elapsed()
     }
 
-    /// Run the sandbox with optional input.
+    /// Run the sandbox with optional stdin input.
+    ///
+    /// Executes the WASM module's `_start` function (WASI entry point) with the
+    /// configured capabilities and resource limits. The sandbox transitions to the
+    /// `Terminated` state after execution completes, regardless of success or failure.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - Bytes to provide on the sandbox's stdin. Pass `&[]` for no input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The sandbox is not in the [`SandboxState::Ready`] state
+    /// - Rate limiting rejects the execution attempt
+    /// - WASM execution fails (trap, out of fuel, epoch timeout, etc.)
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use isolate_core::{Sandbox, SandboxConfig, capability::Capability};
+    /// # async fn example() -> isolate_core::Result<()> {
+    /// let wasm = std::fs::read("module.wasm")?;
+    /// let config = SandboxConfig::builder()
+    ///     .module(&wasm)?
+    ///     .fuel(1_000_000)
+    ///     .capability(Capability::stdout())
+    ///     .build()?;
+    ///
+    /// let mut sandbox = Sandbox::create(config).await?;
+    /// let output = sandbox.run(b"hello").await?;
+    /// assert_eq!(output.exit_code, 0);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Runnable example with an inline minimal WASM module:
+    ///
+    /// ```rust
+    /// use isolate_core::{Sandbox, SandboxConfig};
+    ///
+    /// // Minimal WASI module: imports proc_exit, exports _start which calls proc_exit(0)
+    /// const WASM: &[u8] = &[
+    ///     0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02,
+    ///     0x60, 0x01, 0x7f, 0x00, 0x60, 0x00, 0x00, 0x02, 0x24, 0x01, 0x16,
+    ///     0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68,
+    ///     0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65, 0x77, 0x31,
+    ///     0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74, 0x00,
+    ///     0x00, 0x03, 0x02, 0x01, 0x01, 0x05, 0x03, 0x01, 0x00, 0x01, 0x07,
+    ///     0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
+    ///     0x06, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01, 0x0a, 0x08,
+    ///     0x01, 0x06, 0x00, 0x41, 0x00, 0x10, 0x00, 0x0b,
+    /// ];
+    ///
+    /// # fn main() -> isolate_core::Result<()> {
+    /// let rt = tokio::runtime::Runtime::new().unwrap();
+    /// rt.block_on(async {
+    ///     let config = SandboxConfig::builder()
+    ///         .module(WASM)?
+    ///         .fuel(1_000_000)
+    ///         .build()?;
+    ///     let mut sandbox = Sandbox::create(config).await?;
+    ///     let output = sandbox.run(&[]).await?;
+    ///     assert_eq!(output.exit_code, 0);
+    ///     assert!(output.success());
+    ///     Ok(())
+    /// })
+    /// # }
+    /// ```
     pub async fn run(&mut self, input: &[u8]) -> Result<Output> {
         self.ensure_state(SandboxState::Ready)?;
 
@@ -506,7 +574,44 @@ impl Sandbox {
         }
     }
 
-    /// Run a specific exported function.
+    /// Run a specific exported function by name.
+    ///
+    /// Calls a named export from the WASM module with the given arguments. Unlike
+    /// [`run()`](Self::run), this method does **not** terminate the sandbox—it
+    /// transitions back to [`SandboxState::Ready`] after the call completes,
+    /// allowing multiple sequential calls.
+    ///
+    /// # Arguments
+    ///
+    /// * `function` - Name of the exported WASM function to call.
+    /// * `args` - Arguments to pass to the function as [`wasmtime::Val`] values.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The sandbox is not in the [`SandboxState::Ready`] state
+    /// - The named function does not exist in the module's exports
+    /// - The function traps or runs out of fuel during execution
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use isolate_core::{Sandbox, SandboxConfig};
+    /// # async fn example() -> isolate_core::Result<()> {
+    /// let wasm = std::fs::read("module.wasm")?;
+    /// let config = SandboxConfig::builder()
+    ///     .module(&wasm)?
+    ///     .fuel(1_000_000)
+    ///     .build()?;
+    ///
+    /// let mut sandbox = Sandbox::create(config).await?;
+    /// let results = sandbox.call("add", &[
+    ///     wasmtime::Val::I32(2),
+    ///     wasmtime::Val::I32(3),
+    /// ]).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn call(
         &mut self,
         function: &str,
@@ -544,7 +649,34 @@ impl Sandbox {
         result
     }
 
-    /// Terminate the sandbox.
+    /// Terminate the sandbox and release its resources.
+    ///
+    /// Moves the sandbox to [`SandboxState::Terminated`] and drops the internal
+    /// WASM instance. Returns the collected [`SandboxMetrics`] for the sandbox's
+    /// lifetime. This method is idempotent—calling it on an already-terminated
+    /// sandbox is safe.
+    ///
+    /// # Errors
+    ///
+    /// This method currently does not return errors, but returns `Result` for
+    /// forward compatibility with async cleanup that may fail.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use isolate_core::{Sandbox, SandboxConfig};
+    /// # async fn example() -> isolate_core::Result<()> {
+    /// let wasm = std::fs::read("module.wasm")?;
+    /// let config = SandboxConfig::builder()
+    ///     .module(&wasm)?
+    ///     .build()?;
+    ///
+    /// let mut sandbox = Sandbox::create(config).await?;
+    /// let metrics = sandbox.terminate().await?;
+    /// // Sandbox resources are now released
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn terminate(&mut self) -> Result<SandboxMetrics> {
         tracing::info!(sandbox_id = %self.id, "Terminating sandbox");
 
