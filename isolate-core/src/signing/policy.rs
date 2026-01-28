@@ -40,10 +40,7 @@ impl SignaturePolicy {
 
     /// Create a policy that requires signatures.
     pub fn require_signature() -> Self {
-        Self {
-            require_signature: true,
-            ..Default::default()
-        }
+        Self { require_signature: true, ..Default::default() }
     }
 
     /// Create a policy that allows any module (no verification).
@@ -150,9 +147,7 @@ impl SignaturePolicy {
         // Check if key is trusted
         let key_id = sig.key_id();
         if !self.trusted_keys.is_empty() && !self.trusted_keys.contains_key(key_id) {
-            return Err(PolicyVerificationError::UntrustedKey {
-                key_id: key_id.clone(),
-            });
+            return Err(PolicyVerificationError::UntrustedKey { key_id: key_id.clone() });
         }
 
         // Check if signer name is trusted
@@ -168,9 +163,7 @@ impl SignaturePolicy {
         if let Some(trusted_key) = self.trusted_keys.get(key_id) {
             // The public key in the signature must match our trusted key
             if sig.public_key() != trusted_key {
-                return Err(PolicyVerificationError::KeyMismatch {
-                    key_id: key_id.clone(),
-                });
+                return Err(PolicyVerificationError::KeyMismatch { key_id: key_id.clone() });
             }
         }
 
@@ -211,9 +204,7 @@ impl SignaturePolicy {
             is_verified: !verified_keys.is_empty(),
             is_signed: true,
             verified_keys,
-            signer_name: signatures
-                .first()
-                .and_then(|s| s.metadata.signer_name.clone()),
+            signer_name: signatures.first().and_then(|s| s.metadata.signer_name.clone()),
         })
     }
 }
@@ -234,12 +225,7 @@ pub struct PolicyVerificationResult {
 impl PolicyVerificationResult {
     /// Create a result for an unsigned module that was allowed.
     pub fn allowed_unsigned() -> Self {
-        Self {
-            is_verified: false,
-            is_signed: false,
-            verified_keys: Vec::new(),
-            signer_name: None,
-        }
+        Self { is_verified: false, is_signed: false, verified_keys: Vec::new(), signer_name: None }
     }
 
     /// Create a result for a verified signed module.
@@ -310,10 +296,7 @@ mod tests {
         let wasm = b"\x00asm\x01\x00\x00\x00";
 
         let result = policy.verify(wasm, None);
-        assert!(matches!(
-            result,
-            Err(PolicyVerificationError::SignatureRequired)
-        ));
+        assert!(matches!(result, Err(PolicyVerificationError::SignatureRequired)));
     }
 
     #[test]
@@ -345,10 +328,7 @@ mod tests {
         let sig = signer.sign(wasm);
 
         let result = policy.verify(wasm, Some(&sig));
-        assert!(matches!(
-            result,
-            Err(PolicyVerificationError::UntrustedKey { .. })
-        ));
+        assert!(matches!(result, Err(PolicyVerificationError::UntrustedKey { .. })));
     }
 
     #[test]
@@ -363,10 +343,7 @@ mod tests {
 
         let different_wasm = b"\x00asm\x01\x00\x00\x01";
         let result = policy.verify(different_wasm, Some(&sig));
-        assert!(matches!(
-            result,
-            Err(PolicyVerificationError::HashMismatch { .. })
-        ));
+        assert!(matches!(result, Err(PolicyVerificationError::HashMismatch { .. })));
     }
 
     #[test]
@@ -400,10 +377,7 @@ mod tests {
         let sig = signer.sign(wasm);
 
         let result = policy.verify(wasm, Some(&sig));
-        assert!(matches!(
-            result,
-            Err(PolicyVerificationError::UntrustedSigner { .. })
-        ));
+        assert!(matches!(result, Err(PolicyVerificationError::UntrustedSigner { .. })));
     }
 
     #[test]
@@ -442,10 +416,7 @@ mod tests {
         let result = policy.verify_multi(wasm, &[sig]);
         assert!(matches!(
             result,
-            Err(PolicyVerificationError::InsufficientSignatures {
-                required: 2,
-                provided: 1
-            })
+            Err(PolicyVerificationError::InsufficientSignatures { required: 2, provided: 1 })
         ));
     }
 

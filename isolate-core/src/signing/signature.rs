@@ -94,11 +94,7 @@ pub struct ModuleSignature {
 impl ModuleSignature {
     /// Create a new module signature.
     pub fn new(metadata: SignatureMetadata, module_hash: [u8; 32], signature: [u8; 32]) -> Self {
-        Self {
-            metadata,
-            module_hash,
-            signature,
-        }
+        Self { metadata, module_hash, signature }
     }
 
     /// Get the key ID.
@@ -191,11 +187,7 @@ impl ModuleSignature {
         let metadata: SignatureMetadata = serde_json::from_str(metadata_json)
             .map_err(|_| SignatureParseError::InvalidMetadata)?;
 
-        Ok(Self {
-            metadata,
-            module_hash,
-            signature,
-        })
+        Ok(Self { metadata, module_hash, signature })
     }
 }
 

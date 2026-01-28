@@ -21,21 +21,14 @@ pub struct CryptoAuditLogConfig {
 
 impl Default for CryptoAuditLogConfig {
     fn default() -> Self {
-        Self {
-            max_entries: 10_000,
-            signing_key: None,
-            verify_on_append: false,
-        }
+        Self { max_entries: 10_000, signing_key: None, verify_on_append: false }
     }
 }
 
 impl CryptoAuditLogConfig {
     /// Create a config with a signing key.
     pub fn with_signing_key(key: impl Into<Vec<u8>>) -> Self {
-        Self {
-            signing_key: Some(key.into()),
-            ..Default::default()
-        }
+        Self { signing_key: Some(key.into()), ..Default::default() }
     }
 }
 
@@ -132,38 +125,26 @@ impl CryptoAuditLog {
 
     /// Record sandbox completion.
     pub fn record_completed(&self, exit_code: i32) {
-        self.record(
-            AuditAction::SandboxCompleted { exit_code },
-            Some(AuditSeverity::Info),
-        );
+        self.record(AuditAction::SandboxCompleted { exit_code }, Some(AuditSeverity::Info));
     }
 
     /// Record sandbox termination.
     pub fn record_terminated(&self, reason: impl Into<String>) {
         self.record(
-            AuditAction::SandboxTerminated {
-                reason: reason.into(),
-            },
+            AuditAction::SandboxTerminated { reason: reason.into() },
             Some(AuditSeverity::Warning),
         );
     }
 
     /// Record a sandbox error.
     pub fn record_error(&self, error: impl Into<String>) {
-        self.record(
-            AuditAction::SandboxError {
-                error: error.into(),
-            },
-            Some(AuditSeverity::Error),
-        );
+        self.record(AuditAction::SandboxError { error: error.into() }, Some(AuditSeverity::Error));
     }
 
     /// Record capability granted.
     pub fn record_capability_granted(&self, capability: impl Into<String>) {
         self.record(
-            AuditAction::CapabilityGranted {
-                capability: capability.into(),
-            },
+            AuditAction::CapabilityGranted { capability: capability.into() },
             Some(AuditSeverity::Info),
         );
     }
@@ -171,10 +152,7 @@ impl CryptoAuditLog {
     /// Record capability usage.
     pub fn record_capability_used(&self, capability: impl Into<String>, context: Option<String>) {
         self.record(
-            AuditAction::CapabilityUsed {
-                capability: capability.into(),
-                context,
-            },
+            AuditAction::CapabilityUsed { capability: capability.into(), context },
             Some(AuditSeverity::Debug),
         );
     }
@@ -186,10 +164,7 @@ impl CryptoAuditLog {
         reason: impl Into<String>,
     ) {
         self.record(
-            AuditAction::CapabilityDenied {
-                capability: capability.into(),
-                reason: reason.into(),
-            },
+            AuditAction::CapabilityDenied { capability: capability.into(), reason: reason.into() },
             Some(AuditSeverity::Warning),
         );
     }
@@ -224,11 +199,7 @@ impl CryptoAuditLog {
                 operation: operation.into(),
                 allowed,
             },
-            Some(if allowed {
-                AuditSeverity::Debug
-            } else {
-                AuditSeverity::Warning
-            }),
+            Some(if allowed { AuditSeverity::Debug } else { AuditSeverity::Warning }),
         );
     }
 
@@ -240,16 +211,8 @@ impl CryptoAuditLog {
         allowed: bool,
     ) {
         self.record(
-            AuditAction::NetworkAccess {
-                host: host.into(),
-                operation: operation.into(),
-                allowed,
-            },
-            Some(if allowed {
-                AuditSeverity::Debug
-            } else {
-                AuditSeverity::Warning
-            }),
+            AuditAction::NetworkAccess { host: host.into(), operation: operation.into(), allowed },
+            Some(if allowed { AuditSeverity::Debug } else { AuditSeverity::Warning }),
         );
     }
 
@@ -316,9 +279,7 @@ impl CryptoAuditLog {
 
 impl Clone for CryptoAuditLog {
     fn clone(&self) -> Self {
-        Self {
-            inner: Arc::clone(&self.inner),
-        }
+        Self { inner: Arc::clone(&self.inner) }
     }
 }
 
@@ -410,10 +371,7 @@ mod tests {
     #[test]
     fn test_crypto_audit_log_capacity() {
         let sandbox_id = Uuid::new_v4();
-        let config = CryptoAuditLogConfig {
-            max_entries: 5,
-            ..Default::default()
-        };
+        let config = CryptoAuditLogConfig { max_entries: 5, ..Default::default() };
         let log = CryptoAuditLog::with_config(sandbox_id, config);
 
         // Add more entries than capacity

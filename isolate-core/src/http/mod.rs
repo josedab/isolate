@@ -96,10 +96,7 @@ impl Default for HttpClientConfig {
             max_response_body: 100 * 1024 * 1024, // 100 MB
             timeout: std::time::Duration::from_secs(30),
             max_redirects: 10,
-            user_agent: format!(
-                "isolate/{} (secure sandbox runtime)",
-                env!("CARGO_PKG_VERSION")
-            ),
+            user_agent: format!("isolate/{} (secure sandbox runtime)", env!("CARGO_PKG_VERSION")),
             allow_insecure_tls: false,
         }
     }
@@ -181,9 +178,7 @@ mod tests {
 
     #[test]
     fn test_http_error_display() {
-        let err = HttpError::HostNotAllowed {
-            host: "evil.com".to_string(),
-        };
+        let err = HttpError::HostNotAllowed { host: "evil.com".to_string() };
         assert!(err.to_string().contains("evil.com"));
         assert!(err.to_string().contains("not allowed"));
     }

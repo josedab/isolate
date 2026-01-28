@@ -145,8 +145,7 @@ impl HttpRequest {
     /// Set the request body as JSON.
     pub fn json<T: Serialize>(mut self, value: &T) -> Result<Self, serde_json::Error> {
         let json = serde_json::to_vec(value)?;
-        self.headers
-            .insert("Content-Type".to_string(), "application/json".to_string());
+        self.headers.insert("Content-Type".to_string(), "application/json".to_string());
         self.body = Some(json);
         Ok(self)
     }
@@ -196,8 +195,7 @@ impl HttpRequestBuilder {
     /// Set the body as JSON.
     pub fn json<T: Serialize>(mut self, value: &T) -> Result<Self, serde_json::Error> {
         let json = serde_json::to_vec(value)?;
-        self.headers
-            .insert("Content-Type".to_string(), "application/json".to_string());
+        self.headers.insert("Content-Type".to_string(), "application/json".to_string());
         self.body = Some(json);
         Ok(self)
     }
@@ -248,14 +246,8 @@ mod tests {
             .header("Authorization", "Bearer token")
             .header("Accept", "application/json");
 
-        assert_eq!(
-            req.headers.get("Authorization"),
-            Some(&"Bearer token".to_string())
-        );
-        assert_eq!(
-            req.headers.get("Accept"),
-            Some(&"application/json".to_string())
-        );
+        assert_eq!(req.headers.get("Authorization"), Some(&"Bearer token".to_string()));
+        assert_eq!(req.headers.get("Accept"), Some(&"application/json".to_string()));
     }
 
     #[test]
@@ -266,16 +258,11 @@ mod tests {
         }
 
         let req = HttpRequest::post("https://example.com")
-            .json(&Data {
-                name: "test".to_string(),
-            })
+            .json(&Data { name: "test".to_string() })
             .unwrap();
 
         assert!(req.body.is_some());
-        assert_eq!(
-            req.headers.get("Content-Type"),
-            Some(&"application/json".to_string())
-        );
+        assert_eq!(req.headers.get("Content-Type"), Some(&"application/json".to_string()));
     }
 
     #[test]

@@ -164,10 +164,7 @@ impl Channel {
             config,
             state: Arc::new(RwLock::new(ChannelState {
                 messages: VecDeque::new(),
-                stats: ChannelStats {
-                    created_at: Some(Utc::now()),
-                    ..Default::default()
-                },
+                stats: ChannelStats { created_at: Some(Utc::now()), ..Default::default() },
             })),
         }
     }
@@ -217,10 +214,7 @@ impl Channel {
         // Check message size
         let size = message.size();
         if size > self.config.max_message_size {
-            return Err(ChannelError::MessageTooLarge {
-                size,
-                max: self.config.max_message_size,
-            });
+            return Err(ChannelError::MessageTooLarge { size, max: self.config.max_message_size });
         }
 
         let mut state = self.state.write();
@@ -231,9 +225,7 @@ impl Channel {
                 state.messages.pop_front();
                 state.stats.messages_dropped += 1;
             } else {
-                return Err(ChannelError::ChannelFull {
-                    channel: self.config.id.clone(),
-                });
+                return Err(ChannelError::ChannelFull { channel: self.config.id.clone() });
             }
         }
 
@@ -321,10 +313,7 @@ impl Channel {
 
 impl Clone for Channel {
     fn clone(&self) -> Self {
-        Self {
-            config: self.config.clone(),
-            state: Arc::clone(&self.state),
-        }
+        Self { config: self.config.clone(), state: Arc::clone(&self.state) }
     }
 }
 
@@ -431,11 +420,8 @@ mod tests {
 
     #[test]
     fn test_channel_capacity_no_drop() {
-        let channel = Channel::new(
-            ChannelConfig::new("test")
-                .with_capacity(2)
-                .with_drop_oldest(false),
-        );
+        let channel =
+            Channel::new(ChannelConfig::new("test").with_capacity(2).with_drop_oldest(false));
 
         channel.send(Message::text("1")).unwrap();
         channel.send(Message::text("2")).unwrap();
@@ -465,10 +451,7 @@ mod tests {
 
         // Denied sender
         let msg = Message::text("Hello").with_sender(denied);
-        assert!(matches!(
-            channel.send(msg),
-            Err(ChannelError::PermissionDenied { .. })
-        ));
+        assert!(matches!(channel.send(msg), Err(ChannelError::PermissionDenied { .. })));
     }
 
     #[test]

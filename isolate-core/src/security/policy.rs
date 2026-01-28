@@ -107,12 +107,7 @@ impl SeccompRule {
 
     /// Add an argument condition.
     pub fn with_arg(mut self, index: u8, op: CompareOp, value: u64) -> Self {
-        self.arg_conditions.push(ArgCondition {
-            arg_index: index,
-            op,
-            value,
-            mask: None,
-        });
+        self.arg_conditions.push(ArgCondition { arg_index: index, op, value, mask: None });
         self
     }
 
@@ -158,13 +153,7 @@ impl Default for SeccompPolicy {
 impl SeccompPolicy {
     /// Create a new empty policy.
     pub fn new(default_action: SeccompAction) -> Self {
-        Self {
-            default_action,
-            rules: Vec::new(),
-            arch: None,
-            log_denials: false,
-            name: None,
-        }
+        Self { default_action, rules: Vec::new(), arch: None, log_denials: false, name: None }
     }
 
     /// Create a strict policy that kills on any disallowed syscall.
@@ -245,9 +234,7 @@ impl SeccompPolicy {
         policy.log_denials = true;
 
         // Allow file operations (limited)
-        for syscall in [
-            "read", "write", "close", "fstat", "lseek", "pread64", "pwrite64",
-        ] {
+        for syscall in ["read", "write", "close", "fstat", "lseek", "pread64", "pwrite64"] {
             policy.rules.push(SeccompRule::allow(syscall));
         }
 
@@ -257,12 +244,7 @@ impl SeccompPolicy {
         }
 
         // Allow signal handling
-        for syscall in [
-            "rt_sigaction",
-            "rt_sigprocmask",
-            "rt_sigreturn",
-            "sigaltstack",
-        ] {
+        for syscall in ["rt_sigaction", "rt_sigprocmask", "rt_sigreturn", "sigaltstack"] {
             policy.rules.push(SeccompRule::allow(syscall));
         }
 
@@ -277,9 +259,7 @@ impl SeccompPolicy {
         }
 
         // Allow minimal system info
-        for syscall in [
-            "uname", "getpid", "gettid", "getuid", "getgid", "geteuid", "getegid",
-        ] {
+        for syscall in ["uname", "getpid", "gettid", "getuid", "getgid", "geteuid", "getegid"] {
             policy.rules.push(SeccompRule::allow(syscall));
         }
 
@@ -325,20 +305,12 @@ impl SeccompPolicy {
 
     /// Get allowed syscalls.
     pub fn allowed_syscalls(&self) -> HashSet<&str> {
-        self.rules
-            .iter()
-            .filter(|r| r.is_allow)
-            .map(|r| r.syscall.as_str())
-            .collect()
+        self.rules.iter().filter(|r| r.is_allow).map(|r| r.syscall.as_str()).collect()
     }
 
     /// Get denied syscalls.
     pub fn denied_syscalls(&self) -> HashSet<&str> {
-        self.rules
-            .iter()
-            .filter(|r| !r.is_allow)
-            .map(|r| r.syscall.as_str())
-            .collect()
+        self.rules.iter().filter(|r| !r.is_allow).map(|r| r.syscall.as_str()).collect()
     }
 
     /// Check if a syscall would be allowed (simple check, no arg conditions).
@@ -441,12 +413,7 @@ impl LandlockAccess {
 
     /// Read-only access.
     pub fn read_only() -> Self {
-        Self {
-            read_file: true,
-            read_dir: true,
-            execute: true,
-            ..Self::none()
-        }
+        Self { read_file: true, read_dir: true, execute: true, ..Self::none() }
     }
 
     /// Read-write access.
@@ -476,11 +443,7 @@ pub struct LandlockRule {
 impl LandlockRule {
     /// Create a new rule for a path.
     pub fn new(path: impl Into<PathBuf>, access: LandlockAccess) -> Self {
-        Self {
-            path: path.into(),
-            access,
-            recursive: true,
-        }
+        Self { path: path.into(), access, recursive: true }
     }
 
     /// Create a read-only rule.
@@ -520,12 +483,7 @@ pub struct LandlockPolicy {
 
 impl Default for LandlockPolicy {
     fn default() -> Self {
-        Self {
-            rules: Vec::new(),
-            enabled: true,
-            allow_execute: false,
-            name: None,
-        }
+        Self { rules: Vec::new(), enabled: true, allow_execute: false, name: None }
     }
 }
 
@@ -594,20 +552,12 @@ impl LandlockPolicy {
 
     /// Get all paths with read access.
     pub fn readable_paths(&self) -> Vec<&PathBuf> {
-        self.rules
-            .iter()
-            .filter(|r| r.access.read_file)
-            .map(|r| &r.path)
-            .collect()
+        self.rules.iter().filter(|r| r.access.read_file).map(|r| &r.path).collect()
     }
 
     /// Get all paths with write access.
     pub fn writable_paths(&self) -> Vec<&PathBuf> {
-        self.rules
-            .iter()
-            .filter(|r| r.access.write_file)
-            .map(|r| &r.path)
-            .collect()
+        self.rules.iter().filter(|r| r.access.write_file).map(|r| &r.path).collect()
     }
 }
 
