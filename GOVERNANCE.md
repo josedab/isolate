@@ -40,7 +40,51 @@ Interested? Open an issue or reach out directly.
 
 - **Minor changes:** Single maintainer approval
 - **Significant changes:** Discussion in issue/PR, maintainer decision
-- **Architecture changes:** RFC process (issue with "RFC" label)
+- **Architecture changes:** RFC process (see below)
+
+### RFC (Request for Comments) Process
+
+Architectural or cross-cutting changes require an RFC before implementation:
+
+1. **Open an issue** titled `RFC: <short description>` with the `RFC` label
+2. **Fill in the RFC template** (see below)
+3. **Discussion period** — minimum 7 days for community feedback
+4. **Decision** — maintainer accepts, requests revisions, or declines
+5. **Implementation** — once accepted, create a tracking issue and submit PRs
+6. **ADR** — record the decision in `docs/adr/` for long-term reference
+
+#### When to write an RFC
+
+- Adding or removing a public API surface
+- Changing the security model or capability system
+- Modifying the sandbox lifecycle or execution model
+- Introducing a new runtime dependency
+- Any change that affects multiple crates in the workspace
+
+#### RFC Template
+
+```markdown
+# RFC: <Title>
+
+## Summary
+One paragraph explanation of the change.
+
+## Motivation
+Why are we doing this? What problem does it solve?
+
+## Design
+Detailed description of the proposed change including API surface,
+data structures, and interaction with existing components.
+
+## Alternatives Considered
+What other approaches were evaluated and why were they rejected?
+
+## Drawbacks
+What are the tradeoffs or downsides?
+
+## Unresolved Questions
+What aspects of the design are still open?
+```
 
 ### Adding New Features
 
