@@ -58,11 +58,18 @@ impl CompiledModule {
     }
 }
 
+/// A cached module entry with a last-accessed timestamp for LRU eviction.
+#[derive(Clone)]
+struct CachedEntry {
+    module: Module,
+    last_accessed: Instant,
+}
+
 /// The WASM execution engine.
 #[derive(Clone)]
 pub struct WasmEngine {
     engine: Engine,
-    module_cache: Arc<DashMap<ModuleHash, Module>>,
+    module_cache: Arc<DashMap<ModuleHash, CachedEntry>>,
     config: WasmEngineConfig,
 }
 
@@ -102,18 +109,35 @@ impl WasmEngine {
         let hash = wasm_module.hash().clone();
 
         // Check cache first
-        if let Some(cached) = self.module_cache.get(&hash) {
-            return Ok(CompiledModule { module: cached.clone(), hash });
+        if let Some(mut cached) = self.module_cache.get_mut(&hash) {
+            cached.last_accessed = Instant::now();
+            tracing::debug!(module_hash = %hash, "module cache hit");
+            return Ok(CompiledModule { module: cached.module.clone(), hash });
         }
+
+        tracing::debug!(module_hash = %hash, "module cache miss — compiling");
 
         // Compile the module
         let module = Module::new(&self.engine, wasm_module.bytes())
             .map_err(|e| Error::Compilation(e.to_string()))?;
 
-        // Cache if under limit
-        if self.module_cache.len() < self.config.max_cached_modules {
-            self.module_cache.insert(hash.clone(), module.clone());
+        // Evict oldest entry when cache is full
+        if self.module_cache.len() >= self.config.max_cached_modules {
+            if let Some(oldest_key) = self
+                .module_cache
+                .iter()
+                .min_by_key(|entry| entry.value().last_accessed)
+                .map(|entry| entry.key().clone())
+            {
+                tracing::debug!(evicted_hash = %oldest_key, "module cache full — evicting LRU entry");
+                self.module_cache.remove(&oldest_key);
+            }
         }
+
+        self.module_cache.insert(
+            hash.clone(),
+            CachedEntry { module: module.clone(), last_accessed: Instant::now() },
+        );
 
         Ok(CompiledModule { module, hash })
     }
