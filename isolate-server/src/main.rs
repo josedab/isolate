@@ -90,35 +90,35 @@ use isolate_core::dashboard::DashboardState;
 #[command(about = "gRPC server for the Isolate secure sandbox runtime")]
 struct Args {
     /// gRPC address to bind to
-    #[arg(short, long, default_value = "0.0.0.0:50051")]
+    #[arg(short, long, default_value = "0.0.0.0:50051", env = "ISOLATE_ADDR")]
     addr: SocketAddr,
 
     /// HTTP health check address to bind to
-    #[arg(long, default_value = "0.0.0.0:8080")]
+    #[arg(long, default_value = "0.0.0.0:8080", env = "ISOLATE_HEALTH_ADDR")]
     health_addr: SocketAddr,
 
     /// Disable HTTP health endpoint
-    #[arg(long)]
+    #[arg(long, env = "ISOLATE_NO_HEALTH_HTTP")]
     no_health_http: bool,
 
     /// Log level
-    #[arg(short, long, default_value = "info")]
+    #[arg(short, long, default_value = "info", env = "ISOLATE_LOG_LEVEL")]
     log_level: String,
 
     /// Enable JSON logging
-    #[arg(long)]
+    #[arg(long, env = "ISOLATE_JSON_LOGS")]
     json_logs: bool,
 
     /// Maximum number of concurrent sandboxes
-    #[arg(long, default_value = "100")]
+    #[arg(long, default_value = "100", env = "ISOLATE_MAX_SANDBOXES")]
     max_sandboxes: usize,
 
     /// Enable warm pool
-    #[arg(long)]
+    #[arg(long, env = "ISOLATE_WARM_POOL")]
     warm_pool: bool,
 
     /// Warm pool size per module
-    #[arg(long, default_value = "5")]
+    #[arg(long, default_value = "5", env = "ISOLATE_WARM_POOL_SIZE")]
     warm_pool_size: usize,
 
     // OpenTelemetry options
@@ -131,11 +131,11 @@ struct Args {
     service_name: String,
 
     /// Sampling ratio for traces (0.0 to 1.0, default: 1.0 for all traces)
-    #[arg(long, default_value = "1.0")]
+    #[arg(long, default_value = "1.0", env = "OTEL_SAMPLING_RATIO")]
     sampling_ratio: f64,
 
     /// Disable OpenTelemetry tracing
-    #[arg(long)]
+    #[arg(long, env = "ISOLATE_NO_TRACING")]
     no_tracing: bool,
 }
 
