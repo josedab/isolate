@@ -2,9 +2,21 @@
 //!
 //! Compose multiple WASM modules using the Component Model standard.
 //! Link modules together, define interfaces, and create modular sandboxes.
+//!
+//! ## Sub-modules
+//!
+//! - [`linker`] -- Module linking and composition: dependency graphs,
+//!   topological sorting, import/export resolution, and type checking.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+pub mod linker;
+
+pub use linker::{
+    CompositionGraph, ExportType, ImportType, LinkError, LinkedComposition, LinkedModule,
+    ModuleExport, ModuleImport, ModuleInterface, ModuleLinker, ValueType,
+};
 
 /// A component interface definition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,10 +58,7 @@ pub enum WitType {
     String,
     List(Box<WitType>),
     Option(Box<WitType>),
-    Result {
-        ok: Option<Box<WitType>>,
-        err: Option<Box<WitType>>,
-    },
+    Result { ok: Option<Box<WitType>>, err: Option<Box<WitType>> },
     Record(String),
     Variant(String),
     Enum(String),
@@ -132,16 +141,12 @@ impl Default for Composer {
 impl Composer {
     /// Create a new composer.
     pub fn new() -> Self {
-        Self {
-            config: CompositionConfig::default(),
-        }
+        Self { config: CompositionConfig::default() }
     }
 
     /// Add a component.
     pub fn add_component(&mut self, component: Component) {
-        self.config
-            .components
-            .insert(component.id.clone(), component);
+        self.config.components.insert(component.id.clone(), component);
     }
 
     /// Link two components.
@@ -258,16 +263,8 @@ mod tests {
         Component {
             id: id.to_string(),
             name: id.to_string(),
-            exports: vec![Interface {
-                name: "api".to_string(),
-                functions: vec![],
-                types: vec![],
-            }],
-            imports: vec![Interface {
-                name: "api".to_string(),
-                functions: vec![],
-                types: vec![],
-            }],
+            exports: vec![Interface { name: "api".to_string(), functions: vec![], types: vec![] }],
+            imports: vec![Interface { name: "api".to_string(), functions: vec![], types: vec![] }],
             bytes: vec![],
         }
     }

@@ -69,11 +69,7 @@ pub struct VersionHistory {
 impl VersionHistory {
     /// Create a new version history.
     pub fn new(max_history: usize) -> Self {
-        Self {
-            versions: Vec::new(),
-            current_index: 0,
-            max_history,
-        }
+        Self { versions: Vec::new(), current_index: 0, max_history }
     }
 
     /// Add a new version.
@@ -177,10 +173,7 @@ impl Default for VersionManager {
 impl VersionManager {
     /// Create a new version manager.
     pub fn new() -> Self {
-        Self {
-            histories: HashMap::new(),
-            default_max_history: 10,
-        }
+        Self { histories: HashMap::new(), default_max_history: 10 }
     }
 
     /// Set default max history.

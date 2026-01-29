@@ -9,6 +9,8 @@
 //! - Resource quotas for GPU compute
 //! - Shader validation and safety checking
 
+pub mod hal;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -90,7 +92,7 @@ pub struct GpuBuffer {
 }
 
 /// Buffer usage flags.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BufferUsage {
     /// Can be used as copy source.
     pub copy_src: bool,
@@ -263,12 +265,7 @@ impl GpuContext {
         }
 
         let id = generate_id("buf");
-        let buffer = GpuBuffer {
-            id: id.clone(),
-            size,
-            usage,
-            mapped: false,
-        };
+        let buffer = GpuBuffer { id: id.clone(), size, usage, mapped: false };
 
         self.memory_used += size;
         self.buffers.insert(id.clone(), buffer);
@@ -278,10 +275,8 @@ impl GpuContext {
 
     /// Destroy a buffer.
     pub fn destroy_buffer(&mut self, id: &str) -> Result<(), GpuError> {
-        let buffer = self
-            .buffers
-            .remove(id)
-            .ok_or_else(|| GpuError::BufferNotFound(id.to_string()))?;
+        let buffer =
+            self.buffers.remove(id).ok_or_else(|| GpuError::BufferNotFound(id.to_string()))?;
 
         self.memory_used = self.memory_used.saturating_sub(buffer.size);
         Ok(())
@@ -299,11 +294,7 @@ impl GpuContext {
 
         if !validation.valid {
             return Err(GpuError::ShaderCompilationFailed(
-                validation
-                    .errors
-                    .first()
-                    .map(|e| e.message.clone())
-                    .unwrap_or_default(),
+                validation.errors.first().map(|e| e.message.clone()).unwrap_or_default(),
             ));
         }
 
@@ -590,10 +581,7 @@ mod tests {
 
     #[test]
     fn test_buffer_memory_limit() {
-        let limits = GpuLimits {
-            max_memory: 1024,
-            ..Default::default()
-        };
+        let limits = GpuLimits { max_memory: 1024, ..Default::default() };
         let mut ctx = GpuContext::new(limits);
 
         ctx.create_buffer(512, BufferUsage::default()).unwrap();
@@ -604,10 +592,7 @@ mod tests {
 
     #[test]
     fn test_buffer_count_limit() {
-        let limits = GpuLimits {
-            max_buffers: 2,
-            ..Default::default()
-        };
+        let limits = GpuLimits { max_buffers: 2, ..Default::default() };
         let mut ctx = GpuContext::new(limits);
 
         ctx.create_buffer(64, BufferUsage::default()).unwrap();
@@ -653,12 +638,7 @@ mod tests {
         let dispatch = ComputeDispatch {
             shader_id,
             workgroups: [64, 1, 1],
-            buffers: vec![BufferBinding {
-                binding: 0,
-                buffer_id,
-                offset: 0,
-                size: 1024,
-            }],
+            buffers: vec![BufferBinding { binding: 0, buffer_id, offset: 0, size: 1024 }],
         };
 
         let result = ctx.dispatch(dispatch).unwrap();
@@ -676,10 +656,7 @@ mod tests {
     #[test]
     fn test_read_buffer() {
         let mut ctx = GpuContext::new(GpuLimits::default());
-        let usage = BufferUsage {
-            map_read: true,
-            ..Default::default()
-        };
+        let usage = BufferUsage { map_read: true, ..Default::default() };
         let id = ctx.create_buffer(1024, usage).unwrap();
 
         let data = ctx.read_buffer(&id, 0, 512).unwrap();
@@ -732,10 +709,7 @@ mod tests {
 
     #[test]
     fn test_memory_remaining() {
-        let limits = GpuLimits {
-            max_memory: 1024,
-            ..Default::default()
-        };
+        let limits = GpuLimits { max_memory: 1024, ..Default::default() };
         let mut ctx = GpuContext::new(limits);
 
         ctx.create_buffer(256, BufferUsage::default()).unwrap();

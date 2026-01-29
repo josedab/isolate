@@ -175,10 +175,8 @@ impl HotPatcher {
             let current = self.get_current_version(&request.sandbox_id)?;
             if let Some(current) = current {
                 if current != *expected {
-                    let error = format!(
-                        "Version mismatch: expected {:?}, got {:?}",
-                        expected, current
-                    );
+                    let error =
+                        format!("Version mismatch: expected {:?}, got {:?}", expected, current);
                     return Ok(self.fail_patch(&patch_id, error)?);
                 }
             }
@@ -191,11 +189,8 @@ impl HotPatcher {
         })?;
 
         // Capture state if required
-        let captured_state = if request.preserve_state {
-            self.capture_state(&request.sandbox_id)?
-        } else {
-            None
-        };
+        let captured_state =
+            if request.preserve_state { self.capture_state(&request.sandbox_id)? } else { None };
 
         self.update_operation(&patch_id, |op| {
             op.state = PatchState::Applying;
@@ -260,20 +255,13 @@ impl HotPatcher {
             patches.remove(&patch_id);
         }
 
-        Ok(PatchResult::success(
-            patch_id,
-            new_version,
-            duration_ms,
-            state_preserved,
-        ))
+        Ok(PatchResult::success(patch_id, new_version, duration_ms, state_preserved))
     }
 
     /// Rollback a patch.
     pub fn rollback(&self, sandbox_id: &str) -> Result<PatchResult> {
-        let vm = self
-            .version_manager
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let vm =
+            self.version_manager.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
         if let Some(prev) = vm.previous_version(sandbox_id) {
             // In production, would restore the previous module
@@ -289,36 +277,27 @@ impl HotPatcher {
                 rolled_back: true,
             })
         } else {
-            Err(Error::Engine(
-                "No previous version to rollback to".to_string(),
-            ))
+            Err(Error::Engine("No previous version to rollback to".to_string()))
         }
     }
 
     /// Get current version of a sandbox module.
     pub fn get_current_version(&self, sandbox_id: &str) -> Result<Option<ModuleVersion>> {
-        let vm = self
-            .version_manager
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let vm =
+            self.version_manager.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(vm.current_version(sandbox_id).cloned())
     }
 
     /// Get patch statistics.
     pub fn stats(&self) -> Result<PatchStats> {
-        let stats = self
-            .stats
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let stats = self.stats.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(stats.clone())
     }
 
     /// Get patch history.
     pub fn history(&self, limit: usize) -> Result<Vec<PatchInfo>> {
-        let history = self
-            .history
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let history =
+            self.history.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(history.iter().rev().take(limit).cloned().collect())
     }
 
@@ -333,10 +312,8 @@ impl HotPatcher {
     where
         F: FnOnce(&mut PatchOperation),
     {
-        let mut patches = self
-            .active_patches
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut patches =
+            self.active_patches.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         if let Some(op) = patches.get_mut(patch_id) {
             f(op);
         }
@@ -344,10 +321,8 @@ impl HotPatcher {
     }
 
     fn get_operation(&self, patch_id: &str) -> Result<PatchOperation> {
-        let patches = self
-            .active_patches
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let patches =
+            self.active_patches.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         patches
             .get(patch_id)
             .cloned()
@@ -371,11 +346,7 @@ impl HotPatcher {
 
         self.update_stats(false, 0)?;
 
-        Ok(PatchResult::failure(
-            patch_id.to_string(),
-            error,
-            rolled_back,
-        ))
+        Ok(PatchResult::failure(patch_id.to_string(), error, rolled_back))
     }
 
     fn record_patch(
@@ -398,10 +369,8 @@ impl HotPatcher {
             applied_at: std::time::SystemTime::now(),
         };
 
-        let mut history = self
-            .history
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut history =
+            self.history.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         history.push(info);
 
         // Trim history
@@ -413,10 +382,8 @@ impl HotPatcher {
     }
 
     fn update_stats(&self, success: bool, duration_ms: u64) -> Result<()> {
-        let mut stats = self
-            .stats
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut stats =
+            self.stats.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
         stats.total_patches += 1;
         if success {
