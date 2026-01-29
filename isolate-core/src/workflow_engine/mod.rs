@@ -14,10 +14,12 @@
 
 pub mod dag;
 pub mod executor;
+pub mod metrics;
 pub mod nodes;
 
 pub use dag::{Workflow, WorkflowBuilder, WorkflowError, Edge};
 pub use executor::{WorkflowExecutor, ExecutionResult, ExecutionStatus, NodeOutput};
+pub use metrics::{StageMetrics, PipelineMetrics, MetricsCollector, MetricsAwareExecutor};
 pub use nodes::{Node, NodeId, NodeKind, TransformFn, ConditionFn};
 
 #[cfg(test)]
