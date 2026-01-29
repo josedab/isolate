@@ -987,3 +987,71 @@ mod dual_mode_tests {
         assert!(result.is_err());
     }
 }
+
+// ============================================================
+// Concurrent Stress Tests
+// ============================================================
+
+#[tokio::test]
+async fn test_concurrent_sandbox_stress() {
+    const CONCURRENCY: usize = 50;
+
+    let engine = Arc::new(WasmEngine::new().expect("engine creation"));
+    let mut handles = Vec::with_capacity(CONCURRENCY);
+
+    for i in 0..CONCURRENCY {
+        let eng = engine.clone();
+        handles.push(tokio::spawn(async move {
+            let config = SandboxConfig::builder()
+                .module(RUNNABLE_WASM)
+                .expect("valid module")
+                .fuel(1_000_000)
+                .wall_time_limit(Duration::from_secs(10))
+                .build()
+                .expect("valid config");
+
+            let mut sandbox =
+                Sandbox::create_with_engine(config, eng).await.expect("sandbox creation");
+            let output = sandbox.run(&[]).await.expect("execution");
+            assert_eq!(output.exit_code, 0, "sandbox {i} failed");
+        }));
+    }
+
+    for (i, h) in handles.into_iter().enumerate() {
+        h.await.unwrap_or_else(|e| panic!("sandbox task {i} panicked: {e}"));
+    }
+
+    // Engine should still be usable after heavy concurrent load
+    assert!(engine.cached_module_count() > 0);
+}
+
+// ============================================================
+// Streaming Cancellation Test
+// ============================================================
+
+#[tokio::test]
+async fn test_streaming_cancellation_cleanup() {
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .wall_time_limit(Duration::from_secs(5))
+        .capability(Capability::stdout())
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
+    let (rx, handle) = sandbox
+        .run_streaming(&[], 4)
+        .await
+        .expect("streaming start");
+
+    // Drop the receiver immediately to simulate client cancellation
+    drop(rx);
+
+    // The sandbox should still complete without panicking or leaking
+    let result = handle.await.expect("join handle should not panic");
+    // The execution may succeed or fail due to the dropped channel —
+    // the key assertion is that it terminates cleanly without hanging.
+    let _ = result;
+}
