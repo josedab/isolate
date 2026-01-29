@@ -105,6 +105,16 @@ impl IsolateServiceImpl {
 
 #[tonic::async_trait]
 impl IsolateService for IsolateServiceImpl {
+    /// Create a new sandbox from a WASM module.
+    ///
+    /// # Arguments
+    /// * `request` - Contains the WASM module bytes and optional configuration
+    ///   (memory/fuel/time limits, capabilities, env vars, args).
+    ///
+    /// # Errors
+    /// * `InvalidArgument` - Invalid WASM module or configuration.
+    /// * `ResourceExhausted` - Maximum sandbox limit reached.
+    /// * `Internal` - Failed to create the sandbox instance.
     #[instrument(
         name = "grpc.create_sandbox",
         skip(self, request),
@@ -202,6 +212,14 @@ impl IsolateService for IsolateServiceImpl {
         }))
     }
 
+    /// Execute a sandbox and return its output.
+    ///
+    /// # Arguments
+    /// * `request` - Contains the sandbox ID and optional input bytes.
+    ///
+    /// # Errors
+    /// * `NotFound` - Sandbox does not exist.
+    /// * `Internal` - Execution failed (e.g., timeout, resource exhaustion, trap).
     #[instrument(
         name = "grpc.run_sandbox",
         skip(self, request),
@@ -267,6 +285,13 @@ impl IsolateService for IsolateServiceImpl {
         }))
     }
 
+    /// Retrieve information about a sandbox.
+    ///
+    /// # Arguments
+    /// * `request` - Contains the sandbox ID.
+    ///
+    /// # Errors
+    /// * `NotFound` - Sandbox does not exist.
     #[instrument(
         name = "grpc.get_sandbox",
         skip(self, request),
@@ -295,6 +320,14 @@ impl IsolateService for IsolateServiceImpl {
         Ok(Response::new(GetSandboxResponse { sandbox: Some(info) }))
     }
 
+    /// Terminate a sandbox and return its accumulated metrics.
+    ///
+    /// # Arguments
+    /// * `request` - Contains the sandbox ID.
+    ///
+    /// # Errors
+    /// * `NotFound` - Sandbox does not exist.
+    /// * `Internal` - Failed to terminate the sandbox.
     #[instrument(
         name = "grpc.terminate_sandbox",
         skip(self, request),
@@ -345,6 +378,13 @@ impl IsolateService for IsolateServiceImpl {
         }))
     }
 
+    /// List active sandboxes with optional state filtering and pagination.
+    ///
+    /// # Arguments
+    /// * `request` - Contains optional `state_filter`, `offset`, and `limit` fields.
+    ///
+    /// # Errors
+    /// Returns an empty list if no sandboxes match the filter.
     #[instrument(
         name = "grpc.list_sandboxes",
         skip(self, request),
@@ -387,6 +427,14 @@ impl IsolateService for IsolateServiceImpl {
 
     type StreamOutputStream = tokio_stream::wrappers::ReceiverStream<Result<OutputChunk, Status>>;
 
+    /// Stream real-time stdout/stderr output from a running sandbox.
+    ///
+    /// # Arguments
+    /// * `request` - Contains the sandbox ID and boolean flags `follow_stdout`
+    ///   and `follow_stderr` to select which streams to follow.
+    ///
+    /// # Errors
+    /// * `NotFound` - Sandbox does not exist.
     #[instrument(
         name = "grpc.stream_output",
         skip(self, request),
