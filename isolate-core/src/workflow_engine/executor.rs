@@ -140,7 +140,7 @@ impl WorkflowExecutor {
         serde_json::Value::Object(merged)
     }
 
-    fn execute_node(
+    pub(crate) fn execute_node(
         &self,
         node_id: &str,
         kind: &NodeKind,
