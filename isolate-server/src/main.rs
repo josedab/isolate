@@ -153,7 +153,7 @@ async fn health_handler(
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
                 .body(Full::new(Bytes::from(r#"{"status":"healthy"}"#)))
-                .unwrap()
+                .expect("static health response")
         }
         "/readyz" | "/ready" => {
             if service_healthy.load(std::sync::atomic::Ordering::Relaxed) {
@@ -161,13 +161,13 @@ async fn health_handler(
                     .status(StatusCode::OK)
                     .header("Content-Type", "application/json")
                     .body(Full::new(Bytes::from(r#"{"status":"ready"}"#)))
-                    .unwrap()
+                    .expect("static ready response")
             } else {
                 Response::builder()
                     .status(StatusCode::SERVICE_UNAVAILABLE)
                     .header("Content-Type", "application/json")
                     .body(Full::new(Bytes::from(r#"{"status":"not_ready"}"#)))
-                    .unwrap()
+                    .expect("static not_ready response")
             }
         }
         "/api/dashboard/overview" => {
@@ -177,7 +177,7 @@ async fn health_handler(
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
                 .body(Full::new(Bytes::from(json)))
-                .unwrap()
+                .expect("dashboard overview response")
         }
         "/api/dashboard/sandboxes" => {
             let sandboxes = dashboard.list_sandboxes();
@@ -186,7 +186,7 @@ async fn health_handler(
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
                 .body(Full::new(Bytes::from(json)))
-                .unwrap()
+                .expect("dashboard sandboxes response")
         }
         "/api/dashboard/events" => {
             let events = dashboard.recent_events(50);
@@ -195,7 +195,7 @@ async fn health_handler(
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
                 .body(Full::new(Bytes::from(json)))
-                .unwrap()
+                .expect("dashboard events response")
         }
         _ if path.starts_with("/api/dashboard/sandboxes/") => {
             let id_str = &path["/api/dashboard/sandboxes/".len()..];
@@ -207,25 +207,25 @@ async fn health_handler(
                             .status(StatusCode::OK)
                             .header("Content-Type", "application/json")
                             .body(Full::new(Bytes::from(json)))
-                            .unwrap()
+                            .expect("sandbox detail response")
                     }
                     None => Response::builder()
                         .status(StatusCode::NOT_FOUND)
                         .header("Content-Type", "application/json")
                         .body(Full::new(Bytes::from(r#"{"error":"sandbox not found"}"#)))
-                        .unwrap(),
+                        .expect("static not_found response"),
                 },
                 Err(_) => Response::builder()
                     .status(StatusCode::BAD_REQUEST)
                     .header("Content-Type", "application/json")
                     .body(Full::new(Bytes::from(r#"{"error":"invalid sandbox id"}"#)))
-                    .unwrap(),
+                    .expect("static bad_request response"),
             }
         }
         _ => Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Full::new(Bytes::from("Not Found")))
-            .unwrap(),
+            .expect("static 404 response"),
     };
 
     Ok(response)
