@@ -234,13 +234,11 @@ jobs:
         with:
           name: wheel-${{ matrix.os }}-${{ matrix.python-version }}
           path: isolate-python/target/wheels/*.whl
-    if: false  # Enable when Python bindings are ready for release
 
   publish-python:
     name: Publish to PyPI
     needs: build-python
     runs-on: ubuntu-latest
-    if: false  # Enable when Python bindings are ready for release
     steps:
       - name: Download all wheels
         uses: actions/download-artifact@v4
