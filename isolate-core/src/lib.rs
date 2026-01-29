@@ -157,6 +157,8 @@
 //! - `chaos-testing` - Fault injection testing
 //! - `full` - Enable all features
 
+#![warn(missing_docs)]
+
 // Core modules (always available)
 pub mod capability;
 pub mod coldstart;
