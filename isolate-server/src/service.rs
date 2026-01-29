@@ -452,24 +452,71 @@ impl IsolateService for IsolateServiceImpl {
     ) -> Result<Response<Self::StreamOutputStream>, Status> {
         let req = request.into_inner();
 
-        // Verify sandbox exists
-        let _sandbox = self
+        let sandbox = self
             .sandboxes
             .get(&req.sandbox_id)
-            .ok_or_else(|| Status::not_found("Sandbox not found"))?;
+            .ok_or_else(|| Status::not_found("Sandbox not found"))?
+            .clone();
+
+        let follow_stdout = req.follow_stdout;
+        let follow_stderr = req.follow_stderr;
 
         let (tx, rx) = tokio::sync::mpsc::channel(100);
 
-        // For now, return an empty stream
-        // Full implementation would require streaming from sandbox output
+        // Acquire the sandbox lock and start a streaming execution.
+        // The sandbox must be in the Ready state for run_streaming to succeed.
+        let mut guard = sandbox.lock().await;
+
+        let streaming_result = guard
+            .run_streaming(&[], 64)
+            .await
+            .map_err(|e| Status::failed_precondition(format!("Cannot stream: {}", e)))?;
+
+        let (mut output_rx, _join_handle) = streaming_result;
+        drop(guard);
+
         tokio::spawn(async move {
-            // Stream would be populated here during execution
-            drop(tx);
+            use isolate_core::engine::OutputSource;
+
+            while let Some(chunk) = output_rx.recv().await {
+                let stream_name = match chunk.source {
+                    OutputSource::Stdout => {
+                        if !follow_stdout {
+                            continue;
+                        }
+                        "stdout"
+                    }
+                    OutputSource::Stderr => {
+                        if !follow_stderr {
+                            continue;
+                        }
+                        "stderr"
+                    }
+                };
+
+                let proto_chunk = OutputChunk {
+                    stream: stream_name.to_string(),
+                    data: chunk.data,
+                    timestamp: chrono::Utc::now().timestamp(),
+                };
+
+                if tx.send(Ok(proto_chunk)).await.is_err() {
+                    break; // Client disconnected
+                }
+            }
         });
 
         Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(rx)))
     }
 
+    /// Retrieve server metrics in Prometheus or JSON format.
+    ///
+    /// # Arguments
+    /// * `request` - Contains `format` field: `"json"` for JSON stats,
+    ///   anything else for Prometheus text format.
+    ///
+    /// # Errors
+    /// This method does not return errors under normal operation.
     #[instrument(
         name = "grpc.get_metrics",
         skip(self, request),
