@@ -530,6 +530,7 @@ async fn test_stdout_flood_with_io_limit() {
 
 // ==================== Pipeline execute() tests ====================
 
+#[cfg(feature = "platform")]
 mod pipeline_tests {
     use isolate_core::{
         capability::Capability,
