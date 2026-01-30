@@ -245,11 +245,7 @@ pub struct ResourcePool {
 impl ResourcePool {
     /// Create a new resource pool.
     pub fn new(config: PoolConfig) -> Self {
-        Self {
-            config,
-            tenants: DashMap::new(),
-            global_usage: AtomicResourceUsage::new(),
-        }
+        Self { config, tenants: DashMap::new(), global_usage: AtomicResourceUsage::new() }
     }
 
     /// Get the pool configuration.
@@ -266,9 +262,7 @@ impl ResourcePool {
         let id = id.into();
 
         if self.tenants.len() >= self.config.max_tenants as usize {
-            return Err(PoolError::TooManyTenants {
-                max: self.config.max_tenants,
-            });
+            return Err(PoolError::TooManyTenants { max: self.config.max_tenants });
         }
 
         if self.tenants.contains_key(&id) {
@@ -286,10 +280,8 @@ impl ResourcePool {
         quota: TenantQuota,
     ) -> Result<(), PoolError> {
         let id = id.into();
-        let mut tenant = self
-            .tenants
-            .get_mut(&id)
-            .ok_or_else(|| PoolError::TenantNotFound(id.clone()))?;
+        let mut tenant =
+            self.tenants.get_mut(&id).ok_or_else(|| PoolError::TenantNotFound(id.clone()))?;
         tenant.quota = quota;
         Ok(())
     }
@@ -297,10 +289,8 @@ impl ResourcePool {
     /// Remove a tenant.
     pub fn remove_tenant(&self, id: impl Into<TenantId>) -> Result<TenantInfo, PoolError> {
         let id = id.into();
-        let (_, state) = self
-            .tenants
-            .remove(&id)
-            .ok_or_else(|| PoolError::TenantNotFound(id.clone()))?;
+        let (_, state) =
+            self.tenants.remove(&id).ok_or_else(|| PoolError::TenantNotFound(id.clone()))?;
         Ok(state.to_info(id))
     }
 
@@ -349,10 +339,7 @@ impl ResourcePool {
         if global_usage.memory_bytes + memory_bytes > self.config.max_total_memory {
             return Err(PoolError::GlobalMemoryExceeded {
                 requested: memory_bytes,
-                available: self
-                    .config
-                    .max_total_memory
-                    .saturating_sub(global_usage.memory_bytes),
+                available: self.config.max_total_memory.saturating_sub(global_usage.memory_bytes),
             });
         }
 
@@ -384,11 +371,8 @@ impl ResourcePool {
     /// Get pool statistics.
     pub fn stats(&self) -> PoolStats {
         let global = self.global_usage.snapshot();
-        let active_tenants = self
-            .tenants
-            .iter()
-            .filter(|t| t.usage.snapshot().active_sandboxes > 0)
-            .count() as u32;
+        let active_tenants =
+            self.tenants.iter().filter(|t| t.usage.snapshot().active_sandboxes > 0).count() as u32;
 
         PoolStats {
             total_tenants: self.tenants.len() as u32,
@@ -415,10 +399,7 @@ impl ResourcePool {
 
     /// Get all tenant info.
     pub fn all_tenants(&self) -> Vec<TenantInfo> {
-        self.tenants
-            .iter()
-            .map(|r| r.to_info(r.key().clone()))
-            .collect()
+        self.tenants.iter().map(|r| r.to_info(r.key().clone())).collect()
     }
 }
 
@@ -477,9 +458,8 @@ mod tests {
 
     #[test]
     fn test_pool_config() {
-        let config = PoolConfig::new()
-            .with_max_total_memory(8 * 1024 * 1024 * 1024)
-            .with_max_tenants(500);
+        let config =
+            PoolConfig::new().with_max_total_memory(8 * 1024 * 1024 * 1024).with_max_tenants(500);
 
         assert_eq!(config.max_total_memory, 8 * 1024 * 1024 * 1024);
         assert_eq!(config.max_tenants, 500);
@@ -489,8 +469,7 @@ mod tests {
     fn test_pool_register_tenant() {
         let pool = ResourcePool::new(PoolConfig::default());
 
-        pool.register_tenant("tenant-a", TenantQuota::default())
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::default()).unwrap();
         assert!(pool.has_tenant("tenant-a"));
 
         let result = pool.register_tenant("tenant-a", TenantQuota::default());
@@ -501,8 +480,7 @@ mod tests {
     fn test_pool_remove_tenant() {
         let pool = ResourcePool::new(PoolConfig::default());
 
-        pool.register_tenant("tenant-a", TenantQuota::default())
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::default()).unwrap();
         let info = pool.remove_tenant("tenant-a").unwrap();
         assert_eq!(info.id.0, "tenant-a");
         assert!(!pool.has_tenant("tenant-a"));
@@ -511,8 +489,7 @@ mod tests {
     #[test]
     fn test_pool_acquire_release() {
         let pool = ResourcePool::new(PoolConfig::default());
-        pool.register_tenant("tenant-a", TenantQuota::default())
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::default()).unwrap();
 
         let lease = pool.acquire("tenant-a", 1024).unwrap();
         assert_eq!(lease.memory_bytes, 1024);
@@ -529,38 +506,28 @@ mod tests {
     #[test]
     fn test_pool_quota_enforcement() {
         let pool = ResourcePool::new(PoolConfig::default());
-        pool.register_tenant("tenant-a", TenantQuota::new().with_max_sandboxes(2))
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::new().with_max_sandboxes(2)).unwrap();
 
         let _lease1 = pool.acquire("tenant-a", 100).unwrap();
         let _lease2 = pool.acquire("tenant-a", 100).unwrap();
 
         let result = pool.acquire("tenant-a", 100);
-        assert!(matches!(
-            result,
-            Err(PoolError::Quota(QuotaError::SandboxLimitExceeded { .. }))
-        ));
+        assert!(matches!(result, Err(PoolError::Quota(QuotaError::SandboxLimitExceeded { .. }))));
     }
 
     #[test]
     fn test_pool_global_limits() {
         let pool = ResourcePool::new(
-            PoolConfig::new()
-                .with_max_total_memory(1000)
-                .with_max_total_sandboxes(2),
+            PoolConfig::new().with_max_total_memory(1000).with_max_total_sandboxes(2),
         );
-        pool.register_tenant("tenant-a", TenantQuota::unlimited())
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::unlimited()).unwrap();
 
         let _lease1 = pool.acquire("tenant-a", 500).unwrap();
         let _lease2 = pool.acquire("tenant-a", 400).unwrap();
 
         // Memory limit
         let result = pool.acquire("tenant-a", 200);
-        assert!(matches!(
-            result,
-            Err(PoolError::GlobalMemoryExceeded { .. })
-        ));
+        assert!(matches!(result, Err(PoolError::GlobalMemoryExceeded { .. })));
     }
 
     #[test]
@@ -583,24 +550,20 @@ mod tests {
     #[test]
     fn test_pool_update_quota() {
         let pool = ResourcePool::new(PoolConfig::default());
-        pool.register_tenant("tenant-a", TenantQuota::new().with_max_sandboxes(1))
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::new().with_max_sandboxes(1)).unwrap();
 
         let _lease1 = pool.acquire("tenant-a", 100).unwrap();
         assert!(pool.acquire("tenant-a", 100).is_err());
 
-        pool.update_quota("tenant-a", TenantQuota::new().with_max_sandboxes(5))
-            .unwrap();
+        pool.update_quota("tenant-a", TenantQuota::new().with_max_sandboxes(5)).unwrap();
         let _lease2 = pool.acquire("tenant-a", 100).unwrap();
     }
 
     #[test]
     fn test_pool_stats() {
         let pool = ResourcePool::new(PoolConfig::default());
-        pool.register_tenant("tenant-a", TenantQuota::default())
-            .unwrap();
-        pool.register_tenant("tenant-b", TenantQuota::default())
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::default()).unwrap();
+        pool.register_tenant("tenant-b", TenantQuota::default()).unwrap();
 
         let _lease1 = pool.acquire("tenant-a", 100).unwrap();
 
@@ -614,8 +577,7 @@ mod tests {
     #[test]
     fn test_pool_tenant_info() {
         let pool = ResourcePool::new(PoolConfig::default());
-        pool.register_tenant("tenant-a", TenantQuota::new().with_priority(8))
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::new().with_priority(8)).unwrap();
 
         let _lease = pool.acquire("tenant-a", 100).unwrap();
 
@@ -627,8 +589,7 @@ mod tests {
     #[test]
     fn test_pool_reset_counters() {
         let pool = ResourcePool::new(PoolConfig::default());
-        pool.register_tenant("tenant-a", TenantQuota::default())
-            .unwrap();
+        pool.register_tenant("tenant-a", TenantQuota::default()).unwrap();
 
         let _lease = pool.acquire("tenant-a", 100).unwrap();
         pool.reset_rps_counters();

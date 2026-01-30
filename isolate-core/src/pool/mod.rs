@@ -34,11 +34,18 @@
 //! pool.release(lease);
 //! ```
 
+pub mod autoscale;
 mod quota;
 mod tenant;
+pub mod warm;
 
+pub use autoscale::{AutoScaleConfig, AutoScaleEvent, AutoScaleSnapshot, AutoScaler};
 pub use quota::{QuotaError, ResourceUsage, TenantQuota};
 pub use tenant::{PoolConfig, PoolError, ResourceLease, ResourcePool, TenantId, TenantInfo};
+pub use warm::{
+    EvictionPolicy, PoolStats, PrecompiledModule, WarmInstance, WarmPool, WarmPoolConfig,
+    WarmPoolError,
+};
 
 #[cfg(test)]
 mod tests {
