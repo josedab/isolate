@@ -49,6 +49,7 @@ mod tools;
 pub mod trace;
 mod types;
 pub mod function_calling;
+pub mod protocol;
 
 pub use session::{AgentSession, ExecutionRecord};
 pub use tools::{ToolDefinition, ToolParameter, ToolParameterType, ToolRegistry};
@@ -63,4 +64,8 @@ pub use types::{
 pub use function_calling::{
     ExecutorConfig, FunctionCallExecutor, FunctionCallInfo, FunctionDefinition, ToolCall,
     ToolCallResult, ToolSpec,
+};
+pub use protocol::{
+    BudgetEnforcer, BudgetViolation, JsonSchema, JsonSchemaType, ProtocolMessage,
+    ProtocolValidator, ValidationError,
 };
