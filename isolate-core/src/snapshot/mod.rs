@@ -52,10 +52,14 @@ pub mod manager;
 pub mod orchestrator;
 mod pool;
 pub mod s3_store;
+pub mod instant_clone;
 pub mod serialization;
 pub mod storage;
 
 pub use auto_warm::{AccessTracker, AutoWarmConfig, WarmingRecommendation};
+pub use instant_clone::{
+    InstantCloneEngine, CloneTemplate, CloneInstance, CrossNodeRestore, DiskSnapshotPersistence,
+};
 pub use live_migration::{
     FailoverPolicy, FailoverRegistry, FrozenState, LiveMigration, LiveMigrationConfig,
     LiveMigrationState, MigrationProgress,
