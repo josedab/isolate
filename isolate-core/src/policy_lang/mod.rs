@@ -26,9 +26,14 @@
 //! ```
 
 mod eval;
+pub mod decision;
 pub mod lint;
 mod parser;
 
+pub use decision::{
+    DecisionTree, PolicyCompiler, PolicyDecision, PolicyEffect, PolicyRequest, PolicySet,
+    PolicyStatement, PolicyStore,
+};
 pub use eval::{PolicyEvaluator, ResolvedPolicy};
 pub use lint::{LintFinding, LintResult, LintSeverity, PolicyLinter, PolicyTest, run_policy_tests};
 pub use parser::{
