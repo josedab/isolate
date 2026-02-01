@@ -299,6 +299,8 @@ pub mod hot_reload;
 pub mod module_registry;
 #[cfg(feature = "deployment")]
 pub mod oci_registry;
+#[cfg(feature = "deployment")]
+pub mod registry_security;
 
 #[cfg(feature = "federation")]
 pub mod federation;
