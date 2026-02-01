@@ -320,9 +320,7 @@ impl AnomalyDetector {
             .model
             .write()
             .map_err(|e| Error::Engine(format!("Failed to acquire model lock: {}", e)))?;
-        model
-            .train(&samples)
-            .map_err(|e| Error::Engine(format!("Training failed: {}", e)))?;
+        model.train(&samples).map_err(|e| Error::Engine(format!("Training failed: {}", e)))?;
 
         let mut state = self
             .state
@@ -366,13 +364,7 @@ impl AnomalyDetector {
             .read()
             .map_err(|e| Error::Engine(format!("Failed to acquire state lock: {}", e)))?;
 
-        Ok(state
-            .recent_results
-            .iter()
-            .rev()
-            .take(limit)
-            .cloned()
-            .collect())
+        Ok(state.recent_results.iter().rev().take(limit).cloned().collect())
     }
 
     /// Reset the detector state.
@@ -617,11 +609,8 @@ impl AnomalyDetector {
         // Higher confidence when multiple methods agree
         let ml_conf = prediction.confidence;
 
-        let agreement_bonus = if (prediction.score.value() > 0.5) == (heuristic > 0.5) {
-            0.1
-        } else {
-            0.0
-        };
+        let agreement_bonus =
+            if (prediction.score.value() > 0.5) == (heuristic > 0.5) { 0.1 } else { 0.0 };
 
         let pattern_bonus = if pattern > 0.7 { 0.15 } else { 0.0 };
 
@@ -720,12 +709,8 @@ mod tests {
         let result = detector.analyze(&features).unwrap();
         assert!(
             result.recommended_actions.contains(&DetectorAction::Alert)
-                || result
-                    .recommended_actions
-                    .contains(&DetectorAction::Throttle)
-                || result
-                    .recommended_actions
-                    .contains(&DetectorAction::Terminate)
+                || result.recommended_actions.contains(&DetectorAction::Throttle)
+                || result.recommended_actions.contains(&DetectorAction::Terminate)
         );
     }
 

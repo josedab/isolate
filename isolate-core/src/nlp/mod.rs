@@ -115,11 +115,7 @@ pub struct ParserConfig {
 
 impl Default for ParserConfig {
     fn default() -> Self {
-        Self {
-            fuzzy_matching: true,
-            confidence_threshold: 0.7,
-            default_action: PolicyAction::Deny,
-        }
+        Self { fuzzy_matching: true, confidence_threshold: 0.7, default_action: PolicyAction::Deny }
     }
 }
 
@@ -167,11 +163,7 @@ impl PolicyParser {
         ] {
             keywords.insert(
                 word.to_string(),
-                KeywordInfo {
-                    action: Some(action),
-                    resource: None,
-                    weight: 1.0,
-                },
+                KeywordInfo { action: Some(action), resource: None, weight: 1.0 },
             );
         }
 
@@ -198,11 +190,7 @@ impl PolicyParser {
         ] {
             keywords.insert(
                 word.to_string(),
-                KeywordInfo {
-                    action: None,
-                    resource: Some(resource),
-                    weight: 0.8,
-                },
+                KeywordInfo { action: None, resource: Some(resource), weight: 0.8 },
             );
         }
 
@@ -227,12 +215,7 @@ impl PolicyParser {
         // Extract conditions
         let conditions = self.extract_conditions(&text);
 
-        let rule = PolicyRule {
-            action,
-            resource,
-            conditions,
-            source_text: text.clone(),
-        };
+        let rule = PolicyRule { action, resource, conditions, source_text: text.clone() };
 
         Ok(NaturalPolicy {
             id: generate_id(),
@@ -306,10 +289,7 @@ impl PolicyParser {
         // Extract rate limits
         if text.contains("per second") || text.contains("/s") {
             if let Some(num) = extract_number(text) {
-                conditions.push(Condition::RateLimit {
-                    max: num as u32,
-                    period_secs: 1,
-                });
+                conditions.push(Condition::RateLimit { max: num as u32, period_secs: 1 });
             }
         }
 
@@ -332,10 +312,7 @@ impl Default for PolicyEngine {
 impl PolicyEngine {
     /// Create a new policy engine.
     pub fn new() -> Self {
-        Self {
-            policies: Vec::new(),
-            parser: PolicyParser::default(),
-        }
+        Self { policies: Vec::new(), parser: PolicyParser::default() }
     }
 
     /// Add a natural language policy.
@@ -392,23 +369,14 @@ impl PolicyEngine {
             }
         }
 
-        let confidence = if matching_policies.is_empty() {
-            0.5
-        } else {
-            0.9
-        };
+        let confidence = if matching_policies.is_empty() { 0.5 } else { 0.9 };
         let explanation = if matching_policies.is_empty() {
             "No matching policies, using default action".to_string()
         } else {
             format!("Matched {} policies", matching_policies.len())
         };
 
-        PolicyDecision {
-            action,
-            matching_policies,
-            explanation,
-            confidence,
-        }
+        PolicyDecision { action, matching_policies, explanation, confidence }
     }
 
     fn matches_rule(&self, rule: &PolicyRule, request: &PolicyRequest) -> bool {
@@ -584,9 +552,7 @@ mod tests {
     #[test]
     fn test_parse_allow_network() {
         let parser = PolicyParser::default();
-        let policy = parser
-            .parse("allow network access to api.example.com")
-            .unwrap();
+        let policy = parser.parse("allow network access to api.example.com").unwrap();
 
         assert_eq!(policy.rules.len(), 1);
         assert_eq!(policy.rules[0].action, PolicyAction::Allow);
@@ -646,12 +612,8 @@ mod tests {
     #[test]
     fn test_policy_engine_evaluate() {
         let mut engine = PolicyEngine::new();
-        engine
-            .add_policy("allow network access to api.example.com")
-            .unwrap();
-        engine
-            .add_policy("deny network access to evil.com")
-            .unwrap();
+        engine.add_policy("allow network access to api.example.com").unwrap();
+        engine.add_policy("deny network access to evil.com").unwrap();
 
         let request = PolicyRequest::network("api.example.com", 443);
         let decision = engine.evaluate(&request);
@@ -704,9 +666,7 @@ mod tests {
     #[test]
     fn test_rate_limit_action() {
         let parser = PolicyParser::default();
-        let policy = parser
-            .parse("limit network requests to 100 per second")
-            .unwrap();
+        let policy = parser.parse("limit network requests to 100 per second").unwrap();
 
         assert_eq!(policy.rules[0].action, PolicyAction::RateLimit);
     }
