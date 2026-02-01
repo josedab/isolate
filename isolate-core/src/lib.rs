@@ -270,6 +270,9 @@ pub mod transpiler;
 #[cfg(feature = "extras")]
 pub mod verify;
 
+#[cfg(feature = "extras")]
+pub mod bench_compare;
+
 #[cfg(feature = "observability")]
 pub mod dashboard;
 #[cfg(feature = "observability")]
