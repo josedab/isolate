@@ -1,0 +1,63 @@
+// WIT interface definition for Isolate guest modules.
+//
+// This defines the contract between WASM guest modules and the Isolate host
+// runtime. Guest modules import these interfaces to access host capabilities.
+
+package isolate:guest;
+
+/// Structured I/O for passing data between host and guest.
+interface io {
+    /// Read all input bytes from stdin.
+    read-input: func() -> list<u8>;
+
+    /// Write raw bytes to stdout.
+    write-output: func(data: list<u8>);
+
+    /// Write a JSON string to stdout with a trailing newline.
+    write-json: func(json-str: string);
+}
+
+/// Access to environment variables granted by capability configuration.
+interface env {
+    /// Get a single environment variable by name.
+    /// Returns `none` if the variable is not set or not permitted.
+    get-var: func(name: string) -> option<string>;
+
+    /// Get all permitted environment variables as key-value pairs.
+    get-all-vars: func() -> list<tuple<string, string>>;
+}
+
+/// Filesystem operations scoped to preopened directories.
+interface fs {
+    /// Read the contents of a file.
+    /// Returns an error string if the file cannot be read or access is denied.
+    read-file: func(path: string) -> result<list<u8>, string>;
+
+    /// Write data to a file, creating or truncating it.
+    /// Returns an error string if the file cannot be written or access is denied.
+    write-file: func(path: string, data: list<u8>) -> result<_, string>;
+}
+
+/// Structured logging that writes to the host's log sink.
+interface log {
+    /// Log an informational message.
+    info: func(msg: string);
+
+    /// Log a warning message.
+    warn: func(msg: string);
+
+    /// Log an error message.
+    error: func(msg: string);
+}
+
+/// The main world for Isolate guest modules.
+///
+/// Guest modules target this world to gain access to host capabilities.
+/// Each imported interface corresponds to a capability that must be granted
+/// in the sandbox configuration.
+world isolate-guest {
+    import io;
+    import env;
+    import fs;
+    import log;
+}

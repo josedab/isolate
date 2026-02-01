@@ -1,0 +1,16 @@
+[package]
+name = "isolate-guest-rust"
+version = "0.1.0"
+edition = "2021"
+description = "Guest SDK for writing WASM modules targeting the Isolate sandbox runtime"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/isolate-runtime/isolate"
+keywords = ["wasm", "sandbox", "isolate", "guest"]
+categories = ["wasm"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
