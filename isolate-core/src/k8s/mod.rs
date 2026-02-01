@@ -15,6 +15,7 @@ pub mod disaster_recovery;
 pub mod helm;
 pub mod isolate_sandbox;
 pub mod network_policy;
+pub mod observability;
 pub mod operator;
 pub mod scheduler;
 pub mod tenant;
@@ -64,6 +65,12 @@ pub use tenant::{
 pub use disaster_recovery::{
     Backup, BackupContents, BackupStatus, BackupType, ClusterHealth, DisasterRecoveryManager,
     FailoverConfig, FailoverStatus, FailoverStrategy, RestoreOperation, RestoreStatus, RestoreType,
+};
+
+// Re-export observability types
+pub use observability::{
+    AlertRule, AlertRuleSet, GrafanaDashboard, MetricDefinition, MetricType,
+    PrometheusExporter, PrometheusOperatorMetrics,
 };
 
 // Re-export IsolateSandbox CRD types
