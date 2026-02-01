@@ -246,6 +246,9 @@ pub mod workflow;
 #[cfg(feature = "platform")]
 pub mod workflow_engine;
 
+#[cfg(feature = "platform")]
+pub mod saas;
+
 #[cfg(feature = "extras")]
 pub mod ai_exec;
 #[cfg(feature = "extras")]
