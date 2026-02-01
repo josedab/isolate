@@ -54,6 +54,7 @@ pub mod compat_shim;
 pub mod interface_registry;
 pub mod wit;
 pub mod wit_parser;
+pub mod world_gen;
 
 pub use component::{
     CompiledComponent, ComponentEngine, ComponentEngineConfig, ComponentSandbox, ComponentState,
@@ -65,6 +66,10 @@ pub use host::{IoLimits, WasiError, WasiHostState};
 pub use dual_mode::{detect_wasi_version, DualModeSandbox, WasiVersion};
 pub use interface_registry::{
     CapabilityRef, InterfaceBinding, InterfaceRegistry, WorldDefinition,
+};
+pub use world_gen::{
+    WorldGenerator, WorldDefinition as WitWorldDefinition, CompositionPipeline, PipelineStage,
+    PipelineResult,
 };
 
 use crate::Result;
