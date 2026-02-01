@@ -90,10 +90,7 @@ impl MigrationPlan {
 
     /// Get completed tasks.
     pub fn completed_count(&self) -> usize {
-        self.migrations
-            .iter()
-            .filter(|t| t.state == MigrationState::Completed)
-            .count()
+        self.migrations.iter().filter(|t| t.state == MigrationState::Completed).count()
     }
 
     /// Check if plan is complete.
@@ -247,10 +244,8 @@ impl MigrationManager {
 
     /// Queue a migration task.
     pub fn queue(&self, task: MigrationTask) -> Result<()> {
-        let mut pending = self
-            .pending
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut pending =
+            self.pending.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         pending.push_back(task);
         Ok(())
     }
@@ -261,10 +256,8 @@ impl MigrationManager {
 
         // Queue all tasks
         {
-            let mut pending = self
-                .pending
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut pending =
+                self.pending.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
             for task in &plan.migrations {
                 pending.push_back(task.clone());
             }
@@ -272,10 +265,8 @@ impl MigrationManager {
 
         // Store the plan
         {
-            let mut plans = self
-                .plans
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut plans =
+                self.plans.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
             plans.insert(plan_id, plan);
         }
 
@@ -284,11 +275,8 @@ impl MigrationManager {
 
     /// Start pending migrations up to the limit.
     pub fn start_pending(&self) -> Result<Vec<MigrationTask>> {
-        let active_count = self
-            .active
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?
-            .len();
+        let active_count =
+            self.active.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?.len();
 
         if active_count >= self.max_concurrent {
             return Ok(Vec::new());
@@ -298,14 +286,10 @@ impl MigrationManager {
         let mut started = Vec::new();
 
         {
-            let mut pending = self
-                .pending
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
-            let mut active = self
-                .active
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut pending =
+                self.pending.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut active =
+                self.active.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
             for _ in 0..slots {
                 if let Some(mut task) = pending.pop_front() {
@@ -329,10 +313,8 @@ impl MigrationManager {
         bytes_transferred: u64,
         total_bytes: u64,
     ) -> Result<()> {
-        let mut active = self
-            .active
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut active =
+            self.active.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
         if let Some(task) = active.get_mut(task_id) {
             task.bytes_transferred = bytes_transferred;
@@ -348,19 +330,15 @@ impl MigrationManager {
     /// Complete a migration.
     pub fn complete(&self, task_id: &str) -> Result<()> {
         let task = {
-            let mut active = self
-                .active
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut active =
+                self.active.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
             active.remove(task_id)
         };
 
         if let Some(mut task) = task {
             task.transition(MigrationState::Completed);
-            let mut completed = self
-                .completed
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut completed =
+                self.completed.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
             completed.push(task);
         }
 
@@ -370,19 +348,15 @@ impl MigrationManager {
     /// Fail a migration.
     pub fn fail(&self, task_id: &str, error: String) -> Result<()> {
         let task = {
-            let mut active = self
-                .active
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut active =
+                self.active.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
             active.remove(task_id)
         };
 
         if let Some(mut task) = task {
             task.fail(error);
-            let mut completed = self
-                .completed
-                .write()
-                .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+            let mut completed =
+                self.completed.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
             completed.push(task);
         }
 
@@ -391,45 +365,27 @@ impl MigrationManager {
 
     /// Get active migrations.
     pub fn active_migrations(&self) -> Result<Vec<MigrationTask>> {
-        let active = self
-            .active
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let active = self.active.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(active.values().cloned().collect())
     }
 
     /// Get pending count.
     pub fn pending_count(&self) -> Result<usize> {
-        let pending = self
-            .pending
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let pending =
+            self.pending.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(pending.len())
     }
 
     /// Get statistics.
     pub fn stats(&self) -> Result<MigrationStats> {
-        let active = self
-            .active
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
-        let pending = self
-            .pending
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
-        let completed = self
-            .completed
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let active = self.active.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let pending =
+            self.pending.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let completed =
+            self.completed.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
-        let successful = completed
-            .iter()
-            .filter(|t| t.state == MigrationState::Completed)
-            .count();
-        let failed = completed
-            .iter()
-            .filter(|t| t.state == MigrationState::Failed)
-            .count();
+        let successful = completed.iter().filter(|t| t.state == MigrationState::Completed).count();
+        let failed = completed.iter().filter(|t| t.state == MigrationState::Failed).count();
 
         Ok(MigrationStats {
             active: active.len(),
@@ -494,16 +450,8 @@ mod tests {
     fn test_migration_plan() {
         let mut plan = MigrationPlan::new(MigrationReason::Rebalance);
 
-        plan.add(MigrationTask::new(
-            "sandbox-1".to_string(),
-            NodeId::new(1),
-            NodeId::new(2),
-        ));
-        plan.add(MigrationTask::new(
-            "sandbox-2".to_string(),
-            NodeId::new(1),
-            NodeId::new(3),
-        ));
+        plan.add(MigrationTask::new("sandbox-1".to_string(), NodeId::new(1), NodeId::new(2)));
+        plan.add(MigrationTask::new("sandbox-2".to_string(), NodeId::new(1), NodeId::new(3)));
 
         assert_eq!(plan.task_count(), 2);
         assert_eq!(plan.completed_count(), 0);
@@ -529,18 +477,10 @@ mod tests {
         let manager = MigrationManager::new(1);
 
         manager
-            .queue(MigrationTask::new(
-                "sb-1".to_string(),
-                NodeId::new(1),
-                NodeId::new(2),
-            ))
+            .queue(MigrationTask::new("sb-1".to_string(), NodeId::new(1), NodeId::new(2)))
             .unwrap();
         manager
-            .queue(MigrationTask::new(
-                "sb-2".to_string(),
-                NodeId::new(1),
-                NodeId::new(3),
-            ))
+            .queue(MigrationTask::new("sb-2".to_string(), NodeId::new(1), NodeId::new(3)))
             .unwrap();
 
         let started = manager.start_pending().unwrap();
