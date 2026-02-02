@@ -18,10 +18,15 @@
 //!                                          └──────────────┘
 //! ```
 
+mod adaptive;
 mod controller;
 mod forecast;
 mod metrics_ring;
 
+pub use adaptive::{
+    AdaptiveConfig, AdaptiveTuner, ExecutionSample, ModuleStats, TunedLimits, TuningChange,
+    TuningRecommendation,
+};
 pub use controller::{ScaleAction, ScaleController, ScaleControllerConfig};
 pub use forecast::{DemandForecast, DemandForecaster, ForecastConfig};
 pub use metrics_ring::{MetricSample, MetricsRing};
