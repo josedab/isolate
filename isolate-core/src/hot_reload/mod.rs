@@ -20,12 +20,16 @@
 
 mod deployment;
 mod health;
+mod live_update;
 mod version;
 
 pub use deployment::{
     DeploymentController, DeploymentEvent, DeploymentState, DeploymentStrategy, RollbackTrigger,
 };
 pub use health::{HealthTracker, VersionHealth};
+pub use live_update::{
+    ConnectionGuard, ConnectionTracker, LiveUpdateConfig, LiveUpdateManager, UpdateResult,
+};
 pub use version::{ModuleVersion, VersionId, VersionRegistry, VersionRoute, VersionRouter};
 
 #[cfg(test)]
