@@ -29,12 +29,17 @@
 mod router;
 mod types;
 pub mod http_handler;
+pub mod namespace;
 pub mod websocket;
 
 pub use router::{GatewayConfig, GatewayRouter, RateLimitConfig, Route, RouteHandler};
 pub use types::{
     ApiError, ApiResponse, CreateSandboxRequest, ListSandboxesResponse, RunSandboxRequest,
     RunSandboxResponse, SandboxInfo,
+};
+pub use namespace::{
+    IsolationLevel, Namespace, NamespaceAuditEntry, NamespaceId, NamespaceManager,
+    NamespaceStatus, QuotaCheckResult, TenantQuota, UsageSnapshot,
 };
 
 #[cfg(test)]
