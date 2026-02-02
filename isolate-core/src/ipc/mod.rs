@@ -37,10 +37,15 @@
 mod channel;
 mod hub;
 mod message;
+pub mod virtual_mesh;
 
 pub use channel::{Channel, ChannelConfig, ChannelId, ChannelStats};
 pub use hub::{ChannelHub, IpcError};
 pub use message::{Message, MessageId, MessagePayload};
+pub use virtual_mesh::{
+    ChannelPattern, MeshCapability, MeshError, MeshMessage, MeshNodeId, MeshStatistics,
+    SandboxMesh, VirtualChannelConfig, VirtualChannelId,
+};
 
 /// Default channel capacity.
 pub const DEFAULT_CHANNEL_CAPACITY: usize = 1000;
