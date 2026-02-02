@@ -10,6 +10,7 @@ mod limits;
 mod metering;
 pub mod profiler;
 pub mod scheduler;
+pub mod wasm_profiler;
 
 pub use limits::{CpuLimits, IoLimits, MemoryLimits, ResourceLimits, TimeLimits};
 pub use metering::{ResourceMeter, ResourceUsage};
@@ -20,4 +21,8 @@ pub use profiler::{
 pub use scheduler::{
     ClusterUtilization, FairShareQuota, NodeCapacity, NodeId, PlacementStrategy, Priority,
     ResourceRequest, ResourceScheduler, ScheduleResult,
+};
+pub use wasm_profiler::{
+    ExecutionProfileReport, FlamegraphEntry, FunctionId, FunctionProfile, HotFunction,
+    HotspotCategory, ProfileSuggestion, StackSample, SuggestionSeverity, WasmProfiler,
 };
