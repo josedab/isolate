@@ -6,6 +6,17 @@
 //! - Carbon footprint tracking per sandbox
 //! - Regional carbon optimization
 
+pub mod alert;
+pub mod cost;
+pub mod optimizer;
+
+pub use alert::{Alert, AlertManager, AlertRule, AlertSeverity, AlertTrigger};
+pub use cost::{CloudProvider, CostBreakdown, CostEstimator, CostRecord, CostSummary, PricingTier};
+pub use optimizer::{
+    OptimizationCategory, Recommendation, RecommendationPriority, ResourceOptimizer,
+    SuggestedAction, UsagePattern,
+};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
@@ -61,11 +72,7 @@ pub struct GridRegion {
 impl GridRegion {
     /// Create a new region.
     pub fn new(code: impl Into<String>, name: impl Into<String>) -> Self {
-        Self {
-            code: code.into(),
-            name: name.into(),
-            timezone: "UTC".to_string(),
-        }
+        Self { code: code.into(), name: name.into(), timezone: "UTC".to_string() }
     }
 }
 
@@ -133,12 +140,7 @@ pub struct CarbonBudget {
 impl CarbonBudget {
     /// Create a new carbon budget.
     pub fn new(max_carbon: f64, period: Duration) -> Self {
-        Self {
-            max_carbon,
-            used_carbon: 0.0,
-            period,
-            period_start: SystemTime::now(),
-        }
+        Self { max_carbon, used_carbon: 0.0, period, period_start: SystemTime::now() }
     }
 
     /// Get remaining budget.
@@ -245,14 +247,12 @@ impl CarbonScheduler {
 
     /// Update carbon intensity for a region.
     pub fn update_intensity(&mut self, data: CarbonDataPoint) {
-        self.current_intensities
-            .insert(data.region.code.clone(), data);
+        self.current_intensities.insert(data.region.code.clone(), data);
     }
 
     /// Update forecast for a region.
     pub fn update_forecast(&mut self, forecast: CarbonForecast) {
-        self.forecasts
-            .insert(forecast.region.code.clone(), forecast);
+        self.forecasts.insert(forecast.region.code.clone(), forecast);
     }
 
     /// Get current intensity for region.
@@ -307,11 +307,8 @@ impl CarbonScheduler {
 
     /// Record carbon footprint for an execution.
     pub fn record_footprint(&mut self, sandbox_id: &str, duration: Duration, region: &str) {
-        let intensity = self
-            .current_intensities
-            .get(region)
-            .map(|d| d.intensity.0)
-            .unwrap_or(100.0);
+        let intensity =
+            self.current_intensities.get(region).map(|d| d.intensity.0).unwrap_or(100.0);
 
         let energy_kwh = self.config.power_per_sandbox * duration.as_secs_f64() / 3600.0;
         let carbon_grams = energy_kwh * intensity;
@@ -350,22 +347,14 @@ impl CarbonScheduler {
 
     /// Get footprint by sandbox.
     pub fn footprint_by_sandbox(&self, sandbox_id: &str) -> f64 {
-        self.footprints
-            .iter()
-            .filter(|f| f.sandbox_id == sandbox_id)
-            .map(|f| f.carbon_grams)
-            .sum()
+        self.footprints.iter().filter(|f| f.sandbox_id == sandbox_id).map(|f| f.carbon_grams).sum()
     }
 
     /// Get carbon statistics.
     pub fn stats(&self) -> CarbonStats {
         let total_carbon = self.total_footprint();
         let total_energy: f64 = self.footprints.iter().map(|f| f.energy_kwh).sum();
-        let avg_intensity = if total_energy > 0.0 {
-            total_carbon / total_energy
-        } else {
-            0.0
-        };
+        let avg_intensity = if total_energy > 0.0 { total_carbon / total_energy } else { 0.0 };
 
         CarbonStats {
             total_carbon_grams: total_carbon,
@@ -540,10 +529,7 @@ mod tests {
     fn test_budget_tracking() {
         let mut scheduler = CarbonScheduler::default();
 
-        scheduler.set_budget(
-            "sandbox-1",
-            CarbonBudget::new(10.0, Duration::from_secs(3600)),
-        );
+        scheduler.set_budget("sandbox-1", CarbonBudget::new(10.0, Duration::from_secs(3600)));
 
         scheduler.update_intensity(CarbonDataPoint {
             timestamp: SystemTime::now(),
@@ -562,15 +548,9 @@ mod tests {
     fn test_intensity_levels() {
         assert_eq!(CarbonIntensity::new(10.0).level(), IntensityLevel::VeryLow);
         assert_eq!(CarbonIntensity::new(75.0).level(), IntensityLevel::Low);
-        assert_eq!(
-            CarbonIntensity::new(150.0).level(),
-            IntensityLevel::Moderate
-        );
+        assert_eq!(CarbonIntensity::new(150.0).level(), IntensityLevel::Moderate);
         assert_eq!(CarbonIntensity::new(300.0).level(), IntensityLevel::High);
-        assert_eq!(
-            CarbonIntensity::new(500.0).level(),
-            IntensityLevel::VeryHigh
-        );
+        assert_eq!(CarbonIntensity::new(500.0).level(), IntensityLevel::VeryHigh);
     }
 
     #[test]
