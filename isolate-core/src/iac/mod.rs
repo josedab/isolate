@@ -9,10 +9,15 @@
 //! - Import existing resources into IaC state
 #![allow(dead_code)]
 
+pub mod declarative;
 pub mod plan;
 pub mod resource;
 pub mod state;
 
+pub use declarative::{
+    ConfigError, ConfigLoader, EnvironmentOverride, ResourceSpec, SandboxFile, SandboxSpec,
+    parse_duration, parse_size,
+};
 pub use plan::{
     ActionType, ApplyError, ApplyResult, ExecutionPlan, PlanBuilder, PlanSummary, PlannedAction,
 };
