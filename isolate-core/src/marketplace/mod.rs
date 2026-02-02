@@ -13,6 +13,7 @@ pub mod analytics;
 pub mod content_store;
 pub mod curation;
 pub mod monetization;
+pub mod plugin_manifest;
 mod registry;
 pub mod resolver;
 pub mod reviews;
@@ -34,6 +35,10 @@ pub use scanner::{ModuleScanner, ScanResult, ScanFinding, FindingSeverity};
 pub use curation::{CurationEngine, CertificationTier, QualityGateConfig, QualityReport, QualityCheck, FeaturedListing};
 pub use monetization::{MonetizationEngine, PricingModel, RevenueShare, MonetizedListing, PublisherPayout};
 pub use reviews::{ReviewSystem, Review, ReviewStatus, RatingStats, ReviewError};
+pub use plugin_manifest::{
+    EntryPoint, InstalledPlugin, LocalCatalog, ManifestValidationError, OciRegistryConfig,
+    PluginDependency, PluginManifest, PluginResources, RegistryFederation,
+};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
