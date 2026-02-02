@@ -15,10 +15,15 @@
 pub mod recording;
 pub mod session;
 pub mod timeline;
+pub mod tracing;
 
 pub use recording::{ExecutionRecorder, Recording, RecordingEvent, EventKind};
 pub use session::{ReplaySession, SessionManager, SessionToken, ShareSettings};
 pub use timeline::{Timeline, TimelineEntry, TimelineView, Bookmark};
+pub use tracing::{
+    ExecutionTrace, FlamegraphFrame, FlamegraphGenerator, SpanEvent, SpanId, SpanStatus,
+    TraceBuilder, TraceId, TraceSpan,
+};
 
 #[cfg(test)]
 mod tests {
