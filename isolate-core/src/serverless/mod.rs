@@ -13,6 +13,7 @@
 pub mod adapter;
 pub mod function;
 pub mod runtime;
+pub mod triggers;
 
 pub use adapter::{
     AwsSamAdapter, DeploymentManifest, FissionAdapter, Framework, FrameworkAdapter, IssueSeverity,
@@ -23,3 +24,8 @@ pub use function::{
     ModuleSource, RuntimeConfig, ScalingConfig, ServerlessFunction, Trigger,
 };
 pub use runtime::{FunctionContext, RuntimeHandler, RuntimeMetrics};
+pub use triggers::{
+    CronConfig, DeadLetterEntry, EventOutcome, MessageQueueConfig, QueueProvider, RetryPolicy,
+    TriggerDefinition, TriggerEvent, TriggerId, TriggerManager, TriggerSource,
+    TriggerStatistics, WebhookConfig,
+};
