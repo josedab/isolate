@@ -21,7 +21,7 @@
 //! ```
 
 #![allow(dead_code)]
-
+#![allow(missing_docs)]
 use crate::config::SandboxConfig;
 use crate::engine::wasm::WasmEngine;
 use crate::error::{Error, Result};

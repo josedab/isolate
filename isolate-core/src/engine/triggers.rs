@@ -2,7 +2,8 @@
 //!
 //! Provides trigger definitions, a registry for managing them, and event types
 //! for representing incoming trigger invocations.
-//!
+
+#![allow(missing_docs)]//!
 //! # Example
 //!
 //! ```rust

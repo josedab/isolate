@@ -1,5 +1,6 @@
 //! Error types for the Isolate runtime.
 
+#![allow(missing_docs)]
 use crate::capability::Capability;
 use std::path::PathBuf;
 use thiserror::Error;

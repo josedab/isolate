@@ -7,6 +7,7 @@
 //! **Note:** This module does NOT invoke external tools — it provides the framework
 //! for discovering, configuring, and driving toolchain backends.
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;

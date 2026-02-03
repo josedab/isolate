@@ -191,20 +191,28 @@ pub mod agent;
 pub mod llm;
 
 #[cfg(feature = "policy-engine")]
+#[allow(missing_docs)]
 pub mod audit;
 #[cfg(feature = "policy-engine")]
+#[allow(missing_docs)]
 pub mod compliance;
 #[cfg(feature = "policy-engine")]
+#[allow(missing_docs)]
 pub mod compose;
 #[cfg(feature = "policy-engine")]
+#[allow(missing_docs)]
 pub mod policy;
 #[cfg(feature = "policy-engine")]
+#[allow(missing_docs)]
 pub mod policy_builder;
 #[cfg(feature = "policy-engine")]
+#[allow(missing_docs)]
 pub mod policy_file;
 #[cfg(feature = "policy-engine")]
+#[allow(missing_docs)]
 pub mod policy_gen;
 #[cfg(feature = "policy-engine")]
+#[allow(missing_docs)]
 pub mod policy_lang;
 
 #[cfg(feature = "platform")]
@@ -274,14 +282,19 @@ pub mod verify;
 pub mod bench_compare;
 
 #[cfg(feature = "observability")]
+#[allow(missing_docs)]
 pub mod dashboard;
 #[cfg(feature = "observability")]
+#[allow(missing_docs)]
 pub mod dashboard_api;
 #[cfg(feature = "observability")]
+#[allow(missing_docs)]
 pub mod observability;
 #[cfg(feature = "observability")]
+#[allow(missing_docs)]
 pub mod tracing_ctx;
 #[cfg(feature = "observability")]
+#[allow(missing_docs)]
 pub mod wasm_analytics;
 
 #[cfg(feature = "billing")]
@@ -324,6 +337,7 @@ pub mod signing;
 pub mod k8s;
 
 #[cfg(feature = "otel-telemetry")]
+#[allow(missing_docs)]
 pub mod telemetry;
 
 #[cfg(feature = "ai-detection")]

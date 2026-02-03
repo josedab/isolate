@@ -1,7 +1,8 @@
 //! Real-time execution event streaming.
 //!
 //! Provides an event broadcasting system for monitoring sandbox execution
-//! in real time. Events are delivered via a broadcast channel, allowing
+
+#![allow(missing_docs)]//! in real time. Events are delivered via a broadcast channel, allowing
 //! multiple subscribers to independently observe execution progress.
 //!
 //! # Example

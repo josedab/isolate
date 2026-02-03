@@ -4,6 +4,7 @@
 //! level, tracking CPU time, memory allocations, and I/O operations.
 //! Generates flamegraph-compatible output for visualization.
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

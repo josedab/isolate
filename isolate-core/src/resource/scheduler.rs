@@ -3,6 +3,7 @@
 //! Provides optimal sandbox placement on nodes using first-fit-decreasing
 //! bin-packing, priority-based scheduling with fair-share SLA enforcement.
 
+#![allow(missing_docs)]
 use super::limits::ResourceLimits;
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};

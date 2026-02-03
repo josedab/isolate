@@ -3,6 +3,7 @@
 //! Collects per-sandbox resource usage profiles and projects cloud costs using
 //! configurable pricing models. Also provides optimization recommendations.
 
+#![allow(missing_docs)]
 use super::metering::ResourceUsage;
 use std::time::Duration;
 

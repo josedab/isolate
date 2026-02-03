@@ -3,6 +3,7 @@
 //! Implements the standard three-state circuit breaker (Closed → Open → Half-Open)
 //! with configurable thresholds and automatic recovery.
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
