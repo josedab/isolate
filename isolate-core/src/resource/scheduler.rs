@@ -41,7 +41,7 @@ impl ResourceRequest {
     }
 
     /// A "score" for bin-packing ordering (larger = schedule first).
-    fn packing_score(&self) -> u64 {
+    pub fn packing_score(&self) -> u64 {
         self.memory_bytes + (self.cpu_millicores as u64 * 1_000_000)
     }
 }
