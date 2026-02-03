@@ -18,8 +18,7 @@
 #![allow(dead_code)]
 
 use crate::dashboard::{
-    AlertLevel, AlertThresholds, DashboardEvent, DashboardOverview, DashboardState,
-    ResourceSummary, SandboxSummary,
+    AlertLevel, AlertThresholds, DashboardEvent, DashboardState,
 };
 use crate::sandbox::SandboxId;
 

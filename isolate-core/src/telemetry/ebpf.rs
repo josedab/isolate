@@ -11,7 +11,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 
 /// A captured syscall event from sandbox execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -23,7 +23,7 @@
 //!         value: 3
 //! ```
 
-use super::rules::{Condition, Effect, Operator, PolicyRule, PolicySet, Value};
+use super::rules::{Effect, Operator, PolicyRule, PolicySet, Value};
 use crate::error::{Error, Result};
 
 use serde::{Deserialize, Serialize};

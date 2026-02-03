@@ -3,13 +3,11 @@
 //! Plugins bundle related host functions with metadata, versioning,
 //! and capability requirements into a single registrable unit.
 
-use super::host::{HostFn, HostFunctions};
-use super::host_sdk::{FnHostAdapter, HostFnDescriptor, HostFnRegistry};
-use crate::capability::Capability;
+use super::host::HostFunctions;
+use super::host_sdk::{HostFnDescriptor, HostFnRegistry};
 use crate::error::Result;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// A plugin that bundles related host functions.

@@ -66,7 +66,6 @@
 use crate::capability::Capability;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 /// Errors from policy parsing.
 #[derive(Debug, thiserror::Error)]

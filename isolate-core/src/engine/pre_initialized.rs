@@ -36,8 +36,8 @@ use dashmap::DashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
-use wasmtime::{InstancePre, Linker, Store, StoreLimits, StoreLimitsBuilder};
-use wasmtime_wasi::preview1::{self, WasiP1Ctx};
+use wasmtime::{InstancePre, Linker, Store, StoreLimitsBuilder};
+use wasmtime_wasi::preview1;
 use wasmtime_wasi::WasiCtxBuilder;
 
 /// Configuration for the pre-initialized pool.

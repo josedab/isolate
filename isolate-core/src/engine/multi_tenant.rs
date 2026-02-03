@@ -22,11 +22,9 @@
 
 #![allow(dead_code)]
 
-use crate::capability::{Capability, CapabilityEnforcer};
 use crate::config::SandboxConfig;
 use crate::engine::wasm::WasmEngine;
 use crate::error::{Error, Result};
-use crate::resource::ResourceMeter;
 use crate::sandbox::Output;
 
 use dashmap::DashMap;

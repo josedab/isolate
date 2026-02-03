@@ -6,8 +6,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
 
 /// Unique identifier for a profiled function.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]

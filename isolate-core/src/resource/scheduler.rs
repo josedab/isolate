@@ -6,7 +6,6 @@
 use super::limits::ResourceLimits;
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// Unique identifier for a compute node.

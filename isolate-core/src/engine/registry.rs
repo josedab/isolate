@@ -23,7 +23,7 @@ use crate::config::ModuleHash;
 use crate::error::{Error, Result};
 
 use dashmap::DashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
