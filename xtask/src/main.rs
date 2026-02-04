@@ -28,6 +28,12 @@ fn main() -> ExitCode {
         "doctor" => run_doctor(),
         "docs" => run_docs(),
         "build" => run_build(),
+        "install-hooks" => run_install_hooks(),
+        "new-module" => {
+            let name = args.get(1).map(|s| s.as_str());
+            let feature = args.get(2).map(|s| s.as_str());
+            run_new_module(name, feature)
+        }
         "help" | "--help" | "-h" => {
             print_help();
             Ok(())
@@ -54,22 +60,25 @@ USAGE:
     cargo xtask <COMMAND>
 
 COMMANDS:
-    check        Run all checks: format, lint, and test
-    test         Run all tests with --all-features
-    test-core    Run core tests only (faster)
-    fmt          Format all code
-    fmt-check    Check formatting without modifying files
-    lint         Run clippy with -D warnings
-    pre-commit   Full pre-push validation (fmt + lint + test)
-    doctor       Verify development environment is set up correctly
-    docs         Generate documentation
-    build        Build all crates
-    help         Show this help message
+    check          Run all checks: format, lint, and test
+    test           Run all tests with --all-features
+    test-core      Run core tests only (faster)
+    fmt            Format all code
+    fmt-check      Check formatting without modifying files
+    lint           Run clippy with -D warnings
+    pre-commit     Full pre-push validation (fmt + lint + test)
+    doctor         Verify development environment is set up correctly
+    docs           Generate documentation
+    build          Build all crates
+    install-hooks  Install git pre-commit hooks
+    new-module     Scaffold a new feature-gated module
+    help           Show this help message
 
 EXAMPLES:
-    cargo xtask check       # Quick check before pushing
-    cargo xtask doctor      # First-time setup verification
-    cargo xtask test-core   # Fast feedback during development"
+    cargo xtask check                     # Quick check before pushing
+    cargo xtask doctor                    # First-time setup verification
+    cargo xtask test-core                 # Fast feedback during development
+    cargo xtask new-module my_mod extras  # Create module gated on 'extras' feature"
     );
 }
 
@@ -202,6 +211,123 @@ fn run_docs() -> Result<(), ()> {
 fn run_build() -> Result<(), ()> {
     println!("🔨 Building all crates...");
     cargo(&["build", "--all-features", "--workspace"])
+}
+
+fn run_install_hooks() -> Result<(), ()> {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    println!("🪝 Installing git pre-commit hook...");
+
+    let hook_dir = std::path::Path::new(".git/hooks");
+    if !hook_dir.exists() {
+        eprintln!("Error: .git/hooks directory not found. Are you in a git repository?");
+        return Err(());
+    }
+
+    let hook_path = hook_dir.join("pre-commit");
+    let hook_script = r#"#!/usr/bin/env sh
+# Installed by: cargo xtask install-hooks
+set -e
+
+echo "Running pre-commit checks..."
+cargo xtask fmt-check
+cargo xtask lint
+echo "Pre-commit checks passed!"
+"#;
+
+    fs::write(&hook_path, hook_script)
+        .map_err(|e| eprintln!("Failed to write hook: {e}"))?;
+    fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755))
+        .map_err(|e| eprintln!("Failed to set hook permissions: {e}"))?;
+
+    println!("✅ Pre-commit hook installed at {}", hook_path.display());
+    Ok(())
+}
+
+fn run_new_module(name: Option<&str>, feature: Option<&str>) -> Result<(), ()> {
+    use std::fs;
+
+    let name = match name {
+        Some(n) => n,
+        None => {
+            eprintln!("Usage: cargo xtask new-module <name> [feature]");
+            eprintln!("  name     Module name (snake_case, e.g. my_module)");
+            eprintln!("  feature  Feature flag to gate the module (e.g. extras)");
+            return Err(());
+        }
+    };
+
+    // Validate module name
+    if !name.chars().all(|c| c.is_ascii_lowercase() || c == '_') || name.is_empty() {
+        eprintln!("Error: module name must be non-empty snake_case (lowercase + underscores).");
+        return Err(());
+    }
+
+    let core_src = std::path::Path::new("isolate-core/src");
+    let mod_dir = core_src.join(name);
+
+    if mod_dir.exists() {
+        eprintln!("Error: directory {} already exists.", mod_dir.display());
+        return Err(());
+    }
+
+    println!("📦 Scaffolding module '{name}'...");
+
+    // Create module directory
+    fs::create_dir_all(&mod_dir)
+        .map_err(|e| eprintln!("Failed to create directory: {e}"))?;
+
+    // Write mod.rs
+    let mod_rs = format!(
+        r#"//! `{name}` module.
+//!
+//! TODO: Add module documentation.
+
+#![allow(missing_docs)]
+
+/// TODO: Implement module functionality.
+pub fn hello() -> &'static str {{
+    "{name} module"
+}}
+
+#[cfg(test)]
+mod tests {{
+    use super::*;
+
+    #[test]
+    fn test_hello() {{
+        assert_eq!(hello(), "{name} module");
+    }}
+}}
+"#
+    );
+    fs::write(mod_dir.join("mod.rs"), mod_rs)
+        .map_err(|e| eprintln!("Failed to write mod.rs: {e}"))?;
+
+    println!("  ✅ Created {}/mod.rs", mod_dir.display());
+
+    // Print instructions for manual steps
+    println!();
+    if let Some(feat) = feature {
+        println!("  Next steps:");
+        println!("  1. Add to isolate-core/src/lib.rs:");
+        println!("     #[cfg(feature = \"{feat}\")]");
+        println!("     #[allow(missing_docs)]");
+        println!("     pub mod {name};");
+        println!();
+        println!("  2. If '{feat}' is a new feature, add to isolate-core/Cargo.toml:");
+        println!("     [features]");
+        println!("     {feat} = []");
+    } else {
+        println!("  Next steps:");
+        println!("  1. Add to isolate-core/src/lib.rs:");
+        println!("     pub mod {name};");
+    }
+
+    println!();
+    println!("✅ Module '{name}' scaffolded successfully!");
+    Ok(())
 }
 
 // --- Helpers ---
