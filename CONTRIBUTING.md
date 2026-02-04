@@ -12,6 +12,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 - Rust 1.75.0 or later
 - Git
+- [protobuf compiler (`protoc`)](https://grpc.io/docs/protoc-installation/) — required for building `isolate-server`
 - (Optional) Python 3.9+ with development headers for `isolate-python` bindings
 
 > **Note:** `isolate-python` is excluded from the default workspace build via
@@ -46,18 +47,29 @@ By participating in this project, you agree to maintain a respectful and inclusi
 The project provides `cargo xtask` commands to streamline development:
 
 ```bash
-cargo xtask doctor      # Verify your environment is set up correctly
-cargo xtask check       # Run fmt + lint + test (use before pushing)
-cargo xtask test        # Run all tests with --all-features
-cargo xtask test-core   # Run core crate tests only (faster feedback)
-cargo xtask fmt         # Format all code
-cargo xtask lint        # Run clippy
-cargo xtask pre-commit  # Full pre-push validation
-cargo xtask docs        # Generate documentation
-cargo xtask help        # Show all commands
+cargo xtask doctor        # Verify your environment is set up correctly
+cargo xtask check         # Run fmt + lint + test (use before pushing)
+cargo xtask test          # Run all tests with --all-features
+cargo xtask test-core     # Run core crate tests only (faster feedback)
+cargo xtask fmt           # Format all code
+cargo xtask lint          # Run clippy
+cargo xtask pre-commit    # Full pre-push validation
+cargo xtask install-hooks # Install git pre-commit hooks
+cargo xtask docs          # Generate documentation
+cargo xtask help          # Show all commands
 ```
 
 If you prefer, `just` recipes are also available (see `justfile`).
+
+### Pre-commit Hooks
+
+Install git pre-commit hooks to automatically check formatting and lints before each commit:
+
+```bash
+cargo xtask install-hooks
+```
+
+This installs a `.git/hooks/pre-commit` script that runs `cargo xtask fmt-check` and `cargo xtask lint`.
 
 ## Project Structure
 
@@ -215,5 +227,68 @@ Contributors are recognized in:
 - Release notes
 - CONTRIBUTORS.md file
 - GitHub's contributor graphs
+
+## Troubleshooting
+
+### `protoc` not found when building `isolate-server`
+
+The gRPC server requires the Protocol Buffers compiler. Install it:
+
+```bash
+# macOS
+brew install protobuf
+
+# Ubuntu / Debian
+sudo apt-get install -y protobuf-compiler
+
+# Fedora
+sudo dnf install protobuf-compiler
+```
+
+### Python headers missing when using `--workspace`
+
+`isolate-python` needs Python development headers. Either install them or use default members only:
+
+```bash
+# Option 1: Install Python dev headers
+# macOS: brew install python3
+# Ubuntu: sudo apt-get install python3-dev
+# Fedora: sudo dnf install python3-devel
+
+# Option 2: Use default members (excludes isolate-python)
+cargo test          # default members only
+cargo build         # default members only
+```
+
+### MSRV mismatch — build fails on older Rust
+
+Isolate requires **Rust 1.75.0** or later. Check your version and update if needed:
+
+```bash
+rustc --version
+rustup update stable
+```
+
+### Clippy or `cargo check` fails with warnings-as-errors
+
+CI runs with `RUSTFLAGS="-Dwarnings"`. To reproduce locally:
+
+```bash
+RUSTFLAGS="-Dwarnings" cargo check
+# or use the task runner:
+cargo xtask lint
+```
+
+### Linker errors on `wasmtime` crates
+
+Ensure you have a C compiler and linker installed:
+
+```bash
+# macOS: install Xcode command line tools
+xcode-select --install
+
+# Ubuntu / Debian
+sudo apt-get install build-essential
+```
 
 Thank you for contributing to Isolate!
