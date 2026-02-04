@@ -1,0 +1,9 @@
+{
+  "rust-analyzer.check.command": "clippy",
+  "editor.formatOnSave": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "rust-analyzer.lens.run.enable": true,
+  "rust-analyzer.lens.debug.enable": true
+}
