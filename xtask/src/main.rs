@@ -60,19 +60,21 @@ USAGE:
     cargo xtask <COMMAND>
 
 COMMANDS:
-    check          Run all checks: format, lint, and test
-    test           Run all tests with --all-features
+    check          Run all checks: format, lint, and test (default members)
+    test           Run tests (default members)
     test-core      Run core tests only (faster)
     fmt            Format all code
     fmt-check      Check formatting without modifying files
-    lint           Run clippy with -D warnings
+    lint           Run clippy with -D warnings (default members)
     pre-commit     Full pre-push validation (fmt + lint + test)
     doctor         Verify development environment is set up correctly
-    docs           Generate documentation
-    build          Build all crates
+    docs           Generate documentation (default members)
+    build          Build crates (default members)
     install-hooks  Install git pre-commit hooks
     new-module     Scaffold a new feature-gated module
     help           Show this help message
+
+Use `cargo test --all-features --workspace` to include all crates (requires Python dev headers).
 
 EXAMPLES:
     cargo xtask check                     # Quick check before pushing
@@ -96,8 +98,8 @@ fn run_check() -> Result<(), ()> {
 }
 
 fn run_test() -> Result<(), ()> {
-    println!("🧪 Running all tests...");
-    cargo(&["test", "--all-features", "--workspace"])
+    println!("🧪 Running tests (default members)...");
+    cargo(&["test"])
 }
 
 fn run_test_core() -> Result<(), ()> {
@@ -117,7 +119,7 @@ fn run_fmt(check_only: bool) -> Result<(), ()> {
 
 fn run_lint() -> Result<(), ()> {
     println!("📎 Running clippy...");
-    cargo(&["clippy", "--all-targets", "--all-features", "--", "-D", "warnings"])
+    cargo(&["clippy", "--all-targets", "--", "-D", "warnings"])
 }
 
 fn run_pre_commit() -> Result<(), ()> {
@@ -154,15 +156,22 @@ fn run_doctor() -> Result<(), ()> {
         }
     }
 
-    // Check compilation
+    // Check compilation (default members only — no Python required)
     print!("  Compilation:    ");
-    match cargo_quiet(&["check", "--all-features", "--workspace"]) {
+    match cargo_quiet(&["check"]) {
         Ok(()) => println!("✅ OK"),
         Err(()) => {
             println!("❌ FAILED");
-            eprintln!("  Run `cargo check --all-features` for details.");
+            eprintln!("  Run `cargo check` for details.");
             return Err(());
         }
+    }
+
+    // Check full workspace compilation (optional, requires Python dev headers)
+    print!("  Full workspace: ");
+    match cargo_quiet(&["check", "--all-features", "--workspace"]) {
+        Ok(()) => println!("✅ OK"),
+        Err(()) => println!("⚠️  FAILED (optional — install python3-dev for full workspace)"),
     }
 
     // Check formatting
@@ -198,6 +207,12 @@ fn run_doctor() -> Result<(), ()> {
     } else {
         println!("— not installed (optional: cargo install cargo-audit)");
     }
+    print!("    protoc:       ");
+    if which("protoc") {
+        println!("✅ installed");
+    } else {
+        println!("— not installed (required for isolate-server: brew install protobuf)");
+    }
 
     println!("\n🏁 Environment check complete!");
     Ok(())
@@ -205,12 +220,12 @@ fn run_doctor() -> Result<(), ()> {
 
 fn run_docs() -> Result<(), ()> {
     println!("📚 Generating documentation...");
-    cargo(&["doc", "--no-deps", "--all-features", "--workspace"])
+    cargo(&["doc", "--no-deps"])
 }
 
 fn run_build() -> Result<(), ()> {
-    println!("🔨 Building all crates...");
-    cargo(&["build", "--all-features", "--workspace"])
+    println!("🔨 Building crates...");
+    cargo(&["build"])
 }
 
 fn run_install_hooks() -> Result<(), ()> {
