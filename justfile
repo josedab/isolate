@@ -171,6 +171,10 @@ release-dry VERSION:
     @echo "Current version in Cargo.toml:"
     @grep "^version" Cargo.toml | head -1
 
+# Bump workspace version (updates root Cargo.toml and verifies inheritance)
+release-bump VERSION:
+    cargo xtask bump {{VERSION}}
+
 # Update dependencies
 update:
     cargo update
