@@ -34,6 +34,10 @@ fn main() -> ExitCode {
             let feature = args.get(2).map(|s| s.as_str());
             run_new_module(name, feature)
         }
+        "bump" => {
+            let version = args.get(1).map(|s| s.as_str());
+            run_bump(version)
+        }
         "help" | "--help" | "-h" => {
             print_help();
             Ok(())
@@ -72,6 +76,7 @@ COMMANDS:
     build          Build crates (default members)
     install-hooks  Install git pre-commit hooks
     new-module     Scaffold a new feature-gated module
+    bump           Bump workspace version (e.g., cargo xtask bump 0.2.0)
     help           Show this help message
 
 Use `cargo test --all-features --workspace` to include all crates (requires Python dev headers).
@@ -92,7 +97,7 @@ fn run_check() -> Result<(), ()> {
     println!();
     run_lint()?;
     println!();
-    run_test()?;
+    run_test_core()?;
     println!("\n✅ All checks passed!");
     Ok(())
 }
@@ -342,6 +347,87 @@ mod tests {{
 
     println!();
     println!("✅ Module '{name}' scaffolded successfully!");
+    Ok(())
+}
+
+fn run_bump(version: Option<&str>) -> Result<(), ()> {
+    use std::fs;
+
+    let version = match version {
+        Some(v) => v,
+        None => {
+            eprintln!("Usage: cargo xtask bump <VERSION>");
+            eprintln!("  VERSION  Semantic version (e.g., 0.2.0)");
+            return Err(());
+        }
+    };
+
+    // Validate version format (basic semver: MAJOR.MINOR.PATCH with optional pre-release)
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() < 3
+        || parts.iter().take(3).any(|p| {
+            p.split('-')
+                .next()
+                .map_or(true, |n| n.parse::<u32>().is_err())
+        })
+    {
+        eprintln!("Error: invalid version '{version}'. Expected semver format (e.g., 0.2.0)");
+        return Err(());
+    }
+
+    let cargo_toml_path = "Cargo.toml";
+    println!("📦 Bumping workspace version to {version}...\n");
+
+    // Read root Cargo.toml
+    let content = fs::read_to_string(cargo_toml_path)
+        .map_err(|e| eprintln!("Failed to read {cargo_toml_path}: {e}"))?;
+
+    // Replace version in [workspace.package]
+    let mut found = false;
+    let mut new_content = String::with_capacity(content.len());
+    let mut in_workspace_package = false;
+
+    for line in content.lines() {
+        if line.trim() == "[workspace.package]" {
+            in_workspace_package = true;
+        } else if line.starts_with('[') && in_workspace_package {
+            in_workspace_package = false;
+        }
+
+        if in_workspace_package && line.starts_with("version") {
+            new_content.push_str(&format!("version = \"{version}\""));
+            found = true;
+        } else {
+            new_content.push_str(line);
+        }
+        new_content.push('\n');
+    }
+
+    if !found {
+        eprintln!("Error: could not find version in [workspace.package] in {cargo_toml_path}");
+        return Err(());
+    }
+
+    fs::write(cargo_toml_path, &new_content)
+        .map_err(|e| eprintln!("Failed to write {cargo_toml_path}: {e}"))?;
+    println!("  ✅ Updated {cargo_toml_path}");
+
+    // Verify workspace inherits correctly
+    print!("  Verifying workspace inheritance... ");
+    match cargo_quiet(&["check", "--workspace"]) {
+        Ok(()) => println!("✅ OK"),
+        Err(()) => {
+            println!("❌ FAILED");
+            eprintln!("  cargo check failed after version bump. Please check Cargo.toml files.");
+            return Err(());
+        }
+    }
+
+    println!("\n✅ Version bumped to {version}");
+    println!("  Next steps:");
+    println!("  1. Update CHANGELOG.md");
+    println!("  2. Commit: git commit -am \"chore: bump version to {version}\"");
+    println!("  3. Tag: git tag v{version}");
     Ok(())
 }
 
