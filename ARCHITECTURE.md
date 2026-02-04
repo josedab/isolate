@@ -16,11 +16,13 @@ isolate/
 ├── isolate-server/         # gRPC server wrapping isolate-core
 ├── isolate-cli/            # CLI tool for running WASM locally
 ├── isolate-python/         # Python bindings via PyO3 (excluded from default build)
-├── sdk/                    # Client SDKs (Go, Java, Python, TypeScript)
-├── proto/                  # Protocol buffer definitions
-├── fuzz/                   # Fuzz testing targets
-├── docs/                   # mdBook documentation site
-└── website/                # Project website
+├── isolate-embed/          # C FFI bindings for embedding isolate in non-Rust hosts
+├── sdk/                    # Client SDKs (Go, Java, Python, TypeScript, guest)
+├── proto/                  # Protocol buffer / gRPC service definitions
+├── fuzz/                   # Fuzz testing targets (4 targets)
+├── website/                # Docusaurus documentation site
+├── docs/                   # Additional documentation and ADRs
+└── xtask/                  # Developer workflow commands (cargo xtask)
 ```
 
 ## Core vs Optional Modules

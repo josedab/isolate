@@ -79,8 +79,13 @@ isolate/
 ├── isolate-cli/         # Command-line tool
 ├── isolate-server/      # gRPC server
 ├── isolate-python/      # Python bindings (requires python3-dev)
+├── isolate-embed/       # C FFI bindings for embedding
+├── sdk/                 # Client SDKs (Go, Java, Python, TypeScript, guest)
+├── proto/               # Protocol buffer / gRPC definitions
+├── fuzz/                # Fuzz testing targets (4 targets)
+├── website/             # Docusaurus documentation site
+├── docs/                # Additional documentation and ADRs
 ├── xtask/               # Developer workflow commands
-├── docs/                # Documentation (Docusaurus)
 └── .github/             # GitHub workflows and templates
 ```
 
