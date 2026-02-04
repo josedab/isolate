@@ -8,11 +8,15 @@ default:
     @just --list
 
 # Run all checks (format, lint, test)
-check: fmt-check lint test
+check: fmt-check lint test-default
     @echo "All checks passed!"
 
-# Run tests
-test:
+# Run tests (default members only, no extra features required)
+test-default:
+    cargo test
+
+# Run tests (all workspace crates and features; requires Python dev headers)
+test-all:
     cargo test --all-features --workspace
 
 # Run tests with verbose output
@@ -125,12 +129,12 @@ outdated:
     cargo outdated --workspace
 
 # Run pre-commit checks (useful before pushing)
-pre-commit: fmt-check lint test
+pre-commit: fmt-check lint test-default
     @echo "Pre-commit checks passed! Ready to push."
 
 # Watch for changes and run tests
 watch:
-    cargo watch -x "test --all-features --workspace"
+    cargo watch -x "test"
 
 # Watch for changes and run clippy
 watch-lint:
