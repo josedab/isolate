@@ -252,6 +252,7 @@ Isolate provides defense-in-depth security:
 ### Prerequisites
 
 - Rust 1.75.0 or later
+- [protobuf compiler (`protoc`)](https://grpc.io/docs/protoc-installation/) (required for `isolate-server`)
 - [just](https://github.com/casey/just) (optional, for task running)
 - Python 3.9+ with development headers (optional, only for `isolate-python` bindings)
 
@@ -294,7 +295,7 @@ cargo +nightly fuzz run fuzz_wasm_module
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+We welcome contributions! See the [Quickstart guide](docs/QUICKSTART.md) to go from clone to first passing test in 60 seconds, or read [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
 
 ### Good First Issues
 
