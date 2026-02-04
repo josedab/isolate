@@ -77,10 +77,7 @@ pub enum DebugEvent {
     /// Session detached from sandbox.
     Detached { sandbox_id: Uuid },
     /// Execution stopped at breakpoint.
-    BreakpointHit {
-        breakpoint_id: BreakpointId,
-        stack: Vec<StackFrame>,
-    },
+    BreakpointHit { breakpoint_id: BreakpointId, stack: Vec<StackFrame> },
     /// Execution stopped (step complete).
     StepComplete { stack: Vec<StackFrame> },
     /// Execution stopped (pause).
@@ -244,9 +241,7 @@ impl DebugSession {
         }
 
         state.state = DebugState::Running;
-        state.events.push(DebugEvent::Attached {
-            sandbox_id: self.sandbox_id,
-        });
+        state.events.push(DebugEvent::Attached { sandbox_id: self.sandbox_id });
 
         Ok(())
     }
@@ -259,9 +254,7 @@ impl DebugSession {
         }
 
         state.state = DebugState::Detached;
-        state.events.push(DebugEvent::Detached {
-            sandbox_id: self.sandbox_id,
-        });
+        state.events.push(DebugEvent::Detached { sandbox_id: self.sandbox_id });
 
         Ok(())
     }
@@ -282,20 +275,14 @@ impl DebugSession {
     /// Remove a breakpoint.
     pub fn remove_breakpoint(&self, id: BreakpointId) -> Result<(), DebugError> {
         let mut state = self.state.write();
-        state
-            .breakpoints
-            .remove(&id)
-            .ok_or(DebugError::BreakpointNotFound(id))?;
+        state.breakpoints.remove(&id).ok_or(DebugError::BreakpointNotFound(id))?;
         Ok(())
     }
 
     /// Enable a breakpoint.
     pub fn enable_breakpoint(&self, id: BreakpointId) -> Result<(), DebugError> {
         let mut state = self.state.write();
-        let bp = state
-            .breakpoints
-            .get_mut(&id)
-            .ok_or(DebugError::BreakpointNotFound(id))?;
+        let bp = state.breakpoints.get_mut(&id).ok_or(DebugError::BreakpointNotFound(id))?;
         bp.enable();
         Ok(())
     }
@@ -303,10 +290,7 @@ impl DebugSession {
     /// Disable a breakpoint.
     pub fn disable_breakpoint(&self, id: BreakpointId) -> Result<(), DebugError> {
         let mut state = self.state.write();
-        let bp = state
-            .breakpoints
-            .get_mut(&id)
-            .ok_or(DebugError::BreakpointNotFound(id))?;
+        let bp = state.breakpoints.get_mut(&id).ok_or(DebugError::BreakpointNotFound(id))?;
         bp.disable();
         Ok(())
     }
@@ -353,9 +337,7 @@ impl DebugSession {
 
         let current_depth = state.inspector.stack_depth();
         state.state = DebugState::Stepping;
-        state.step_mode = Some(StepMode::Over {
-            target_depth: current_depth,
-        });
+        state.step_mode = Some(StepMode::Over { target_depth: current_depth });
         state.pending_commands.push(DebugCommand::StepOver);
 
         Ok(())
@@ -372,9 +354,7 @@ impl DebugSession {
         }
 
         state.state = DebugState::Stepping;
-        state.step_mode = Some(StepMode::Out {
-            target_depth: current_depth - 1,
-        });
+        state.step_mode = Some(StepMode::Out { target_depth: current_depth - 1 });
         state.pending_commands.push(DebugCommand::StepOut);
 
         Ok(())
@@ -407,9 +387,7 @@ impl DebugSession {
         let mut state = self.state.write();
         self.require_stopped(&state)?;
 
-        state
-            .pending_commands
-            .push(DebugCommand::Evaluate(expr.into()));
+        state.pending_commands.push(DebugCommand::Evaluate(expr.into()));
         Ok(())
     }
 
@@ -425,9 +403,7 @@ impl DebugSession {
     pub fn remove_watch(&self, expr: &str) {
         let mut state = self.state.write();
         state.inspector.remove_watch(expr);
-        state
-            .pending_commands
-            .push(DebugCommand::RemoveWatch(expr.to_string()));
+        state.pending_commands.push(DebugCommand::RemoveWatch(expr.to_string()));
     }
 
     /// Request memory read.
@@ -436,9 +412,7 @@ impl DebugSession {
         self.require_stopped(&state)?;
 
         let size = size.min(super::MAX_MEMORY_VIEW);
-        state
-            .pending_commands
-            .push(DebugCommand::ReadMemory { address, size });
+        state.pending_commands.push(DebugCommand::ReadMemory { address, size });
         Ok(())
     }
 
@@ -471,10 +445,7 @@ impl DebugSession {
             bp.record_hit();
         }
 
-        state.events.push(DebugEvent::BreakpointHit {
-            breakpoint_id,
-            stack,
-        });
+        state.events.push(DebugEvent::BreakpointHit { breakpoint_id, stack });
     }
 
     /// Notify that a step completed.
@@ -504,10 +475,7 @@ impl DebugSession {
     /// Notify of output.
     pub fn notify_output(&self, stream: OutputStream, data: Vec<u8>) {
         if self.config.capture_output {
-            self.state
-                .write()
-                .events
-                .push(DebugEvent::Output { stream, data });
+            self.state.write().events.push(DebugEvent::Output { stream, data });
         }
     }
 
@@ -705,10 +673,7 @@ mod tests {
         session.attach().unwrap();
 
         // Running, not stopped
-        assert!(matches!(
-            session.continue_execution(),
-            Err(DebugError::NotStopped)
-        ));
+        assert!(matches!(session.continue_execution(), Err(DebugError::NotStopped)));
 
         // Simulate stopped
         session.notify_paused(vec![]);
@@ -766,9 +731,7 @@ mod tests {
         session.terminate().unwrap();
 
         let commands = session.take_pending_commands();
-        assert!(commands
-            .iter()
-            .any(|c| matches!(c, DebugCommand::Terminate)));
+        assert!(commands.iter().any(|c| matches!(c, DebugCommand::Terminate)));
 
         session.notify_terminated(0);
         assert_eq!(session.state(), DebugState::Terminated);
@@ -809,12 +772,8 @@ mod tests {
         session.notify_paused(vec![]);
 
         let events = session.take_events();
-        assert!(events
-            .iter()
-            .any(|e| matches!(e, DebugEvent::Attached { .. })));
-        assert!(events
-            .iter()
-            .any(|e| matches!(e, DebugEvent::Paused { .. })));
+        assert!(events.iter().any(|e| matches!(e, DebugEvent::Attached { .. })));
+        assert!(events.iter().any(|e| matches!(e, DebugEvent::Paused { .. })));
 
         // Events cleared
         assert!(session.take_events().is_empty());
@@ -828,13 +787,9 @@ mod tests {
         session.notify_output(OutputStream::Stdout, b"Hello".to_vec());
 
         let events = session.take_events();
-        assert!(events.iter().any(|e| matches!(
-            e,
-            DebugEvent::Output {
-                stream: OutputStream::Stdout,
-                ..
-            }
-        )));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, DebugEvent::Output { stream: OutputStream::Stdout, .. })));
     }
 
     #[test]
@@ -846,13 +801,9 @@ mod tests {
         session.read_memory(0x1000, 256).unwrap();
 
         let commands = session.take_pending_commands();
-        assert!(commands.iter().any(|c| matches!(
-            c,
-            DebugCommand::ReadMemory {
-                address: 0x1000,
-                size: 256
-            }
-        )));
+        assert!(commands
+            .iter()
+            .any(|c| matches!(c, DebugCommand::ReadMemory { address: 0x1000, size: 256 })));
     }
 
     #[test]
@@ -885,9 +836,7 @@ mod tests {
 
     #[test]
     fn test_debug_config() {
-        let config = DebugConfig::default()
-            .with_stop_on_entry(true)
-            .with_stop_on_exception(false);
+        let config = DebugConfig::default().with_stop_on_entry(true).with_stop_on_exception(false);
 
         assert!(config.stop_on_entry);
         assert!(!config.stop_on_exception);

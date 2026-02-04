@@ -70,34 +70,19 @@ impl MemoryChange {
     /// Create a new memory change.
     pub fn new(address: u64, old_value: Vec<u8>, new_value: Vec<u8>) -> Self {
         let size = new_value.len() as u32;
-        Self {
-            address,
-            size,
-            old_value,
-            new_value,
-        }
+        Self { address, size, old_value, new_value }
     }
 
     /// Create a memory write event (no old value known).
     pub fn write(address: u64, value: Vec<u8>) -> Self {
         let size = value.len() as u32;
-        Self {
-            address,
-            size,
-            old_value: Vec::new(),
-            new_value: value,
-        }
+        Self { address, size, old_value: Vec::new(), new_value: value }
     }
 
     /// Create a memory read event.
     pub fn read(address: u64, value: Vec<u8>) -> Self {
         let size = value.len() as u32;
-        Self {
-            address,
-            size,
-            old_value: value.clone(),
-            new_value: value,
-        }
+        Self { address, size, old_value: value.clone(), new_value: value }
     }
 }
 
@@ -115,11 +100,7 @@ pub struct RegisterChange {
 impl RegisterChange {
     /// Create a new register change.
     pub fn new(name: impl Into<String>, old_value: u64, new_value: u64) -> Self {
-        Self {
-            name: name.into(),
-            old_value,
-            new_value,
-        }
+        Self { name: name.into(), old_value, new_value }
     }
 }
 
@@ -139,12 +120,7 @@ pub struct WasiCallInfo {
 impl WasiCallInfo {
     /// Create a new WASI call info.
     pub fn new(function: impl Into<String>, arguments: Vec<String>) -> Self {
-        Self {
-            function: function.into(),
-            arguments,
-            return_value: None,
-            error_code: None,
-        }
+        Self { function: function.into(), arguments, return_value: None, error_code: None }
     }
 
     /// Set the return value.
@@ -203,20 +179,12 @@ pub struct SourceLocation {
 impl SourceLocation {
     /// Create a new source location.
     pub fn new(file: impl Into<String>, line: u32) -> Self {
-        Self {
-            file: file.into(),
-            line,
-            column: None,
-        }
+        Self { file: file.into(), line, column: None }
     }
 
     /// Create with column.
     pub fn with_column(file: impl Into<String>, line: u32, column: u32) -> Self {
-        Self {
-            file: file.into(),
-            line,
-            column: Some(column),
-        }
+        Self { file: file.into(), line, column: Some(column) }
     }
 }
 

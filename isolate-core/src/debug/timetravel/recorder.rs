@@ -352,11 +352,7 @@ impl Recorder {
         }
 
         let event = self.create_event(EventType::MemoryWrite, ip).map(|e| {
-            e.with_memory_change(MemoryChange::new(
-                address,
-                old_value.to_vec(),
-                new_value.to_vec(),
-            ))
+            e.with_memory_change(MemoryChange::new(address, old_value.to_vec(), new_value.to_vec()))
         });
 
         if let Some(event) = event {
@@ -414,9 +410,8 @@ impl Recorder {
             call_info = call_info.with_error(code);
         }
 
-        let event = self
-            .create_event(EventType::WasiReturn, ip)
-            .map(|e| e.with_wasi_call(call_info));
+        let event =
+            self.create_event(EventType::WasiReturn, ip).map(|e| e.with_wasi_call(call_info));
 
         if let Some(event) = event {
             self.record_event(event);
@@ -500,9 +495,8 @@ impl Recorder {
             actual: "No session".to_string(),
         })?;
 
-        let session = session
-            .lock()
-            .map_err(|_| Error::Engine("Failed to lock session".to_string()))?;
+        let session =
+            session.lock().map_err(|_| Error::Engine("Failed to lock session".to_string()))?;
 
         super::Timeline::from_events(session.events().to_vec())
     }

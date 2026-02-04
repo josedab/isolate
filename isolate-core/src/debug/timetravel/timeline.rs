@@ -266,10 +266,7 @@ impl Timeline {
 
     /// Get events filtered by type.
     pub fn events_of_type(&self, event_type: EventType) -> Vec<&ExecutionEvent> {
-        self.events
-            .iter()
-            .filter(|e| e.event_type == event_type)
-            .collect()
+        self.events.iter().filter(|e| e.event_type == event_type).collect()
     }
 
     /// Get function call events.
@@ -291,12 +288,7 @@ impl Timeline {
     pub fn search_by_function(&self, name: &str) -> Vec<&ExecutionEvent> {
         self.events
             .iter()
-            .filter(|e| {
-                e.function_name
-                    .as_ref()
-                    .map(|n| n.contains(name))
-                    .unwrap_or(false)
-            })
+            .filter(|e| e.function_name.as_ref().map(|n| n.contains(name)).unwrap_or(false))
             .collect()
     }
 
@@ -310,10 +302,7 @@ impl Timeline {
 
     /// Get events in a time range.
     pub fn events_in_range(&self, start_id: EventId, end_id: EventId) -> Vec<&ExecutionEvent> {
-        self.events
-            .iter()
-            .filter(|e| e.id >= start_id && e.id <= end_id)
-            .collect()
+        self.events.iter().filter(|e| e.id >= start_id && e.id <= end_id).collect()
     }
 
     /// Get state at current position (from nearest snapshot + replay).
@@ -333,16 +322,11 @@ impl Timeline {
             let event = &self.events[self.current_index];
 
             if let Some(bp) = self.check_breakpoint(event) {
-                return Ok(StepResult::Breakpoint {
-                    event: event.clone(),
-                    breakpoint_id: bp,
-                });
+                return Ok(StepResult::Breakpoint { event: event.clone(), breakpoint_id: bp });
             }
         }
 
-        Ok(StepResult::AtEnd {
-            position: self.position(),
-        })
+        Ok(StepResult::AtEnd { position: self.position() })
     }
 
     /// Run backwards to the previous breakpoint.
@@ -352,16 +336,11 @@ impl Timeline {
             let event = &self.events[self.current_index];
 
             if let Some(bp) = self.check_breakpoint(event) {
-                return Ok(StepResult::Breakpoint {
-                    event: event.clone(),
-                    breakpoint_id: bp,
-                });
+                return Ok(StepResult::Breakpoint { event: event.clone(), breakpoint_id: bp });
             }
         }
 
-        Ok(StepResult::AtStart {
-            position: self.position(),
-        })
+        Ok(StepResult::AtStart { position: self.position() })
     }
 
     /// Check if an event matches any breakpoint.
@@ -414,11 +393,9 @@ impl Timeline {
                     && event.memory_changes.iter().any(|c| c.address == *addr)
             }
             BreakCondition::FuelExceeds(threshold) => event.fuel_consumed > *threshold,
-            BreakCondition::WasiFunction(name) => event
-                .wasi_call
-                .as_ref()
-                .map(|c| &c.function == name)
-                .unwrap_or(false),
+            BreakCondition::WasiFunction(name) => {
+                event.wasi_call.as_ref().map(|c| &c.function == name).unwrap_or(false)
+            }
             BreakCondition::EventCount(count) => event.id >= *count,
         }
     }
@@ -477,9 +454,7 @@ impl Timeline {
 impl TimelineNavigation for Timeline {
     fn step_forward(&mut self) -> Result<StepResult> {
         if self.current_index >= self.events.len() - 1 {
-            return Ok(StepResult::AtEnd {
-                position: self.position(),
-            });
+            return Ok(StepResult::AtEnd { position: self.position() });
         }
 
         self.current_index += 1;
@@ -488,10 +463,7 @@ impl TimelineNavigation for Timeline {
 
         // Check for breakpoint
         if let Some(bp_id) = self.check_breakpoint(event) {
-            return Ok(StepResult::Breakpoint {
-                event: event.clone(),
-                breakpoint_id: bp_id,
-            });
+            return Ok(StepResult::Breakpoint { event: event.clone(), breakpoint_id: bp_id });
         }
 
         // Check for exception
@@ -501,23 +473,15 @@ impl TimelineNavigation for Timeline {
                 .as_ref()
                 .map(|d| String::from_utf8_lossy(d).to_string())
                 .unwrap_or_default();
-            return Ok(StepResult::Exception {
-                event: event.clone(),
-                message,
-            });
+            return Ok(StepResult::Exception { event: event.clone(), message });
         }
 
-        Ok(StepResult::Stepped {
-            event: event.clone(),
-            position: self.position(),
-        })
+        Ok(StepResult::Stepped { event: event.clone(), position: self.position() })
     }
 
     fn step_back(&mut self) -> Result<StepResult> {
         if self.current_index == 0 {
-            return Ok(StepResult::AtStart {
-                position: self.position(),
-            });
+            return Ok(StepResult::AtStart { position: self.position() });
         }
 
         self.current_index -= 1;
@@ -526,16 +490,10 @@ impl TimelineNavigation for Timeline {
 
         // Check for breakpoint
         if let Some(bp_id) = self.check_breakpoint(event) {
-            return Ok(StepResult::Breakpoint {
-                event: event.clone(),
-                breakpoint_id: bp_id,
-            });
+            return Ok(StepResult::Breakpoint { event: event.clone(), breakpoint_id: bp_id });
         }
 
-        Ok(StepResult::Stepped {
-            event: event.clone(),
-            position: self.position(),
-        })
+        Ok(StepResult::Stepped { event: event.clone(), position: self.position() })
     }
 
     fn step_forward_to(&mut self, event_type: EventType) -> Result<StepResult> {
@@ -545,25 +503,17 @@ impl TimelineNavigation for Timeline {
 
             if event.event_type == event_type {
                 self.cached_state = None;
-                return Ok(StepResult::Stepped {
-                    event: event.clone(),
-                    position: self.position(),
-                });
+                return Ok(StepResult::Stepped { event: event.clone(), position: self.position() });
             }
 
             // Check for breakpoint
             if let Some(bp_id) = self.check_breakpoint(event) {
                 self.cached_state = None;
-                return Ok(StepResult::Breakpoint {
-                    event: event.clone(),
-                    breakpoint_id: bp_id,
-                });
+                return Ok(StepResult::Breakpoint { event: event.clone(), breakpoint_id: bp_id });
             }
         }
 
-        Ok(StepResult::AtEnd {
-            position: self.position(),
-        })
+        Ok(StepResult::AtEnd { position: self.position() })
     }
 
     fn step_back_to(&mut self, event_type: EventType) -> Result<StepResult> {
@@ -573,25 +523,17 @@ impl TimelineNavigation for Timeline {
 
             if event.event_type == event_type {
                 self.cached_state = None;
-                return Ok(StepResult::Stepped {
-                    event: event.clone(),
-                    position: self.position(),
-                });
+                return Ok(StepResult::Stepped { event: event.clone(), position: self.position() });
             }
 
             // Check for breakpoint
             if let Some(bp_id) = self.check_breakpoint(event) {
                 self.cached_state = None;
-                return Ok(StepResult::Breakpoint {
-                    event: event.clone(),
-                    breakpoint_id: bp_id,
-                });
+                return Ok(StepResult::Breakpoint { event: event.clone(), breakpoint_id: bp_id });
             }
         }
 
-        Ok(StepResult::AtStart {
-            position: self.position(),
-        })
+        Ok(StepResult::AtStart { position: self.position() })
     }
 
     fn goto_index(&mut self, index: usize) -> Result<StepResult> {
@@ -606,30 +548,20 @@ impl TimelineNavigation for Timeline {
         self.cached_state = None;
         let event = &self.events[self.current_index];
 
-        Ok(StepResult::Stepped {
-            event: event.clone(),
-            position: self.position(),
-        })
+        Ok(StepResult::Stepped { event: event.clone(), position: self.position() })
     }
 
     fn goto_event(&mut self, event_id: EventId) -> Result<StepResult> {
-        let index = self
-            .event_index
-            .get(&event_id)
-            .ok_or_else(|| Error::InvalidState {
-                expected: "Valid event ID".to_string(),
-                actual: format!("Event ID {} not found", event_id),
-            })?;
+        let index = self.event_index.get(&event_id).ok_or_else(|| Error::InvalidState {
+            expected: "Valid event ID".to_string(),
+            actual: format!("Event ID {} not found", event_id),
+        })?;
 
         self.goto_index(*index)
     }
 
     fn position(&self) -> TimelinePosition {
-        let event_id = self
-            .events
-            .get(self.current_index)
-            .map(|e| e.id)
-            .unwrap_or(0);
+        let event_id = self.events.get(self.current_index).map(|e| e.id).unwrap_or(0);
 
         let progress = if self.events.is_empty() {
             0.0
@@ -796,10 +728,7 @@ mod tests {
         // Step forward until we hit the breakpoint
         loop {
             match timeline.step_forward().unwrap() {
-                StepResult::Breakpoint {
-                    breakpoint_id,
-                    event,
-                } => {
+                StepResult::Breakpoint { breakpoint_id, event } => {
                     assert_eq!(breakpoint_id, bp_id);
                     assert_eq!(event.id, 5);
                     break;
@@ -845,7 +774,7 @@ mod tests {
 
     #[test]
     fn test_timeline_stats() {
-        let mut events = vec![
+        let events = vec![
             ExecutionEvent::new(0, EventType::Start, 0),
             ExecutionEvent::new(1, EventType::Instruction, 0x1000),
             ExecutionEvent::new(2, EventType::FunctionCall, 0x1000),
