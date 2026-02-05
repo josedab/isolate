@@ -191,7 +191,7 @@ impl DiscoveryService {
 
     /// Register a node (used by static discovery or gossip propagation).
     pub fn register_node(&self, node: DiscoveredNode) {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().expect("discovery lock poisoned");
         if nodes.len() < self.config.max_nodes {
             nodes.insert(node.addr.id, node);
         }
@@ -199,13 +199,13 @@ impl DiscoveryService {
 
     /// Remove a node.
     pub fn deregister_node(&self, id: &NodeId) -> bool {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().expect("discovery lock poisoned");
         nodes.remove(id).is_some()
     }
 
     /// Update a node's load information.
     pub fn update_load(&self, id: &NodeId, load: f64, active_sandboxes: u32) {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().expect("discovery lock poisoned");
         if let Some(node) = nodes.get_mut(id) {
             node.load = load;
             node.active_sandboxes = active_sandboxes;
@@ -215,7 +215,7 @@ impl DiscoveryService {
 
     /// Mark a node as unhealthy.
     pub fn mark_unhealthy(&self, id: &NodeId) {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().expect("discovery lock poisoned");
         if let Some(node) = nodes.get_mut(id) {
             node.healthy = false;
         }
@@ -223,19 +223,19 @@ impl DiscoveryService {
 
     /// Get all healthy nodes.
     pub fn healthy_nodes(&self) -> Vec<DiscoveredNode> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().expect("discovery lock poisoned");
         nodes.values().filter(|n| n.healthy).cloned().collect()
     }
 
     /// Get all nodes.
     pub fn all_nodes(&self) -> Vec<DiscoveredNode> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().expect("discovery lock poisoned");
         nodes.values().cloned().collect()
     }
 
     /// Find the best node for a sandbox with given requirements.
     pub fn place_sandbox(&self, requirements: &PlacementRequirements) -> Option<PlacementDecision> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().expect("discovery lock poisoned");
 
         let mut candidates: Vec<(NodeId, f64, Vec<String>)> = nodes
             .values()
@@ -272,7 +272,7 @@ impl DiscoveryService {
 
     /// Find nodes matching a label selector.
     pub fn nodes_with_labels(&self, labels: &HashMap<String, String>) -> Vec<DiscoveredNode> {
-        let nodes = self.nodes.read().unwrap();
+        let nodes = self.nodes.read().expect("discovery lock poisoned");
         nodes
             .values()
             .filter(|n| {
@@ -286,7 +286,7 @@ impl DiscoveryService {
 
     /// Remove stale nodes that haven't been seen within the timeout.
     pub fn evict_stale(&self, timeout: Duration) -> usize {
-        let mut nodes = self.nodes.write().unwrap();
+        let mut nodes = self.nodes.write().expect("discovery lock poisoned");
         let before = nodes.len();
         nodes.retain(|_, n| {
             n.last_seen.map_or(true, |seen| seen.elapsed() < timeout)
@@ -296,7 +296,7 @@ impl DiscoveryService {
 
     /// Get the number of tracked nodes.
     pub fn node_count(&self) -> usize {
-        self.nodes.read().unwrap().len()
+        self.nodes.read().expect("discovery lock poisoned").len()
     }
 }
 
