@@ -290,8 +290,10 @@ impl DashboardRouter {
 }
 
 #[cfg(test)]
+#[cfg(feature = "observability")]
 mod tests {
     use super::*;
+    use crate::dashboard::{DashboardOverview, ResourceSummary, SandboxSummary};
     use crate::resource::ResourceUsage;
     use std::time::Duration;
 
