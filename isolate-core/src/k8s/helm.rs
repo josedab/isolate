@@ -188,11 +188,7 @@ pub struct ServiceAccountConfig {
 
 impl Default for ServiceAccountConfig {
     fn default() -> Self {
-        Self {
-            create: true,
-            annotations: HashMap::new(),
-            name: String::new(),
-        }
+        Self { create: true, annotations: HashMap::new(), name: String::new() }
     }
 }
 
@@ -227,10 +223,7 @@ pub struct ServiceConfig {
 
 impl Default for ServiceConfig {
     fn default() -> Self {
-        Self {
-            service_type: "ClusterIP".to_string(),
-            port: 8080,
-        }
+        Self { service_type: "ClusterIP".to_string(), port: 8080 }
     }
 }
 
@@ -246,14 +239,8 @@ pub struct ResourceConfig {
 impl Default for ResourceConfig {
     fn default() -> Self {
         Self {
-            limits: ResourceLimits {
-                cpu: "500m".to_string(),
-                memory: "512Mi".to_string(),
-            },
-            requests: ResourceLimits {
-                cpu: "100m".to_string(),
-                memory: "128Mi".to_string(),
-            },
+            limits: ResourceLimits { cpu: "500m".to_string(), memory: "512Mi".to_string() },
+            requests: ResourceLimits { cpu: "100m".to_string(), memory: "128Mi".to_string() },
         }
     }
 }
@@ -329,11 +316,7 @@ pub struct MetricsConfig {
 
 impl Default for MetricsConfig {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            port: 8081,
-            service_monitor: ServiceMonitorConfig::default(),
-        }
+        Self { enabled: true, port: 8081, service_monitor: ServiceMonitorConfig::default() }
     }
 }
 
@@ -351,11 +334,7 @@ pub struct ServiceMonitorConfig {
 
 impl Default for ServiceMonitorConfig {
     fn default() -> Self {
-        Self {
-            enabled: false,
-            interval: "30s".to_string(),
-            additional_labels: HashMap::new(),
-        }
+        Self { enabled: false, interval: "30s".to_string(), additional_labels: HashMap::new() }
     }
 }
 
@@ -382,10 +361,7 @@ pub struct HelmChartGenerator {
 impl HelmChartGenerator {
     /// Create a new generator with default configuration.
     pub fn new() -> Self {
-        Self {
-            metadata: ChartMetadata::default(),
-            values: HelmValues::default(),
-        }
+        Self { metadata: ChartMetadata::default(), values: HelmValues::default() }
     }
 
     /// Set chart metadata.
@@ -402,12 +378,14 @@ impl HelmChartGenerator {
 
     /// Generate Chart.yaml content.
     pub fn generate_chart_yaml(&self) -> String {
-        serde_yaml::to_string(&self.metadata).unwrap_or_else(|_| "# Error generating Chart.yaml".to_string())
+        serde_yaml::to_string(&self.metadata)
+            .unwrap_or_else(|_| "# Error generating Chart.yaml".to_string())
     }
 
     /// Generate values.yaml content.
     pub fn generate_values_yaml(&self) -> String {
-        serde_yaml::to_string(&self.values).unwrap_or_else(|_| "# Error generating values.yaml".to_string())
+        serde_yaml::to_string(&self.values)
+            .unwrap_or_else(|_| "# Error generating values.yaml".to_string())
     }
 
     /// Generate the deployment template.
@@ -674,26 +652,11 @@ Create the name of the service account to use
 
         files.insert("Chart.yaml".to_string(), self.generate_chart_yaml());
         files.insert("values.yaml".to_string(), self.generate_values_yaml());
-        files.insert(
-            "templates/deployment.yaml".to_string(),
-            self.generate_deployment_template(),
-        );
-        files.insert(
-            "templates/service.yaml".to_string(),
-            self.generate_service_template(),
-        );
-        files.insert(
-            "templates/rbac.yaml".to_string(),
-            self.generate_rbac_templates(),
-        );
-        files.insert(
-            "templates/_helpers.tpl".to_string(),
-            self.generate_helpers_template(),
-        );
-        files.insert(
-            "crds/sandbox-crd.yaml".to_string(),
-            super::generate_crd_yaml(),
-        );
+        files.insert("templates/deployment.yaml".to_string(), self.generate_deployment_template());
+        files.insert("templates/service.yaml".to_string(), self.generate_service_template());
+        files.insert("templates/rbac.yaml".to_string(), self.generate_rbac_templates());
+        files.insert("templates/_helpers.tpl".to_string(), self.generate_helpers_template());
+        files.insert("crds/sandbox-crd.yaml".to_string(), super::generate_crd_yaml());
 
         files
     }

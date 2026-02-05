@@ -110,12 +110,8 @@ impl NodeResources {
         let node_value = self.labels.get(&expr.key);
 
         match expr.operator {
-            LabelOperator::In => {
-                node_value.map_or(false, |v| expr.values.contains(v))
-            }
-            LabelOperator::NotIn => {
-                node_value.map_or(true, |v| !expr.values.contains(v))
-            }
+            LabelOperator::In => node_value.map_or(false, |v| expr.values.contains(v)),
+            LabelOperator::NotIn => node_value.map_or(true, |v| !expr.values.contains(v)),
             LabelOperator::Exists => node_value.is_some(),
             LabelOperator::DoesNotExist => node_value.is_none(),
         }
@@ -314,9 +310,7 @@ impl Toleration {
 
         // Check value based on operator
         match self.operator {
-            TolerationOperator::Equal => {
-                self.value == taint.value
-            }
+            TolerationOperator::Equal => self.value == taint.value,
             TolerationOperator::Exists => true,
         }
     }
@@ -375,11 +369,7 @@ pub struct SandboxScheduler {
 impl SandboxScheduler {
     /// Create a new scheduler.
     pub fn new(strategy: SchedulingStrategy) -> Self {
-        Self {
-            nodes: Vec::new(),
-            strategy,
-            rr_index: 0,
-        }
+        Self { nodes: Vec::new(), strategy, rr_index: 0 }
     }
 
     /// Update the list of available nodes.
@@ -471,11 +461,8 @@ impl SandboxScheduler {
     pub fn total_capacity(&self) -> (u64, u64, u32) {
         let memory: u64 = self.nodes.iter().map(|n| n.memory_available).sum();
         let cpu: u64 = self.nodes.iter().map(|n| n.cpu_available).sum();
-        let sandboxes: u32 = self
-            .nodes
-            .iter()
-            .map(|n| n.max_sandboxes.saturating_sub(n.sandbox_count))
-            .sum();
+        let sandboxes: u32 =
+            self.nodes.iter().map(|n| n.max_sandboxes.saturating_sub(n.sandbox_count)).sum();
         (memory, cpu, sandboxes)
     }
 }
@@ -522,15 +509,12 @@ mod tests {
     #[test]
     fn test_node_can_fit() {
         let node = create_test_node("node1", 1024 * 1024 * 1024, 4000);
-        let request = ResourceRequest::new()
-            .with_memory(512 * 1024 * 1024)
-            .with_cpu(2000);
+        let request = ResourceRequest::new().with_memory(512 * 1024 * 1024).with_cpu(2000);
 
         assert!(node.can_fit(&request));
 
-        let large_request = ResourceRequest::new()
-            .with_memory(2 * 1024 * 1024 * 1024)
-            .with_cpu(2000);
+        let large_request =
+            ResourceRequest::new().with_memory(2 * 1024 * 1024 * 1024).with_cpu(2000);
 
         assert!(!node.can_fit(&large_request));
     }
@@ -543,9 +527,7 @@ mod tests {
         scheduler.add_node(create_test_node("node2", 2048 * 1024 * 1024, 4000));
         scheduler.add_node(create_test_node("node3", 512 * 1024 * 1024, 1000));
 
-        let request = ResourceRequest::new()
-            .with_memory(256 * 1024 * 1024)
-            .with_cpu(500);
+        let request = ResourceRequest::new().with_memory(256 * 1024 * 1024).with_cpu(500);
 
         let result = scheduler.schedule(&request, None, &[]);
 
@@ -561,9 +543,7 @@ mod tests {
         scheduler.add_node(create_test_node("node2", 2048 * 1024 * 1024, 4000));
         scheduler.add_node(create_test_node("node3", 512 * 1024 * 1024, 1000));
 
-        let request = ResourceRequest::new()
-            .with_memory(256 * 1024 * 1024)
-            .with_cpu(500);
+        let request = ResourceRequest::new().with_memory(256 * 1024 * 1024).with_cpu(500);
 
         let result = scheduler.schedule(&request, None, &[]);
 
@@ -653,7 +633,8 @@ mod tests {
 
     #[test]
     fn test_round_robin() {
-        let mut scheduler = SandboxScheduler::new(SchedulingStrategy::RoundRobin { current_index: 0 });
+        let mut scheduler =
+            SandboxScheduler::new(SchedulingStrategy::RoundRobin { current_index: 0 });
 
         scheduler.add_node(create_test_node("node1", 1024 * 1024 * 1024, 2000));
         scheduler.add_node(create_test_node("node2", 1024 * 1024 * 1024, 2000));

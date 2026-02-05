@@ -4,11 +4,11 @@
 //! SandboxPool custom resources, managing sandbox lifecycle, and
 //! integrating with Kubernetes APIs.
 
-use super::{
-    Condition, SandboxCrd, SandboxPhase, SandboxPoolCrd, SandboxPoolStatus,
-    SandboxSpec, SandboxStatus,
-};
 use super::scheduler::{NodeResources, ResourceRequest, SandboxScheduler, SchedulingStrategy};
+use super::{
+    Condition, SandboxCrd, SandboxPhase, SandboxPoolCrd, SandboxPoolStatus, SandboxSpec,
+    SandboxStatus,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -228,10 +228,7 @@ impl IsolateOperator {
 
             self.pools.insert(key, pool.clone());
 
-            return ReconcileAction::Scale {
-                current: current_total,
-                desired: desired_total,
-            };
+            return ReconcileAction::Scale { current: current_total, desired: desired_total };
         }
 
         if current_total > desired_total {
@@ -250,10 +247,7 @@ impl IsolateOperator {
 
             self.pools.insert(key, pool.clone());
 
-            return ReconcileAction::Scale {
-                current: current_total,
-                desired: desired_total,
-            };
+            return ReconcileAction::Scale { current: current_total, desired: desired_total };
         }
 
         // Ensure warm pool is maintained
@@ -371,10 +365,7 @@ impl IsolateOperator {
                     &sandbox.metadata.name,
                     sandbox.metadata.namespace.as_deref().unwrap_or("default"),
                     "ScalingUp",
-                    &format!(
-                        "Scaling from {} to {} replicas",
-                        ready_replicas, desired_replicas
-                    ),
+                    &format!("Scaling from {} to {} replicas", ready_replicas, desired_replicas),
                 );
             } else {
                 self.emit_event(
@@ -383,20 +374,14 @@ impl IsolateOperator {
                     &sandbox.metadata.name,
                     sandbox.metadata.namespace.as_deref().unwrap_or("default"),
                     "ScalingDown",
-                    &format!(
-                        "Scaling from {} to {} replicas",
-                        ready_replicas, desired_replicas
-                    ),
+                    &format!("Scaling from {} to {} replicas", ready_replicas, desired_replicas),
                 );
             }
 
             status.ready_replicas = desired_replicas;
             status.available_replicas = desired_replicas;
 
-            return ReconcileAction::Scale {
-                current: ready_replicas,
-                desired: desired_replicas,
-            };
+            return ReconcileAction::Scale { current: ready_replicas, desired: desired_replicas };
         }
 
         // Perform health check - get health check info before mutable borrow
@@ -436,11 +421,9 @@ impl IsolateOperator {
         let status = sandbox.status.as_mut().unwrap();
 
         // Check if we should retry
-        let retry_count = status
-            .conditions
-            .iter()
-            .filter(|c| c.condition_type == "RetryAttempted")
-            .count() as u32;
+        let retry_count =
+            status.conditions.iter().filter(|c| c.condition_type == "RetryAttempted").count()
+                as u32;
 
         if retry_count < self.config.max_retries {
             status.phase = SandboxPhase::Pending;
@@ -449,7 +432,11 @@ impl IsolateOperator {
                 status: "True".to_string(),
                 last_transition_time: chrono_now(),
                 reason: Some(format!("RetryAttempt{}", retry_count + 1)),
-                message: Some(format!("Retry attempt {} of {}", retry_count + 1, self.config.max_retries)),
+                message: Some(format!(
+                    "Retry attempt {} of {}",
+                    retry_count + 1,
+                    self.config.max_retries
+                )),
             });
 
             self.emit_event(
@@ -741,12 +728,7 @@ mod tests {
                 max_idle_seconds: 300,
                 preload: false,
             },
-            status: Some(SandboxPoolStatus {
-                total: 5,
-                ready: 5,
-                in_use: 2,
-                warm: 3,
-            }),
+            status: Some(SandboxPoolStatus { total: 5, ready: 5, in_use: 2, warm: 3 }),
         };
 
         let action = operator.reconcile_pool(&mut pool);
