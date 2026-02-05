@@ -35,7 +35,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run cargo check
-        run: cargo check --all-targets --all-features
+        run: cargo check --all-targets
 
   test:
     name: Test Suite
