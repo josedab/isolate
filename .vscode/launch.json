@@ -1,0 +1,70 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug CLI (run WASM)",
+      "cargo": {
+        "args": ["build", "--package=isolate-cli"],
+        "filter": {
+          "name": "isolate-cli",
+          "kind": "bin"
+        }
+      },
+      "args": ["run", "${input:wasmFile}", "--cap-stdout"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Current Test",
+      "cargo": {
+        "args": [
+          "test",
+          "--package=isolate-core",
+          "--no-run"
+        ],
+        "filter": {
+          "kind": "test"
+        }
+      },
+      "args": ["${input:testName}", "--exact", "--nocapture"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Server",
+      "cargo": {
+        "args": ["build", "--package=isolate-server"],
+        "filter": {
+          "name": "isolate-server",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "type": "lldb",
+      "request": "attach",
+      "name": "Attach to Running Process",
+      "pid": "${command:pickProcess}"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "wasmFile",
+      "description": "Path to WASM file to execute",
+      "default": "isolate-core/tests/fixtures/hello.wasm",
+      "type": "promptString"
+    },
+    {
+      "id": "testName",
+      "description": "Name of the test to debug",
+      "default": "test_sandbox_execution",
+      "type": "promptString"
+    }
+  ]
+}
