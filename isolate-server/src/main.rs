@@ -268,28 +268,18 @@ async fn main() -> anyhow::Result<()> {
         (Some(provider), true) => {
             let tracer = provider.tracer("isolate-server");
             let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-            subscriber
-                .with(tracing_subscriber::fmt::layer().json())
-                .with(otel_layer)
-                .init();
+            subscriber.with(tracing_subscriber::fmt::layer().json()).with(otel_layer).init();
         }
         (Some(provider), false) => {
             let tracer = provider.tracer("isolate-server");
             let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-            subscriber
-                .with(tracing_subscriber::fmt::layer())
-                .with(otel_layer)
-                .init();
+            subscriber.with(tracing_subscriber::fmt::layer()).with(otel_layer).init();
         }
         (None, true) => {
-            subscriber
-                .with(tracing_subscriber::fmt::layer().json())
-                .init();
+            subscriber.with(tracing_subscriber::fmt::layer().json()).init();
         }
         (None, false) => {
-            subscriber
-                .with(tracing_subscriber::fmt::layer())
-                .init();
+            subscriber.with(tracing_subscriber::fmt::layer()).init();
         }
     }
 
@@ -311,9 +301,7 @@ async fn main() -> anyhow::Result<()> {
     let (mut health_reporter, health_service) = health_reporter();
 
     // Set initial health status
-    health_reporter
-        .set_serving::<IsolateServiceServer<IsolateServiceImpl>>()
-        .await;
+    health_reporter.set_serving::<IsolateServiceServer<IsolateServiceImpl>>().await;
 
     // Create the service
     let service = IsolateServiceImpl::new(args.max_sandboxes);

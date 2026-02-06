@@ -46,113 +46,85 @@ impl PyCapability {
     /// Grant stdout access.
     #[staticmethod]
     fn stdout() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::stdout(),
-        }
+        Self { inner: isolate_core::capability::Capability::stdout() }
     }
 
     /// Grant stderr access.
     #[staticmethod]
     fn stderr() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::stderr(),
-        }
+        Self { inner: isolate_core::capability::Capability::stderr() }
     }
 
     /// Grant stdin access.
     #[staticmethod]
     fn stdin() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::stdin(),
-        }
+        Self { inner: isolate_core::capability::Capability::stdin() }
     }
 
     /// Grant read access to a filesystem path.
     #[staticmethod]
     fn filesystem_read(path: &str) -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::filesystem_read(path),
-        }
+        Self { inner: isolate_core::capability::Capability::filesystem_read(path) }
     }
 
     /// Grant write access to a filesystem path.
     #[staticmethod]
     fn filesystem_write(path: &str) -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::filesystem_write(path),
-        }
+        Self { inner: isolate_core::capability::Capability::filesystem_write(path) }
     }
 
     /// Grant access to all environment variables.
     #[staticmethod]
     fn env_all() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::env_all(),
-        }
+        Self { inner: isolate_core::capability::Capability::env_all() }
     }
 
     /// Grant access to a specific environment variable.
     #[staticmethod]
     fn env_var(name: &str) -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::env_var(name),
-        }
+        Self { inner: isolate_core::capability::Capability::env_var(name) }
     }
 
     /// Grant system clock access.
     #[staticmethod]
     fn system_clock() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::system_clock(),
-        }
+        Self { inner: isolate_core::capability::Capability::system_clock() }
     }
 
     /// Grant monotonic clock access.
     #[staticmethod]
     fn monotonic_clock() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::monotonic_clock(),
-        }
+        Self { inner: isolate_core::capability::Capability::monotonic_clock() }
     }
 
     /// Grant timer access (sleep, intervals).
     #[staticmethod]
     fn timers() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::timers(),
-        }
+        Self { inner: isolate_core::capability::Capability::timers() }
     }
 
     /// Grant secure random number generation access.
     #[staticmethod]
     fn secure_random() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::secure_random(),
-        }
+        Self { inner: isolate_core::capability::Capability::secure_random() }
     }
 
     /// Grant seeded (deterministic) random number generation.
     #[staticmethod]
     fn seeded_random(seed: u64) -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::seeded_random(seed),
-        }
+        Self { inner: isolate_core::capability::Capability::seeded_random(seed) }
     }
 
     /// Grant HTTP client access to specific hosts.
     #[staticmethod]
     fn http_client(hosts: Vec<String>) -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::http_client(hosts),
-        }
+        Self { inner: isolate_core::capability::Capability::http_client(hosts) }
     }
 
     /// Grant temporary directory access.
     #[staticmethod]
     fn temp_dir() -> Self {
-        Self {
-            inner: isolate_core::capability::Capability::temp_dir(),
-        }
+        Self { inner: isolate_core::capability::Capability::temp_dir() }
     }
 
     fn __repr__(&self) -> String {
@@ -411,10 +383,7 @@ impl PySandbox {
             .block_on(async { isolate_core::Sandbox::create(config.inner).await })
             .map_err(|e| PyRuntimeError::new_err(format!("Failed to create sandbox: {}", e)))?;
 
-        Ok(Self {
-            inner: Some(sandbox),
-            runtime,
-        })
+        Ok(Self { inner: Some(sandbox), runtime })
     }
 
     /// Get the sandbox ID.

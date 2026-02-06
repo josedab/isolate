@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Configuration file structures for .isolate.toml
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Default)]
 struct ProjectConfig {
     project: Option<ProjectInfo>,
@@ -28,12 +29,14 @@ struct ProjectConfig {
     modules: Option<Vec<ModuleConfig>>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Default)]
 struct ProjectInfo {
     name: Option<String>,
     version: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Default)]
 struct SandboxDefaults {
     memory_limit: Option<String>,
@@ -74,6 +77,7 @@ struct ArgsConfig {
     values: Option<Vec<String>>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ModuleConfig {
     name: String,
@@ -402,19 +406,13 @@ fn format_number(n: u64) -> String {
 
 fn print_banner() {
     println!("{}", BANNER.cyan().bold());
-    println!(
-        "  {}  v{}\n",
-        "Secure Sandbox Runtime".dimmed(),
-        env!("CARGO_PKG_VERSION")
-    );
+    println!("  {}  v{}\n", "Secure Sandbox Runtime".dimmed(), env!("CARGO_PKG_VERSION"));
 }
 
 fn create_spinner(msg: &str) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
     pb.set_style(
-        ProgressStyle::with_template("{spinner:.cyan} {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+        ProgressStyle::with_template("{spinner:.cyan} {msg}").unwrap().tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
     );
     pb.set_message(msg.to_string());
     pb.enable_steady_tick(Duration::from_millis(100));
@@ -492,7 +490,9 @@ async fn run_watch_mode(args: RunArgs, format: OutputFormat, quiet: bool) -> Res
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
-    let module_path = args.module.canonicalize()
+    let module_path = args
+        .module
+        .canonicalize()
         .with_context(|| format!("Failed to find module: {}", args.module.display()))?;
 
     if !quiet {
@@ -507,10 +507,8 @@ async fn run_watch_mode(args: RunArgs, format: OutputFormat, quiet: bool) -> Res
 
     // Set up file watcher
     let (tx, rx) = channel();
-    let mut debouncer = new_debouncer(
-        Duration::from_millis(args.watch_delay),
-        tx,
-    ).context("Failed to create file watcher")?;
+    let mut debouncer = new_debouncer(Duration::from_millis(args.watch_delay), tx)
+        .context("Failed to create file watcher")?;
 
     // Watch the module file's parent directory
     let watch_dir = module_path.parent().unwrap_or(&module_path);
@@ -524,7 +522,8 @@ async fn run_watch_mode(args: RunArgs, format: OutputFormat, quiet: bool) -> Res
     let r = running.clone();
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
-    }).ok();
+    })
+    .ok();
 
     // Initial run
     let mut run_count = 1u32;
@@ -539,8 +538,7 @@ async fn run_watch_mode(args: RunArgs, format: OutputFormat, quiet: bool) -> Res
             Ok(Ok(events)) => {
                 // Check if our module was modified
                 let module_changed = events.iter().any(|e| {
-                    e.path == module_path ||
-                    e.path.file_name() == module_path.file_name()
+                    e.path == module_path || e.path.file_name() == module_path.file_name()
                 });
 
                 if module_changed {
@@ -581,9 +579,7 @@ async fn run_watch_mode(args: RunArgs, format: OutputFormat, quiet: bool) -> Res
 async fn run_once(args: &RunArgs, format: OutputFormat, quiet: bool) -> Result<i32> {
     // Load project config if available
     let project_config = load_project_config();
-    let sandbox_defaults = project_config
-        .as_ref()
-        .and_then(|c| c.sandbox.as_ref());
+    let sandbox_defaults = project_config.as_ref().and_then(|c| c.sandbox.as_ref());
 
     // Read the WASM module
     let wasm_bytes = std::fs::read(&args.module)
@@ -594,25 +590,22 @@ async fn run_once(args: &RunArgs, format: OutputFormat, quiet: bool) -> Result<i
     let caps_config = sandbox_defaults.and_then(|s| s.capabilities.as_ref());
 
     // stdout
-    let use_stdout = args.cap_stdout
-        || args.cap_stdio
-        || caps_config.and_then(|c| c.stdout).unwrap_or(false);
+    let use_stdout =
+        args.cap_stdout || args.cap_stdio || caps_config.and_then(|c| c.stdout).unwrap_or(false);
     if use_stdout {
         capabilities.push(Capability::stdout());
     }
 
     // stderr
-    let use_stderr = args.cap_stderr
-        || args.cap_stdio
-        || caps_config.and_then(|c| c.stderr).unwrap_or(false);
+    let use_stderr =
+        args.cap_stderr || args.cap_stdio || caps_config.and_then(|c| c.stderr).unwrap_or(false);
     if use_stderr {
         capabilities.push(Capability::stderr());
     }
 
     // stdin
-    let use_stdin = args.cap_stdin
-        || args.cap_stdio
-        || caps_config.and_then(|c| c.stdin).unwrap_or(false);
+    let use_stdin =
+        args.cap_stdin || args.cap_stdio || caps_config.and_then(|c| c.stdin).unwrap_or(false);
     if use_stdin {
         capabilities.push(Capability::stdin());
     }
@@ -878,11 +871,7 @@ fn validate_command(args: ValidateArgs, quiet: bool) -> Result<()> {
     let wasm_bytes = std::fs::read(&args.module)
         .with_context(|| format!("Failed to read module: {}", args.module.display()))?;
 
-    let spinner = if !quiet {
-        Some(create_spinner("Validating module..."))
-    } else {
-        None
-    };
+    let spinner = if !quiet { Some(create_spinner("Validating module...")) } else { None };
 
     // Try to create a config (which validates the module)
     match SandboxConfig::builder().module(&wasm_bytes) {
@@ -912,10 +901,7 @@ fn info_command(args: InfoArgs, quiet: bool) -> Result<()> {
     let _config = SandboxConfig::builder().module(&wasm_bytes)?;
 
     if quiet {
-        println!(
-            "{}",
-            isolate_core::config::ModuleHash::from_bytes(&wasm_bytes)
-        );
+        println!("{}", isolate_core::config::ModuleHash::from_bytes(&wasm_bytes));
         return Ok(());
     }
 
@@ -1062,30 +1048,16 @@ async fn benchmark_command(args: BenchmarkArgs, quiet: bool) -> Result<()> {
             Cell::new("Time").add_attribute(Attribute::Bold),
         ]);
 
-        table.add_row(vec![
-            Cell::new("Min"),
-            Cell::new(format_duration(*min)).fg(Color::Green),
-        ]);
+        table.add_row(vec![Cell::new("Min"), Cell::new(format_duration(*min)).fg(Color::Green)]);
         table.add_row(vec![
             Cell::new("p50 (Median)"),
             Cell::new(format_duration(*p50)).fg(Color::Cyan),
         ]);
-        table.add_row(vec![
-            Cell::new("Average"),
-            Cell::new(format_duration(avg)).fg(Color::Yellow),
-        ]);
-        table.add_row(vec![
-            Cell::new("p95"),
-            Cell::new(format_duration(*p95)).fg(Color::Yellow),
-        ]);
-        table.add_row(vec![
-            Cell::new("p99"),
-            Cell::new(format_duration(*p99)).fg(Color::Red),
-        ]);
-        table.add_row(vec![
-            Cell::new("Max"),
-            Cell::new(format_duration(*max)).fg(Color::Red),
-        ]);
+        table
+            .add_row(vec![Cell::new("Average"), Cell::new(format_duration(avg)).fg(Color::Yellow)]);
+        table.add_row(vec![Cell::new("p95"), Cell::new(format_duration(*p95)).fg(Color::Yellow)]);
+        table.add_row(vec![Cell::new("p99"), Cell::new(format_duration(*p99)).fg(Color::Red)]);
+        table.add_row(vec![Cell::new("Max"), Cell::new(format_duration(*max)).fg(Color::Red)]);
 
         println!("{}", table);
 
@@ -1124,9 +1096,7 @@ async fn interactive_command(args: InteractiveArgs) -> Result<()> {
         .with_context(|| format!("Failed to read module: {}", args.module.display()))?;
 
     // Validate first
-    let _ = SandboxConfig::builder()
-        .module(&wasm_bytes)
-        .context("Invalid WASM module")?;
+    let _ = SandboxConfig::builder().module(&wasm_bytes).context("Invalid WASM module")?;
 
     println!("  {} Module validated successfully\n", "✓".green().bold());
 
@@ -1164,11 +1134,7 @@ async fn interactive_command(args: InteractiveArgs) -> Result<()> {
         }
     }
 
-    println!(
-        "\n  {} {} capabilities selected\n",
-        "✓".green(),
-        selections.len()
-    );
+    println!("\n  {} {} capabilities selected\n", "✓".green(), selections.len());
 
     // Confirm execution
     if !Confirm::with_theme(&ColorfulTheme::default())
@@ -1183,10 +1149,8 @@ async fn interactive_command(args: InteractiveArgs) -> Result<()> {
     println!();
 
     // Build and run
-    let config = SandboxConfig::builder()
-        .module(&wasm_bytes)?
-        .capabilities(capabilities.clone())
-        .build()?;
+    let config =
+        SandboxConfig::builder().module(&wasm_bytes)?.capabilities(capabilities.clone()).build()?;
 
     let spinner = create_spinner("Creating sandbox...");
     let creation_start = Instant::now();
@@ -1217,11 +1181,7 @@ async fn interactive_command(args: InteractiveArgs) -> Result<()> {
     if output.exit_code == 0 {
         println!("  {} Completed successfully", "✓".green().bold());
     } else {
-        println!(
-            "  {} Exited with code {}",
-            "✗".red().bold(),
-            output.exit_code.to_string().red()
-        );
+        println!("  {} Exited with code {}", "✗".red().bold(), output.exit_code.to_string().red());
     }
 
     println!(
@@ -1239,10 +1199,7 @@ async fn snapshot_command(cmd: SnapshotCommands) -> Result<()> {
         SnapshotCommands::List => {
             println!("{}", "Snapshot Management".cyan().bold());
             println!("{}", "─".repeat(50).dimmed());
-            println!(
-                "{}",
-                "No snapshots stored (feature under development)".dimmed()
-            );
+            println!("{}", "No snapshots stored (feature under development)".dimmed());
             Ok(())
         }
         SnapshotCommands::Delete { id } => {
@@ -1268,15 +1225,13 @@ fn init_command(args: InitArgs, quiet: bool) -> Result<()> {
     use std::io::Write;
 
     let project_dir = args.path.canonicalize().unwrap_or_else(|_| args.path.clone());
-    let project_name = args
-        .name
-        .unwrap_or_else(|| {
-            project_dir
-                .file_name()
-                .and_then(|n| n.to_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "isolate-project".to_string())
-        });
+    let project_name = args.name.unwrap_or_else(|| {
+        project_dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "isolate-project".to_string())
+    });
 
     if !quiet {
         print_banner();
@@ -1384,18 +1339,14 @@ dns = false
             // Type section
             0x01, 0x08, 0x02, 0x60, 0x01, 0x7f, 0x00, 0x60, 0x00, 0x00,
             // Import section: wasi_snapshot_preview1.proc_exit
-            0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61,
-            0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65,
-            0x77, 0x31, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74,
-            0x00, 0x00,
+            0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73,
+            0x68, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65, 0x77, 0x31, 0x09, 0x70,
+            0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74, 0x00, 0x00,
             // Function section
-            0x03, 0x02, 0x01, 0x01,
-            // Memory section
-            0x05, 0x03, 0x01, 0x00, 0x01,
-            // Export section: memory and _start
-            0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
-            0x06, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01,
-            // Code section: call proc_exit(0)
+            0x03, 0x02, 0x01, 0x01, // Memory section
+            0x05, 0x03, 0x01, 0x00, 0x01, // Export section: memory and _start
+            0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00, 0x06, 0x5f,
+            0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01, // Code section: call proc_exit(0)
             0x0a, 0x08, 0x01, 0x06, 0x00, 0x41, 0x00, 0x10, 0x00, 0x0b,
         ];
 
@@ -1471,10 +1422,7 @@ tinygo build -o output.wasm -target wasi input.go
         println!("    2. Configure capabilities in .isolate.toml");
         println!("    3. Run with: {}", "isolate run <module.wasm>".cyan());
         println!("\n  Try the example:");
-        println!(
-            "    {}",
-            "isolate run examples/hello.wasm --cap-stdout".cyan()
-        );
+        println!("    {}", "isolate run examples/hello.wasm --cap-stdout".cyan());
     }
 
     Ok(())
@@ -1492,11 +1440,7 @@ async fn doctor_command(quiet: bool) -> Result<()> {
     // Check 1: Rust version
     let rust_version = rustc_version();
     if !quiet {
-        print!(
-            "  {} Rust version: {}",
-            "•".dimmed(),
-            rust_version.cyan()
-        );
+        print!("  {} Rust version: {}", "•".dimmed(), rust_version.cyan());
         println!(" {}", "✓".green());
     }
 
@@ -1514,18 +1458,13 @@ async fn doctor_command(quiet: bool) -> Result<()> {
         // Type section
         0x01, 0x08, 0x02, 0x60, 0x01, 0x7f, 0x00, 0x60, 0x00, 0x00,
         // Import section: wasi_snapshot_preview1.proc_exit
-        0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61,
-        0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65,
-        0x77, 0x31, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74,
-        0x00, 0x00,
-        // Function section
-        0x03, 0x02, 0x01, 0x01,
-        // Memory section
-        0x05, 0x03, 0x01, 0x00, 0x01,
-        // Export section: memory and _start
-        0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
-        0x06, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01,
-        // Code section: call proc_exit(0)
+        0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68,
+        0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65, 0x77, 0x31, 0x09, 0x70, 0x72, 0x6f,
+        0x63, 0x5f, 0x65, 0x78, 0x69, 0x74, 0x00, 0x00, // Function section
+        0x03, 0x02, 0x01, 0x01, // Memory section
+        0x05, 0x03, 0x01, 0x00, 0x01, // Export section: memory and _start
+        0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00, 0x06, 0x5f, 0x73,
+        0x74, 0x61, 0x72, 0x74, 0x00, 0x01, // Code section: call proc_exit(0)
         0x0a, 0x08, 0x01, 0x06, 0x00, 0x41, 0x00, 0x10, 0x00, 0x0b,
     ];
 
@@ -1604,16 +1543,10 @@ async fn doctor_command(quiet: bool) -> Result<()> {
         println!("{}", "─".repeat(50).dimmed());
         if all_ok {
             println!("\n  {} All checks passed!", "✓".green().bold());
-            println!(
-                "  {}",
-                "Isolate is ready to use.".dimmed()
-            );
+            println!("  {}", "Isolate is ready to use.".dimmed());
         } else {
             println!("\n  {} Some checks failed.", "✗".red().bold());
-            println!(
-                "  {}",
-                "Please review the issues above.".dimmed()
-            );
+            println!("  {}", "Please review the issues above.".dimmed());
         }
     }
 
