@@ -45,7 +45,7 @@ mod tests {
         store.push("sb-1.duration", 50000.0, 2000); // spike
 
         let detector = AnomalyDetector::new(3.0);
-        let anomalies = detector.detect(&store.query("sb-1.duration", 0, u64::MAX));
+        let _anomalies = detector.detect(&store.query("sb-1.duration", 0, u64::MAX));
         // May or may not detect anomaly with only 2 points
 
         let engine = RecommendationEngine::new();
