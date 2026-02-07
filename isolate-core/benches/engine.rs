@@ -18,9 +18,8 @@ fn bench_module_hash(c: &mut Criterion) {
         b.iter(|| black_box(ModuleHash::from_bytes(MINIMAL_WASM)))
     });
 
-    group.bench_function("hello_wasm", |b| {
-        b.iter(|| black_box(ModuleHash::from_bytes(HELLO_WASM)))
-    });
+    group
+        .bench_function("hello_wasm", |b| b.iter(|| black_box(ModuleHash::from_bytes(HELLO_WASM))));
 
     // Benchmark with larger synthetic modules
     let large_wasm = create_padded_wasm(1024 * 1024); // 1MB

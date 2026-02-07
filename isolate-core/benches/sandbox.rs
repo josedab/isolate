@@ -19,11 +19,8 @@ fn bench_cold_start(c: &mut Criterion) {
 
     group.bench_function("minimal_module", |b| {
         b.to_async(&rt).iter(|| async {
-            let config = SandboxConfig::builder()
-                .module(black_box(MINIMAL_WASM))
-                .unwrap()
-                .build()
-                .unwrap();
+            let config =
+                SandboxConfig::builder().module(black_box(MINIMAL_WASM)).unwrap().build().unwrap();
             black_box(Sandbox::create(config).await.unwrap())
         })
     });
@@ -73,13 +70,7 @@ fn bench_config_building(c: &mut Criterion) {
 
     group.bench_function("minimal_config", |b| {
         b.iter(|| {
-            black_box(
-                SandboxConfig::builder()
-                    .module(MINIMAL_WASM)
-                    .unwrap()
-                    .build()
-                    .unwrap(),
-            )
+            black_box(SandboxConfig::builder().module(MINIMAL_WASM).unwrap().build().unwrap())
         })
     });
 
