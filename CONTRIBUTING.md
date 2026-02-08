@@ -30,6 +30,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 2. Verify your environment:
    ```bash
    cargo xtask doctor
+   cargo xtask install-hooks
    ```
 
 3. Build the project:
