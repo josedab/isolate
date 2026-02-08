@@ -74,9 +74,7 @@ async fn main() -> isolate_core::Result<()> {
             "cdn.example.com".to_string(),
         ]))
         // Wildcard domain matching
-        .capability(Capability::http_client(vec![
-            "*.internal.example.com".to_string()
-        ]))
+        .capability(Capability::http_client(vec!["*.internal.example.com".to_string()]))
         // DNS resolution
         .capability(Capability::dns_resolve())
         .build()?;
@@ -124,9 +122,7 @@ async fn main() -> isolate_core::Result<()> {
         .capability(Capability::filesystem_write("/var/app/data"))
         .capability(Capability::temp_dir())
         // Network (API access only)
-        .capability(Capability::http_client(vec![
-            "api.service.internal".to_string()
-        ]))
+        .capability(Capability::http_client(vec!["api.service.internal".to_string()]))
         .capability(Capability::dns_resolve())
         // Environment
         .capability(Capability::env_var("APP_ENV"))

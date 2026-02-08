@@ -18,9 +18,7 @@ const MINIMAL_WASM: &[u8] = &[
 #[tokio::main]
 async fn main() -> isolate_core::Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(tracing::Level::INFO).init();
 
     println!("Isolate Basic Example");
     println!("======================\n");

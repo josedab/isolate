@@ -17,18 +17,13 @@ const MINIMAL_WASM: &[u8] = &[
     // Type section
     0x01, 0x08, 0x02, 0x60, 0x01, 0x7f, 0x00, 0x60, 0x00, 0x00,
     // Import section: wasi_snapshot_preview1.proc_exit
-    0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61,
-    0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65,
-    0x77, 0x31, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74,
-    0x00, 0x00,
-    // Function section
-    0x03, 0x02, 0x01, 0x01,
-    // Memory section
-    0x05, 0x03, 0x01, 0x00, 0x01,
-    // Export section: memory and _start
-    0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
-    0x06, 0x5f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01,
-    // Code section: call proc_exit(0)
+    0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f,
+    0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65, 0x77, 0x31, 0x09, 0x70, 0x72, 0x6f, 0x63, 0x5f,
+    0x65, 0x78, 0x69, 0x74, 0x00, 0x00, // Function section
+    0x03, 0x02, 0x01, 0x01, // Memory section
+    0x05, 0x03, 0x01, 0x00, 0x01, // Export section: memory and _start
+    0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00, 0x06, 0x5f, 0x73, 0x74,
+    0x61, 0x72, 0x74, 0x00, 0x01, // Code section: call proc_exit(0)
     0x0a, 0x08, 0x01, 0x06, 0x00, 0x41, 0x00, 0x10, 0x00, 0x0b,
 ];
 
@@ -56,8 +51,10 @@ async fn main() -> isolate_core::Result<()> {
         let output = sandbox.run(&[]).await?;
 
         if i == 0 {
-            println!("   First sandbox: exit_code={}, duration={:?}",
-                output.exit_code, output.duration);
+            println!(
+                "   First sandbox: exit_code={}, duration={:?}",
+                output.exit_code, output.duration
+            );
         }
     }
 
@@ -107,8 +104,12 @@ async fn main() -> isolate_core::Result<()> {
                 successful += 1;
                 total_execution_time += duration;
                 if successful == 1 {
-                    println!("   First completed: {} exit_code={}, duration={:?}",
-                        &id[..8], exit_code, duration);
+                    println!(
+                        "   First completed: {} exit_code={}, duration={:?}",
+                        &id[..8],
+                        exit_code,
+                        duration
+                    );
                 }
             }
             Ok(Err(e)) => {
@@ -137,9 +138,9 @@ async fn main() -> isolate_core::Result<()> {
     // Example 4: Different configurations per sandbox
     println!("4. Mixed Configurations (varying resource limits):");
     let configs = vec![
-        ("small", 32 * 1024 * 1024, 500_000),     // 32MB, 500K fuel
-        ("medium", 64 * 1024 * 1024, 1_000_000),  // 64MB, 1M fuel
-        ("large", 128 * 1024 * 1024, 2_000_000),  // 128MB, 2M fuel
+        ("small", 32 * 1024 * 1024, 500_000),    // 32MB, 500K fuel
+        ("medium", 64 * 1024 * 1024, 1_000_000), // 64MB, 1M fuel
+        ("large", 128 * 1024 * 1024, 2_000_000), // 128MB, 2M fuel
     ];
 
     let mut tasks: JoinSet<isolate_core::Result<(&str, Duration)>> = JoinSet::new();
