@@ -35,6 +35,9 @@ git clone https://github.com/josedab/isolate.git && cd isolate
 cargo run --package isolate-core --example basic_sandbox
 ```
 
+> 📁 **More examples** in [`isolate-core/examples/`](isolate-core/examples/) — including
+> capabilities, error handling, resource limits, and multi-sandbox patterns.
+
 ### Installation
 
 ```bash
@@ -263,8 +266,11 @@ Isolate provides defense-in-depth security:
 ### Quick Commands
 
 ```bash
-# Run all checks
-just check
+# Run all checks (works without `just` installed)
+cargo xtask check
+
+# Equivalent using just (optional)
+# just check
 
 # Run tests (default members, no Python dependency required)
 cargo test
