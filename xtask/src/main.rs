@@ -218,6 +218,12 @@ fn run_doctor() -> Result<(), ()> {
     } else {
         println!("— not installed (required for isolate-server: brew install protobuf)");
     }
+    print!("    cargo-watch:  ");
+    if which("cargo-watch") {
+        println!("✅ installed");
+    } else {
+        println!("— not installed (optional: cargo install cargo-watch)");
+    }
 
     println!("\n🏁 Environment check complete!");
     Ok(())
