@@ -4,6 +4,7 @@
 
 # Getting Started
 
+- [Five-Minute Guide](./getting-started/five-minute-guide.md)
 - [Installation](./getting-started/installation.md)
 - [Quick Start](./getting-started/quick-start.md)
 - [Your First Sandbox](./getting-started/first-sandbox.md)
@@ -22,6 +23,8 @@
 - [Configuration](./reference/configuration.md)
 - [API Reference](./reference/api.md)
 - [Error Handling](./reference/errors.md)
+- [Error Catalog](./reference/error-catalog.md)
+- [Feature Stability](./reference/feature-stability.md)
 - [Troubleshooting](./reference/troubleshooting.md)
 
 # Internals

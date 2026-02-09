@@ -61,14 +61,17 @@ isolate/
 ## Build & Test Commands
 
 ```bash
-# Build all crates
+# Build default crates (excludes isolate-python)
 cargo build
 
 # Build release
 cargo build --release
 
-# Run all tests
+# Run all tests (default members; excludes isolate-python)
 cargo test
+
+# Build/test ALL crates including Python bindings (requires python3-dev)
+cargo test --workspace
 
 # Run tests for core crate only
 cargo test --package isolate-core
@@ -196,7 +199,10 @@ Create using Python with raw WASM binary format:
 
 ## Current Test Status
 
-- 64 unit tests
+- 792 unit tests
 - 14 integration tests
-- 2 doc tests
-- **Total: 80 tests passing**
+- 22 proptest tests
+- 20 proto contract tests
+- 9 end-to-end tests
+- 19 doc tests (15 feature-gated, ignored without flags)
+- **Total: ~876 tests passing**
