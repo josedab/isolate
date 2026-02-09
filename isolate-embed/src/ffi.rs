@@ -23,6 +23,8 @@
 //! isolate_config_free(config);
 //! ```
 
+#![deny(unsafe_op_in_unsafe_fn)]
+
 use crate::{Output, Sandbox, SandboxConfig};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
@@ -58,7 +60,7 @@ pub unsafe extern "C" fn isolate_config_new(
         return ptr::null_mut();
     }
 
-    let bytes = std::slice::from_raw_parts(wasm_bytes, wasm_len);
+    let bytes = unsafe { std::slice::from_raw_parts(wasm_bytes, wasm_len) };
     let config = SandboxConfig::new(bytes);
     Box::into_raw(Box::new(IsolateConfig { inner: config }))
 }
@@ -72,7 +74,7 @@ pub unsafe extern "C" fn isolate_config_set_memory_limit(
     config: *mut IsolateConfig,
     bytes: usize,
 ) {
-    if let Some(c) = config.as_mut() {
+    if let Some(c) = unsafe { config.as_mut() } {
         c.inner = c.inner.clone().memory_limit(bytes);
     }
 }
@@ -83,7 +85,7 @@ pub unsafe extern "C" fn isolate_config_set_memory_limit(
 /// `config` must be a valid pointer from `isolate_config_new`.
 #[no_mangle]
 pub unsafe extern "C" fn isolate_config_set_fuel(config: *mut IsolateConfig, fuel: u64) {
-    if let Some(c) = config.as_mut() {
+    if let Some(c) = unsafe { config.as_mut() } {
         c.inner = c.inner.clone().fuel(fuel);
     }
 }
@@ -102,9 +104,9 @@ pub unsafe extern "C" fn isolate_config_set_env(
         return;
     }
     if let (Some(c), Ok(k), Ok(v)) = (
-        config.as_mut(),
-        CStr::from_ptr(key).to_str(),
-        CStr::from_ptr(value).to_str(),
+        unsafe { config.as_mut() },
+        unsafe { CStr::from_ptr(key) }.to_str(),
+        unsafe { CStr::from_ptr(value) }.to_str(),
     ) {
         c.inner = c.inner.clone().env(k, v);
     }
@@ -117,7 +119,7 @@ pub unsafe extern "C" fn isolate_config_set_env(
 #[no_mangle]
 pub unsafe extern "C" fn isolate_config_free(config: *mut IsolateConfig) {
     if !config.is_null() {
-        drop(Box::from_raw(config));
+        drop(unsafe { Box::from_raw(config) });
     }
 }
 
@@ -129,7 +131,7 @@ pub unsafe extern "C" fn isolate_config_free(config: *mut IsolateConfig) {
 pub unsafe extern "C" fn isolate_sandbox_create(
     config: *mut IsolateConfig,
 ) -> *mut IsolateSandbox {
-    let Some(c) = config.as_ref() else {
+    let Some(c) = (unsafe { config.as_ref() }) else {
         return ptr::null_mut();
     };
 
@@ -149,14 +151,14 @@ pub unsafe extern "C" fn isolate_sandbox_run(
     input: *const u8,
     input_len: usize,
 ) -> *mut IsolateOutput {
-    let Some(sb) = sandbox.as_mut() else {
+    let Some(sb) = (unsafe { sandbox.as_mut() }) else {
         return ptr::null_mut();
     };
 
     let input_slice = if input.is_null() || input_len == 0 {
         &[]
     } else {
-        std::slice::from_raw_parts(input, input_len)
+        unsafe { std::slice::from_raw_parts(input, input_len) }
     };
 
     match sb.inner.run(input_slice) {
@@ -176,7 +178,7 @@ pub unsafe extern "C" fn isolate_sandbox_run(
 #[no_mangle]
 pub unsafe extern "C" fn isolate_sandbox_free(sandbox: *mut IsolateSandbox) {
     if !sandbox.is_null() {
-        drop(Box::from_raw(sandbox));
+        drop(unsafe { Box::from_raw(sandbox) });
     }
 }
 
@@ -186,7 +188,7 @@ pub unsafe extern "C" fn isolate_sandbox_free(sandbox: *mut IsolateSandbox) {
 /// `output` must be a valid pointer from `isolate_sandbox_run`.
 #[no_mangle]
 pub unsafe extern "C" fn isolate_output_exit_code(output: *const IsolateOutput) -> c_int {
-    output.as_ref().map_or(-1, |o| o.inner.exit_code)
+    (unsafe { output.as_ref() }).map_or(-1, |o| o.inner.exit_code)
 }
 
 /// Get stdout as a null-terminated C string. Valid until output is freed.
@@ -195,7 +197,7 @@ pub unsafe extern "C" fn isolate_output_exit_code(output: *const IsolateOutput) 
 /// `output` must be a valid pointer from `isolate_sandbox_run`.
 #[no_mangle]
 pub unsafe extern "C" fn isolate_output_stdout(output: *mut IsolateOutput) -> *const c_char {
-    let Some(o) = output.as_mut() else {
+    let Some(o) = (unsafe { output.as_mut() }) else {
         return ptr::null();
     };
     if o.stdout_cstr.is_none() {
@@ -211,7 +213,7 @@ pub unsafe extern "C" fn isolate_output_stdout(output: *mut IsolateOutput) -> *c
 /// `output` must be a valid pointer from `isolate_sandbox_run`.
 #[no_mangle]
 pub unsafe extern "C" fn isolate_output_stderr(output: *mut IsolateOutput) -> *const c_char {
-    let Some(o) = output.as_mut() else {
+    let Some(o) = (unsafe { output.as_mut() }) else {
         return ptr::null();
     };
     if o.stderr_cstr.is_none() {
@@ -227,7 +229,7 @@ pub unsafe extern "C" fn isolate_output_stderr(output: *mut IsolateOutput) -> *c
 /// `output` must be a valid pointer from `isolate_sandbox_run`.
 #[no_mangle]
 pub unsafe extern "C" fn isolate_output_stdout_len(output: *const IsolateOutput) -> usize {
-    output.as_ref().map_or(0, |o| o.inner.stdout.len())
+    (unsafe { output.as_ref() }).map_or(0, |o| o.inner.stdout.len())
 }
 
 /// Get execution duration in milliseconds.
@@ -236,7 +238,7 @@ pub unsafe extern "C" fn isolate_output_stdout_len(output: *const IsolateOutput)
 /// `output` must be a valid pointer from `isolate_sandbox_run`.
 #[no_mangle]
 pub unsafe extern "C" fn isolate_output_duration_ms(output: *const IsolateOutput) -> u64 {
-    output.as_ref().map_or(0, |o| o.inner.duration.as_millis() as u64)
+    (unsafe { output.as_ref() }).map_or(0, |o| o.inner.duration.as_millis() as u64)
 }
 
 /// Get fuel consumed.
@@ -245,7 +247,7 @@ pub unsafe extern "C" fn isolate_output_duration_ms(output: *const IsolateOutput
 /// `output` must be a valid pointer from `isolate_sandbox_run`.
 #[no_mangle]
 pub unsafe extern "C" fn isolate_output_fuel_consumed(output: *const IsolateOutput) -> u64 {
-    output.as_ref().map_or(0, |o| o.inner.fuel_consumed)
+    (unsafe { output.as_ref() }).map_or(0, |o| o.inner.fuel_consumed)
 }
 
 /// Free an output handle.
@@ -255,7 +257,7 @@ pub unsafe extern "C" fn isolate_output_fuel_consumed(output: *const IsolateOutp
 #[no_mangle]
 pub unsafe extern "C" fn isolate_output_free(output: *mut IsolateOutput) {
     if !output.is_null() {
-        drop(Box::from_raw(output));
+        drop(unsafe { Box::from_raw(output) });
     }
 }
 
