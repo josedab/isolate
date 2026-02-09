@@ -286,11 +286,14 @@ impl GatewayRouter {
             .with_rate_limit_group("write"),
         );
 
-        self.routes.push(Route::new(
-            HttpMethod::Get,
-            format!("{}/sandboxes/:id", prefix),
-            RouteHandler::GetSandbox,
-        ));
+        self.routes.push(
+            Route::new(
+                HttpMethod::Get,
+                format!("{}/sandboxes/:id", prefix),
+                RouteHandler::GetSandbox,
+            )
+            .with_auth(true),
+        );
 
         self.routes.push(
             Route::new(
@@ -311,23 +314,32 @@ impl GatewayRouter {
             .with_auth(true),
         );
 
-        self.routes.push(Route::new(
-            HttpMethod::Get,
-            format!("{}/sandboxes", prefix),
-            RouteHandler::ListSandboxes,
-        ));
+        self.routes.push(
+            Route::new(
+                HttpMethod::Get,
+                format!("{}/sandboxes", prefix),
+                RouteHandler::ListSandboxes,
+            )
+            .with_auth(true),
+        );
 
-        self.routes.push(Route::new(
-            HttpMethod::Get,
-            format!("{}/sandboxes/:id/stream", prefix),
-            RouteHandler::StreamOutput,
-        ));
+        self.routes.push(
+            Route::new(
+                HttpMethod::Get,
+                format!("{}/sandboxes/:id/stream", prefix),
+                RouteHandler::StreamOutput,
+            )
+            .with_auth(true),
+        );
 
-        self.routes.push(Route::new(
-            HttpMethod::Get,
-            format!("{}/metrics", prefix),
-            RouteHandler::GetMetrics,
-        ));
+        self.routes.push(
+            Route::new(
+                HttpMethod::Get,
+                format!("{}/metrics", prefix),
+                RouteHandler::GetMetrics,
+            )
+            .with_auth(true),
+        );
 
         self.routes.push(Route::new(
             HttpMethod::Get,
