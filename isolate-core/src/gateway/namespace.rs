@@ -270,7 +270,12 @@ impl NamespaceManager {
         };
 
         if ns.status != NamespaceStatus::Active {
-            return QuotaCheckResult::Denied(format!("namespace is {:?}", ns.status));
+            return QuotaCheckResult::Denied(format!("namespace is {}", match ns.status {
+                NamespaceStatus::Suspended => "suspended",
+                NamespaceStatus::ReadOnly => "read-only",
+                NamespaceStatus::Terminating => "terminating",
+                NamespaceStatus::Active => "active",
+            }));
         }
 
         let usage = match self.usage.get(ns_id) {
