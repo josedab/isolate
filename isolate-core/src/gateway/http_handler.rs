@@ -148,7 +148,7 @@ impl FunctionRouter {
         // Global rate limit
         let now = std::time::Instant::now();
         {
-            let mut window = self.global_window.lock().unwrap();
+            let mut window = self.global_window.lock().expect("global rate limit window lock poisoned");
             if now.duration_since(*window).as_secs() >= 1 {
                 *window = now;
                 self.global_counter.store(0, Ordering::Relaxed);
@@ -164,7 +164,7 @@ impl FunctionRouter {
             let route = self.routes.iter().find(|r| r.path == path);
             if let Some(route) = route {
                 if let Some(limit) = route.rate_limit_rps {
-                    let mut window = state.window_start.lock().unwrap();
+                    let mut window = state.window_start.lock().expect("route rate limit window lock poisoned");
                     if now.duration_since(*window).as_secs() >= 1 {
                         *window = now;
                         state.counter.store(0, Ordering::Relaxed);
