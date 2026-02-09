@@ -236,7 +236,7 @@ impl RateLimiterPlugin {
 
     /// Checks if a request is allowed for the given sandbox ID.
     pub fn check_rate(&self, sandbox_id: &str) -> bool {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("rate limiter buckets lock poisoned");
         let bucket = buckets
             .entry(sandbox_id.to_string())
             .or_insert_with(|| TokenBucket::new(self.max_tokens as f64, self.refill_rate as f64));
@@ -245,13 +245,13 @@ impl RateLimiterPlugin {
 
     /// Returns available tokens for a sandbox.
     pub fn available_tokens(&self, sandbox_id: &str) -> f64 {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("rate limiter buckets lock poisoned");
         buckets.get_mut(sandbox_id).map(|b| b.available_tokens()).unwrap_or(self.max_tokens as f64)
     }
 
     /// Resets the rate limiter for a specific sandbox.
     pub fn reset(&self, sandbox_id: &str) {
-        let mut buckets = self.buckets.lock().unwrap();
+        let mut buckets = self.buckets.lock().expect("rate limiter buckets lock poisoned");
         buckets.remove(sandbox_id);
     }
 }
@@ -300,7 +300,7 @@ impl PluginHandler for RateLimiterPlugin {
     }
 
     fn shutdown(&mut self) -> Result<(), PluginError> {
-        self.buckets.lock().unwrap().clear();
+        self.buckets.lock().expect("rate limiter buckets lock poisoned").clear();
         Ok(())
     }
 }
@@ -450,19 +450,19 @@ impl StructuredLogPlugin {
 
     /// Returns all captured log entries.
     pub fn entries(&self) -> Vec<LogEntry> {
-        self.entries.lock().unwrap().clone()
+        self.entries.lock().expect("structured log entries lock poisoned").clone()
     }
 
     /// Returns the number of entries.
     pub fn entry_count(&self) -> usize {
-        self.entries.lock().unwrap().len()
+        self.entries.lock().expect("structured log entries lock poisoned").len()
     }
 
     /// Renders all entries as a newline-delimited JSON string.
     pub fn render_ndjson(&self) -> String {
         self.entries
             .lock()
-            .unwrap()
+            .expect("structured log entries lock poisoned")
             .iter()
             .filter_map(|e| serde_json::to_string(e).ok())
             .collect::<Vec<_>>()
@@ -471,7 +471,7 @@ impl StructuredLogPlugin {
 
     /// Clears all entries.
     pub fn clear(&self) {
-        self.entries.lock().unwrap().clear();
+        self.entries.lock().expect("structured log entries lock poisoned").clear();
     }
 
     fn level_for_event(event_type: &EventType) -> &'static str {
@@ -511,7 +511,7 @@ impl PluginHandler for StructuredLogPlugin {
             data: if self.include_data { Some(event.data.clone()) } else { None },
         };
 
-        let mut entries = self.entries.lock().unwrap();
+        let mut entries = self.entries.lock().expect("structured log entries lock poisoned");
         if entries.len() >= self.max_entries {
             entries.remove(0);
         }
@@ -580,12 +580,12 @@ impl ResourceGuardPlugin {
 
     /// Returns all warnings.
     pub fn warnings(&self) -> Vec<ResourceWarning> {
-        self.warnings.lock().unwrap().clone()
+        self.warnings.lock().expect("resource guard warnings lock poisoned").clone()
     }
 
     /// Returns warning count.
     pub fn warning_count(&self) -> usize {
-        self.warnings.lock().unwrap().len()
+        self.warnings.lock().expect("resource guard warnings lock poisoned").len()
     }
 
     /// Checks resource usage and returns a warning if thresholds are exceeded.
@@ -621,7 +621,7 @@ impl ResourceGuardPlugin {
             });
         }
 
-        let mut all_warnings = self.warnings.lock().unwrap();
+        let mut all_warnings = self.warnings.lock().expect("resource guard warnings lock poisoned");
         all_warnings.extend(warnings.clone());
 
         warnings
@@ -629,7 +629,7 @@ impl ResourceGuardPlugin {
 
     /// Clears all warnings.
     pub fn clear(&self) {
-        self.warnings.lock().unwrap().clear();
+        self.warnings.lock().expect("resource guard warnings lock poisoned").clear();
     }
 }
 
