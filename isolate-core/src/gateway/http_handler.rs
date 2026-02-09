@@ -51,7 +51,7 @@ impl Default for FunctionRouterConfig {
             default_timeout_ms: 30_000,
             max_body_size: 10 * 1024 * 1024,
             enable_cors: true,
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec![],
         }
     }
 }
