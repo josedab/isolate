@@ -170,56 +170,89 @@ async fn health_handler(
                     .expect("static not_ready response")
             }
         }
-        "/api/dashboard/overview" => {
-            let overview = dashboard.overview();
-            let json = serde_json::to_string(&overview).unwrap_or_default();
-            Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Full::new(Bytes::from(json)))
-                .expect("dashboard overview response")
-        }
-        "/api/dashboard/sandboxes" => {
-            let sandboxes = dashboard.list_sandboxes();
-            let json = serde_json::to_string(&sandboxes).unwrap_or_default();
-            Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Full::new(Bytes::from(json)))
-                .expect("dashboard sandboxes response")
-        }
-        "/api/dashboard/events" => {
-            let events = dashboard.recent_events(50);
-            let json = serde_json::to_string(&events).unwrap_or_default();
-            Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Full::new(Bytes::from(json)))
-                .expect("dashboard events response")
-        }
-        _ if path.starts_with("/api/dashboard/sandboxes/") => {
-            let id_str = &path["/api/dashboard/sandboxes/".len()..];
-            match id_str.parse::<isolate_core::sandbox::SandboxId>() {
-                Ok(id) => match dashboard.get_sandbox(&id) {
-                    Some(sandbox) => {
-                        let json = serde_json::to_string(&sandbox).unwrap_or_default();
+        path if path == "/api/dashboard/overview"
+            || path == "/api/dashboard/sandboxes"
+            || path == "/api/dashboard/events"
+            || path.starts_with("/api/dashboard/sandboxes/") =>
+        {
+            // Validate API key for all dashboard endpoints
+            let api_key_valid = match std::env::var("ISOLATE_DASHBOARD_API_KEY") {
+                Ok(expected_key) if !expected_key.is_empty() => {
+                    req.headers()
+                        .get("x-api-key")
+                        .and_then(|v| v.to_str().ok())
+                        .map_or(false, |k| k == expected_key)
+                }
+                _ => true, // No API key configured; allow access
+            };
+
+            if !api_key_valid {
+                Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .header("Content-Type", "application/json")
+                    .body(Full::new(Bytes::from(r#"{"error":"unauthorized"}"#)))
+                    .expect("static unauthorized response")
+            } else {
+                match path {
+                    "/api/dashboard/overview" => {
+                        let overview = dashboard.overview();
+                        let json = serde_json::to_string(&overview).unwrap_or_default();
                         Response::builder()
                             .status(StatusCode::OK)
                             .header("Content-Type", "application/json")
                             .body(Full::new(Bytes::from(json)))
-                            .expect("sandbox detail response")
+                            .expect("dashboard overview response")
                     }
-                    None => Response::builder()
-                        .status(StatusCode::NOT_FOUND)
-                        .header("Content-Type", "application/json")
-                        .body(Full::new(Bytes::from(r#"{"error":"sandbox not found"}"#)))
-                        .expect("static not_found response"),
-                },
-                Err(_) => Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
-                    .header("Content-Type", "application/json")
-                    .body(Full::new(Bytes::from(r#"{"error":"invalid sandbox id"}"#)))
-                    .expect("static bad_request response"),
+                    "/api/dashboard/sandboxes" => {
+                        let sandboxes = dashboard.list_sandboxes();
+                        let json = serde_json::to_string(&sandboxes).unwrap_or_default();
+                        Response::builder()
+                            .status(StatusCode::OK)
+                            .header("Content-Type", "application/json")
+                            .body(Full::new(Bytes::from(json)))
+                            .expect("dashboard sandboxes response")
+                    }
+                    "/api/dashboard/events" => {
+                        let events = dashboard.recent_events(50);
+                        let json = serde_json::to_string(&events).unwrap_or_default();
+                        Response::builder()
+                            .status(StatusCode::OK)
+                            .header("Content-Type", "application/json")
+                            .body(Full::new(Bytes::from(json)))
+                            .expect("dashboard events response")
+                    }
+                    _ if path.starts_with("/api/dashboard/sandboxes/") => {
+                        let id_str = &path["/api/dashboard/sandboxes/".len()..];
+                        match id_str.parse::<isolate_core::sandbox::SandboxId>() {
+                            Ok(id) => match dashboard.get_sandbox(&id) {
+                                Some(sandbox) => {
+                                    let json =
+                                        serde_json::to_string(&sandbox).unwrap_or_default();
+                                    Response::builder()
+                                        .status(StatusCode::OK)
+                                        .header("Content-Type", "application/json")
+                                        .body(Full::new(Bytes::from(json)))
+                                        .expect("sandbox detail response")
+                                }
+                                None => Response::builder()
+                                    .status(StatusCode::NOT_FOUND)
+                                    .header("Content-Type", "application/json")
+                                    .body(Full::new(Bytes::from(
+                                        r#"{"error":"sandbox not found"}"#,
+                                    )))
+                                    .expect("static not_found response"),
+                            },
+                            Err(_) => Response::builder()
+                                .status(StatusCode::BAD_REQUEST)
+                                .header("Content-Type", "application/json")
+                                .body(Full::new(Bytes::from(
+                                    r#"{"error":"invalid sandbox id"}"#,
+                                )))
+                                .expect("static bad_request response"),
+                        }
+                    }
+                    _ => unreachable!(),
+                }
             }
         }
         _ => Response::builder()
