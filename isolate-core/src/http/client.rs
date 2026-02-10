@@ -38,6 +38,7 @@ impl HttpClient {
             .user_agent(&config.user_agent);
 
         if config.allow_insecure_tls {
+            tracing::warn!("TLS certificate validation is disabled — connections are insecure");
             client_builder = client_builder.danger_accept_invalid_certs(true);
         }
 
