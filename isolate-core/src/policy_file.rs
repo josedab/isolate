@@ -460,14 +460,14 @@ pub fn parse_size(s: &str) -> Result<usize, PolicyError> {
 /// Parse a human-readable duration string (e.g. "30s", "5m", "1h").
 pub fn parse_duration(s: &str) -> Result<std::time::Duration, PolicyError> {
     let s = s.trim();
-    let (num_str, factor) = if s.ends_with("ms") {
-        (&s[..s.len() - 2], 1u64)
-    } else if s.ends_with('s') {
-        (&s[..s.len() - 1], 1000)
-    } else if s.ends_with('m') {
-        (&s[..s.len() - 1], 60 * 1000)
-    } else if s.ends_with('h') {
-        (&s[..s.len() - 1], 3600 * 1000)
+    let (num_str, factor) = if let Some(stripped) = s.strip_suffix("ms") {
+        (stripped, 1u64)
+    } else if let Some(stripped) = s.strip_suffix('s') {
+        (stripped, 1000)
+    } else if let Some(stripped) = s.strip_suffix('m') {
+        (stripped, 60 * 1000)
+    } else if let Some(stripped) = s.strip_suffix('h') {
+        (stripped, 3600 * 1000)
     } else {
         // Assume seconds
         (s, 1000)

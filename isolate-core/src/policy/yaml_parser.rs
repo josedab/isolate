@@ -288,14 +288,14 @@ pub fn dry_run(policy: &PolicyFile, action: &str, context_attrs: &HashMap<String
         }
 
         let conditions_met = rule.conditions.iter().all(|cond| {
-            context_attrs.get(&cond.field).map_or(false, |ctx_val| {
+            context_attrs.get(&cond.field).is_some_and(|ctx_val| {
                 match cond.operator.as_str() {
                     "eq" => ctx_val == &cond.value,
                     "ne" => ctx_val != &cond.value,
-                    "lt" => ctx_val.as_i64().zip(cond.value.as_i64()).map_or(false, |(a, b)| a < b),
-                    "gt" => ctx_val.as_i64().zip(cond.value.as_i64()).map_or(false, |(a, b)| a > b),
-                    "le" => ctx_val.as_i64().zip(cond.value.as_i64()).map_or(false, |(a, b)| a <= b),
-                    "ge" => ctx_val.as_i64().zip(cond.value.as_i64()).map_or(false, |(a, b)| a >= b),
+                    "lt" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a < b),
+                    "gt" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a > b),
+                    "le" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a <= b),
+                    "ge" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a >= b),
                     _ => false,
                 }
             })

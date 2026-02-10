@@ -342,7 +342,7 @@ impl BundleManager {
             results.push(DryRunResult {
                 rule_id: rule.id.clone(),
                 would_match: matches,
-                effect: rule.effect.clone(),
+                effect: rule.effect,
             });
         }
 

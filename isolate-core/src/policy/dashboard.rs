@@ -376,7 +376,7 @@ impl PolicyDashboard {
             action: action.to_string(),
             resource: resource.to_string(),
             principal: principal.to_string(),
-            effect: decision.effect.clone(),
+            effect: decision.effect,
             determining_rule: decision.determining_rule.clone(),
             dry_run,
         };

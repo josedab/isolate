@@ -149,14 +149,14 @@ fn parse_byte_size(s: &str) -> Option<u64> {
 /// Parse a human-readable duration string (e.g., "30s", "5m", "1h").
 fn parse_duration(s: &str) -> Option<Duration> {
     let s = s.trim();
-    let (num_str, multiplier) = if s.ends_with("ms") {
-        (&s[..s.len() - 2], 1u64)
-    } else if s.ends_with('s') {
-        (&s[..s.len() - 1], 1000u64)
-    } else if s.ends_with('m') {
-        (&s[..s.len() - 1], 60_000u64)
-    } else if s.ends_with('h') {
-        (&s[..s.len() - 1], 3_600_000u64)
+    let (num_str, multiplier) = if let Some(stripped) = s.strip_suffix("ms") {
+        (stripped, 1u64)
+    } else if let Some(stripped) = s.strip_suffix('s') {
+        (stripped, 1000u64)
+    } else if let Some(stripped) = s.strip_suffix('m') {
+        (stripped, 60_000u64)
+    } else if let Some(stripped) = s.strip_suffix('h') {
+        (stripped, 3_600_000u64)
     } else {
         // Default: seconds
         return s.parse::<u64>().ok().map(Duration::from_secs);

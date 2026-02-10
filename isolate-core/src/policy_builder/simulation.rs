@@ -113,7 +113,7 @@ impl PolicySimulator {
             SimulatedAction::ReadFile(path) => {
                 let allowed = caps.filesystem_read.iter().any(|p| path.starts_with(p));
                 let reason = if allowed {
-                    format!("Path matches read permission")
+                    "Path matches read permission".to_string()
                 } else {
                     format!("No read permission for {}", path)
                 };
@@ -122,7 +122,7 @@ impl PolicySimulator {
             SimulatedAction::WriteFile(path) => {
                 let allowed = caps.filesystem_write.iter().any(|p| path.starts_with(p));
                 let reason = if allowed {
-                    format!("Path matches write permission")
+                    "Path matches write permission".to_string()
                 } else {
                     format!("No write permission for {}", path)
                 };

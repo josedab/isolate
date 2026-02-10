@@ -263,7 +263,7 @@ fn matches_action(am: &ActionMatch, req: &PolicyRequest) -> bool {
     match am {
         ActionMatch::Any => true,
         ActionMatch::Specific(a) => req.action == *a,
-        ActionMatch::OneOf(actions) => actions.iter().any(|a| *a == req.action),
+        ActionMatch::OneOf(actions) => actions.contains(&req.action),
     }
 }
 

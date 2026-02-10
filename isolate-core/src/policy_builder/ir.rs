@@ -111,7 +111,7 @@ impl Default for CapabilityBlock {
 }
 
 /// Network access rules.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NetworkBlock {
     pub allow_outbound: bool,
     pub allowed_hosts: Vec<String>,
@@ -119,33 +119,12 @@ pub struct NetworkBlock {
     pub max_connections: Option<u32>,
 }
 
-impl Default for NetworkBlock {
-    fn default() -> Self {
-        Self {
-            allow_outbound: false,
-            allowed_hosts: Vec::new(),
-            allowed_ports: Vec::new(),
-            max_connections: None,
-        }
-    }
-}
-
 /// Environment variable configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EnvironmentBlock {
     pub inherit: bool,
     pub variables: Vec<(String, String)>,
     pub passthrough: Vec<String>,
-}
-
-impl Default for EnvironmentBlock {
-    fn default() -> Self {
-        Self {
-            inherit: false,
-            variables: Vec::new(),
-            passthrough: Vec::new(),
-        }
-    }
 }
 
 #[cfg(test)]
