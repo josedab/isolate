@@ -7,7 +7,6 @@
 //! - [`PipelineStage`] for individual stages in a composition pipeline
 //! - [`PipelineResult`] for pipeline execution results with per-stage metrics
 
-#[allow(dead_code)]
 use crate::capability::{Capability, CapabilitySet};
 use crate::resource::ResourceLimits;
 use serde::{Deserialize, Serialize};

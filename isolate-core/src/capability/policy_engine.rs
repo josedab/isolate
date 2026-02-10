@@ -309,12 +309,12 @@ impl PolicyEngine {
             PolicyRule::RequireCapability(cap) => request.capabilities.contains(cap),
             PolicyRule::DenyCapability(cap) => request.capabilities.contains(cap),
             PolicyRule::MaxMemory(limit) => request.memory_limit > *limit,
-            PolicyRule::MaxFuel(limit) => request.fuel.map_or(false, |f| f > *limit),
-            PolicyRule::MaxTimeout(limit) => request.timeout.map_or(false, |t| t > *limit),
+            PolicyRule::MaxFuel(limit) => request.fuel.is_some_and(|f| f > *limit),
+            PolicyRule::MaxTimeout(limit) => request.timeout.is_some_and(|t| t > *limit),
             PolicyRule::ModuleAllowlist(hashes) => !hashes.contains(&request.module_hash),
             PolicyRule::ModuleDenylist(hashes) => hashes.contains(&request.module_hash),
             PolicyRule::RequireLabel(key, value) => {
-                request.labels.get(key).map_or(true, |v| v != value)
+                !request.labels.get(key).is_some_and(|v| v == value)
             }
             PolicyRule::Custom { .. } => false,
         }

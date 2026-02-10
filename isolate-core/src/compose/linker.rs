@@ -394,7 +394,7 @@ impl CompositionGraph {
     /// and cyclic dependencies.
     pub fn validate(&self) -> std::result::Result<(), LinkError> {
         // Check unresolved imports and type compatibility.
-        for (_, iface) in &self.modules {
+        for iface in self.modules.values() {
             for imp in &iface.imports {
                 let provider = self.modules.get(&imp.module_name).ok_or_else(|| {
                     LinkError::UnresolvedImport {
@@ -443,7 +443,7 @@ impl CompositionGraph {
         // (B must come before A). We track unique edges to avoid
         // double-counting.
         let mut seen_edges: HashSet<(String, String)> = HashSet::new();
-        for (_, iface) in &self.modules {
+        for iface in self.modules.values() {
             for imp in &iface.imports {
                 if self.modules.contains_key(&imp.module_name) {
                     let edge = (imp.module_name.clone(), iface.name.clone());

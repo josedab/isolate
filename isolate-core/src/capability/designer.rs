@@ -454,7 +454,7 @@ impl PolicyExporter {
         out.push('\n');
 
         for (i, cap) in template.capabilities.iter().enumerate() {
-            out.push_str(&format!("[[policy.capabilities]]\n"));
+            out.push_str("[[policy.capabilities]]\n");
             out.push_str(&format!("# {}\n", cap.description()));
             out.push_str(&format!("type = \"{}\"\n", capability_type_label(cap)));
             out.push_str(&format!("index = {}\n", i));
