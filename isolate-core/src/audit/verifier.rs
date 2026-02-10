@@ -41,10 +41,10 @@ impl ChainVerifier {
             return Err(ChainVerificationError::EmptyChain);
         }
 
-        let mut expected_sequence = 0u64;
         let mut expected_previous_hash: AuditHash = [0u8; 32];
 
-        for entry in entries {
+        for (expected_sequence, entry) in entries.iter().enumerate() {
+            let expected_sequence = expected_sequence as u64;
             // Verify sequence
             if entry.sequence != expected_sequence {
                 return Err(ChainVerificationError::SequenceMismatch {
@@ -73,7 +73,6 @@ impl ChainVerifier {
             }
 
             // Update expectations for next entry
-            expected_sequence += 1;
             expected_previous_hash = entry.hash;
         }
 

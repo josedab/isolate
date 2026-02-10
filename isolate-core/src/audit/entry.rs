@@ -7,12 +7,13 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 /// Severity level of an audit event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuditSeverity {
     /// Debug-level event.
     Debug,
     /// Informational event.
+    #[default]
     Info,
     /// Warning event.
     Warning,
@@ -22,11 +23,6 @@ pub enum AuditSeverity {
     Critical,
 }
 
-impl Default for AuditSeverity {
-    fn default() -> Self {
-        Self::Info
-    }
-}
 
 impl std::fmt::Display for AuditSeverity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -180,8 +176,8 @@ impl AuditEntry {
         let action_json = serde_json::to_string(&self.action).unwrap_or_default();
         hasher.update(action_json.as_bytes());
 
-        hasher.update(&[self.severity as u8]);
-        hasher.update(&self.previous_hash);
+        hasher.update([self.severity as u8]);
+        hasher.update(self.previous_hash);
 
         let result = hasher.finalize();
         let mut hash = [0u8; 32];
@@ -214,8 +210,8 @@ impl AuditEntry {
         for (i, &k) in key.iter().take(64).enumerate() {
             padded_key[i] ^= k;
         }
-        hasher.update(&padded_key);
-        hasher.update(&self.hash);
+        hasher.update(padded_key);
+        hasher.update(self.hash);
 
         let inner_result = hasher.finalize();
 
@@ -224,8 +220,8 @@ impl AuditEntry {
         for (i, &k) in key.iter().take(64).enumerate() {
             padded_key[i] ^= k;
         }
-        hasher.update(&padded_key);
-        hasher.update(&inner_result);
+        hasher.update(padded_key);
+        hasher.update(inner_result);
 
         let mut sig = [0u8; 32];
         let _ = (&mut sig[..]).write(&hasher.finalize());
