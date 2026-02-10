@@ -316,7 +316,7 @@ impl ModuleRegistry {
         if self.config.max_disk_bytes > 0 {
             if let Ok(entries) = std::fs::read_dir(&self.config.cache_dir) {
                 for entry in entries.flatten() {
-                    if entry.path().extension().map_or(false, |e| e == "cwasm") {
+                    if entry.path().extension().is_some_and(|e| e == "cwasm") {
                         std::fs::remove_file(entry.path()).ok();
                     }
                 }
@@ -332,7 +332,7 @@ impl ModuleRegistry {
             if let Ok(entries) = std::fs::read_dir(&self.config.cache_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().map_or(false, |e| e == "cwasm") {
+                    if path.extension().is_some_and(|e| e == "cwasm") {
                         if let Some(stem) = path.file_stem() {
                             let h = stem.to_string_lossy().to_string();
                             if !hashes.contains(&h) {

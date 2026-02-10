@@ -104,22 +104,13 @@ impl EventSubscription {
     /// Wait for the next event. Returns `None` if the channel is closed or
     /// if this subscriber has lagged behind and lost messages.
     pub async fn next(&mut self) -> Option<ExecutionEvent> {
-        loop {
-            match self.receiver.recv().await {
-                Ok(event) => return Some(event),
-                Err(broadcast::error::RecvError::Lagged(_)) => return None,
-                Err(broadcast::error::RecvError::Closed) => return None,
-            }
-        }
+        self.receiver.recv().await.ok()
     }
 
     /// Try to receive the next event without blocking.
     /// Returns `None` if no event is available or the channel is closed/lagged.
     pub fn try_next(&mut self) -> Option<ExecutionEvent> {
-        match self.receiver.try_recv() {
-            Ok(event) => Some(event),
-            Err(_) => None,
-        }
+        self.receiver.try_recv().ok()
     }
 
     /// Collect all events until a `Completed` or `Error` event is received.

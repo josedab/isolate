@@ -119,7 +119,7 @@ impl PreInitializedPool {
 
         // Pre-instantiate
         let instance_pre = linker
-            .instantiate_pre(&compiled.module_ref())
+            .instantiate_pre(compiled.module_ref())
             .map_err(|e| Error::Instantiation(format!("Pre-instantiation failed: {}", e)))?;
 
         // Evict oldest if over capacity

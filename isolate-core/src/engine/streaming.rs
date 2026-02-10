@@ -31,11 +31,7 @@ use std::sync::Arc;
 pub fn channel(capacity: usize) -> (RingWriter, RingReader) {
     let capacity = capacity.max(64); // enforce minimum
     let inner = Arc::new(RingBufferInner {
-        buffer: {
-            let mut v = Vec::with_capacity(capacity);
-            v.resize(capacity, 0);
-            v.into_boxed_slice()
-        },
+        buffer: vec![0; capacity].into_boxed_slice(),
         capacity,
         head: AtomicUsize::new(0),
         tail: AtomicUsize::new(0),
@@ -130,12 +126,12 @@ impl RingWriter {
 
         // Write data, wrapping around if necessary
         let buf = self.inner.buffer.as_ptr() as *mut u8;
-        for i in 0..to_write {
+        for (i, &byte) in data[..to_write].iter().enumerate() {
             let pos = (head + i) % self.inner.capacity;
             // SAFETY: We only write to positions between head and head+to_write,
             // which don't overlap with the reader's region (tail..head).
             unsafe {
-                *buf.add(pos) = data[i];
+                *buf.add(pos) = byte;
             }
         }
 
@@ -218,9 +214,9 @@ impl RingReader {
         let to_read = buf.len().min(available);
         let tail = self.inner.tail.load(Ordering::Acquire);
 
-        for i in 0..to_read {
+        for (i, slot) in buf[..to_read].iter_mut().enumerate() {
             let pos = (tail + i) % self.inner.capacity;
-            buf[i] = self.inner.buffer[pos];
+            *slot = self.inner.buffer[pos];
         }
 
         let new_tail = (tail + to_read) % self.inner.capacity;

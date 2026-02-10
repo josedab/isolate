@@ -330,7 +330,7 @@ impl WasmInstance {
         for (host_path, guest_path) in enforcer.filesystem_preopens() {
             if host_path.exists() {
                 // Determine permissions based on capability
-                let read_only = !enforcer.check_fs_write(&host_path).is_ok();
+                let read_only = enforcer.check_fs_write(&host_path).is_err();
 
                 let dir_perms = if read_only {
                     wasmtime_wasi::DirPerms::READ
@@ -485,7 +485,7 @@ impl WasmInstance {
         }
         for (host_path, guest_path) in enforcer.filesystem_preopens() {
             if host_path.exists() {
-                let read_only = !enforcer.check_fs_write(&host_path).is_ok();
+                let read_only = enforcer.check_fs_write(&host_path).is_err();
                 let dir_perms = if read_only {
                     wasmtime_wasi::DirPerms::READ
                 } else {
@@ -577,7 +577,6 @@ impl WasmInstance {
 
                 tracing::debug!(
                     error = %error_msg,
-                    error_type = std::any::type_name_of_val(&e),
                     "WASM execution error"
                 );
 
@@ -713,7 +712,7 @@ impl WasmInstance {
         if data.len() != current_size {
             // Try to grow memory if needed
             let current_pages = memory.size(&self.store);
-            let needed_pages = (data.len() + 65535) / 65536;
+            let needed_pages = data.len().div_ceil(65536);
             if needed_pages > current_pages as usize {
                 let grow_by = needed_pages - current_pages as usize;
                 memory
