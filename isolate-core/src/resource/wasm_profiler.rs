@@ -157,6 +157,16 @@ pub enum SuggestionSeverity {
     Critical,
 }
 
+/// Metrics for a single function call recording.
+pub struct FunctionCallMetrics {
+    pub total_time_us: u64,
+    pub self_time_us: u64,
+    pub fuel: u64,
+    pub memory_alloc: u64,
+    pub io_read: u64,
+    pub io_write: u64,
+}
+
 /// Collects profiling data during WASM execution.
 pub struct WasmProfiler {
     module_id: String,
@@ -191,25 +201,20 @@ impl WasmProfiler {
     pub fn record_function_call(
         &self,
         func_name: &str,
-        total_time_us: u64,
-        self_time_us: u64,
-        fuel: u64,
-        memory_alloc: u64,
-        io_read: u64,
-        io_write: u64,
+        metrics: FunctionCallMetrics,
     ) {
         let mut funcs = self.functions.lock();
         let profile = funcs.entry(func_name.to_string()).or_default();
         profile.call_count += 1;
-        profile.total_time_us += total_time_us;
-        profile.self_time_us += self_time_us;
-        profile.fuel_consumed += fuel;
-        profile.memory_allocated_bytes += memory_alloc;
-        profile.io_bytes_read += io_read;
-        profile.io_bytes_written += io_write;
+        profile.total_time_us += metrics.total_time_us;
+        profile.self_time_us += metrics.self_time_us;
+        profile.fuel_consumed += metrics.fuel;
+        profile.memory_allocated_bytes += metrics.memory_alloc;
+        profile.io_bytes_read += metrics.io_read;
+        profile.io_bytes_written += metrics.io_write;
 
-        *self.total_fuel.lock() += fuel;
-        *self.total_io.lock() += io_read + io_write;
+        *self.total_fuel.lock() += metrics.fuel;
+        *self.total_io.lock() += metrics.io_read + metrics.io_write;
     }
 
     /// Record a memory high-water mark.
@@ -446,13 +451,17 @@ pub struct FlamegraphEntry {
 mod tests {
     use super::*;
 
+    fn metrics(total_time_us: u64, self_time_us: u64, fuel: u64, memory_alloc: u64, io_read: u64, io_write: u64) -> FunctionCallMetrics {
+        FunctionCallMetrics { total_time_us, self_time_us, fuel, memory_alloc, io_read, io_write }
+    }
+
     #[test]
     fn test_function_profile_basics() {
         let profiler = WasmProfiler::new("test-module");
 
-        profiler.record_function_call("main", 1000, 500, 5000, 1024, 0, 0);
-        profiler.record_function_call("helper", 400, 400, 2000, 512, 100, 200);
-        profiler.record_function_call("main", 800, 300, 3000, 256, 0, 0);
+        profiler.record_function_call("main", metrics(1000, 500, 5000, 1024, 0, 0));
+        profiler.record_function_call("helper", metrics(400, 400, 2000, 512, 100, 200));
+        profiler.record_function_call("main", metrics(800, 300, 3000, 256, 0, 0));
         profiler.record_memory_peak(2048);
 
         let report = profiler.finish();
@@ -475,9 +484,9 @@ mod tests {
     fn test_hot_functions_sorted() {
         let profiler = WasmProfiler::new("test");
 
-        profiler.record_function_call("slow_func", 10000, 10000, 50000, 0, 0, 0);
-        profiler.record_function_call("fast_func", 100, 100, 500, 0, 0, 0);
-        profiler.record_function_call("medium_func", 5000, 5000, 25000, 0, 0, 0);
+        profiler.record_function_call("slow_func", metrics(10000, 10000, 50000, 0, 0, 0));
+        profiler.record_function_call("fast_func", metrics(100, 100, 500, 0, 0, 0));
+        profiler.record_function_call("medium_func", metrics(5000, 5000, 25000, 0, 0, 0));
 
         let report = profiler.finish();
         assert_eq!(report.hot_functions[0].name, "slow_func");
@@ -554,7 +563,7 @@ mod tests {
         let profiler = WasmProfiler::new("test");
 
         // I/O bound function: lots of I/O relative to fuel
-        profiler.record_function_call("io_heavy", 1000, 1000, 100, 0, 50000, 50000);
+        profiler.record_function_call("io_heavy", metrics(1000, 1000, 100, 0, 50000, 50000));
         let report = profiler.finish();
         assert_eq!(report.hot_functions[0].category, HotspotCategory::IoBound);
     }
@@ -564,7 +573,7 @@ mod tests {
         let profiler = WasmProfiler::new("test");
 
         // Single function consuming "most" of the time
-        profiler.record_function_call("bottleneck", 1_000_000, 1_000_000, 50_000_000, 0, 0, 0);
+        profiler.record_function_call("bottleneck", metrics(1_000_000, 1_000_000, 50_000_000, 0, 0, 0));
 
         let report = profiler.finish();
         // Should have a CPU suggestion
@@ -580,12 +589,7 @@ mod tests {
 
         profiler.record_function_call(
             "alloc_heavy",
-            1000,
-            1000,
-            1000,
-            200 * 1024 * 1024, // 200MB allocated
-            0,
-            0,
+            metrics(1000, 1000, 1000, 200 * 1024 * 1024, 0, 0),
         );
 
         let report = profiler.finish();
