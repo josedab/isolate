@@ -83,8 +83,7 @@ impl Injector for TraceContext {
 
 /// Extract trace context from a carrier.
 pub fn extract_context(carrier: &TraceContext) -> Context {
-    let propagator = global::get_text_map_propagator(|propagator| propagator.extract(carrier));
-    propagator
+    global::get_text_map_propagator(|propagator| propagator.extract(carrier))
 }
 
 /// Inject current trace context into a carrier.

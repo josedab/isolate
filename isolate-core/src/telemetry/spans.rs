@@ -213,94 +213,89 @@ impl SpanBuilder {
     }
 }
 
-/// Pre-defined span types for sandbox operations.
-pub mod spans {
-    use super::*;
+/// Create a span for sandbox creation.
+pub fn sandbox_create(sandbox_id: Uuid, module_hash: Option<&str>) -> SandboxSpan {
+    let mut builder =
+        SpanBuilder::new("sandbox.create").kind(SpanKind::Internal).sandbox_id(sandbox_id);
 
-    /// Create a span for sandbox creation.
-    pub fn sandbox_create(sandbox_id: Uuid, module_hash: Option<&str>) -> SandboxSpan {
-        let mut builder =
-            SpanBuilder::new("sandbox.create").kind(SpanKind::Internal).sandbox_id(sandbox_id);
-
-        if let Some(hash) = module_hash {
-            builder = builder.module_hash(hash);
-        }
-
-        builder.start()
+    if let Some(hash) = module_hash {
+        builder = builder.module_hash(hash);
     }
 
-    /// Create a span for sandbox execution.
-    pub fn sandbox_execute(sandbox_id: Uuid) -> SandboxSpan {
-        SpanBuilder::new("sandbox.execute").kind(SpanKind::Internal).sandbox_id(sandbox_id).start()
-    }
+    builder.start()
+}
 
-    /// Create a span for sandbox termination.
-    pub fn sandbox_terminate(sandbox_id: Uuid, reason: &str) -> SandboxSpan {
-        SpanBuilder::new("sandbox.terminate")
-            .kind(SpanKind::Internal)
-            .sandbox_id(sandbox_id)
-            .attribute("terminate.reason", reason)
-            .start()
-    }
+/// Create a span for sandbox execution.
+pub fn sandbox_execute(sandbox_id: Uuid) -> SandboxSpan {
+    SpanBuilder::new("sandbox.execute").kind(SpanKind::Internal).sandbox_id(sandbox_id).start()
+}
 
-    /// Create a span for WASM module compilation.
-    pub fn module_compile(module_hash: &str) -> SandboxSpan {
-        SpanBuilder::new("module.compile").kind(SpanKind::Internal).module_hash(module_hash).start()
-    }
+/// Create a span for sandbox termination.
+pub fn sandbox_terminate(sandbox_id: Uuid, reason: &str) -> SandboxSpan {
+    SpanBuilder::new("sandbox.terminate")
+        .kind(SpanKind::Internal)
+        .sandbox_id(sandbox_id)
+        .attribute("terminate.reason", reason)
+        .start()
+}
 
-    /// Create a span for snapshot creation.
-    pub fn snapshot_create(sandbox_id: Uuid, snapshot_id: &str) -> SandboxSpan {
-        SpanBuilder::new("snapshot.create")
-            .kind(SpanKind::Internal)
-            .sandbox_id(sandbox_id)
-            .attribute(attributes::SNAPSHOT_ID, snapshot_id)
-            .start()
-    }
+/// Create a span for WASM module compilation.
+pub fn module_compile(module_hash: &str) -> SandboxSpan {
+    SpanBuilder::new("module.compile").kind(SpanKind::Internal).module_hash(module_hash).start()
+}
 
-    /// Create a span for snapshot restore.
-    pub fn snapshot_restore(sandbox_id: Uuid, snapshot_id: &str) -> SandboxSpan {
-        SpanBuilder::new("snapshot.restore")
-            .kind(SpanKind::Internal)
-            .sandbox_id(sandbox_id)
-            .attribute(attributes::SNAPSHOT_ID, snapshot_id)
-            .start()
-    }
+/// Create a span for snapshot creation.
+pub fn snapshot_create(sandbox_id: Uuid, snapshot_id: &str) -> SandboxSpan {
+    SpanBuilder::new("snapshot.create")
+        .kind(SpanKind::Internal)
+        .sandbox_id(sandbox_id)
+        .attribute(attributes::SNAPSHOT_ID, snapshot_id)
+        .start()
+}
 
-    /// Create a span for capability check.
-    pub fn capability_check(sandbox_id: Uuid, capability: &str) -> SandboxSpan {
-        SpanBuilder::new("capability.check")
-            .kind(SpanKind::Internal)
-            .sandbox_id(sandbox_id)
-            .attribute(attributes::CAPABILITY, capability)
-            .start()
-    }
+/// Create a span for snapshot restore.
+pub fn snapshot_restore(sandbox_id: Uuid, snapshot_id: &str) -> SandboxSpan {
+    SpanBuilder::new("snapshot.restore")
+        .kind(SpanKind::Internal)
+        .sandbox_id(sandbox_id)
+        .attribute(attributes::SNAPSHOT_ID, snapshot_id)
+        .start()
+}
 
-    /// Create a span for HTTP request from sandbox.
-    pub fn http_request(sandbox_id: Uuid, method: &str, url: &str) -> SandboxSpan {
-        SpanBuilder::new("http.request")
-            .kind(SpanKind::Client)
-            .sandbox_id(sandbox_id)
-            .attribute(attributes::HTTP_METHOD, method)
-            .attribute(attributes::HTTP_URL, url)
-            .start()
-    }
+/// Create a span for capability check.
+pub fn capability_check(sandbox_id: Uuid, capability: &str) -> SandboxSpan {
+    SpanBuilder::new("capability.check")
+        .kind(SpanKind::Internal)
+        .sandbox_id(sandbox_id)
+        .attribute(attributes::CAPABILITY, capability)
+        .start()
+}
 
-    /// Create a span for audit log entry.
-    pub fn audit_log(sandbox_id: Uuid, action: &str) -> SandboxSpan {
-        SpanBuilder::new("audit.log")
-            .kind(SpanKind::Internal)
-            .sandbox_id(sandbox_id)
-            .attribute(attributes::OPERATION, action)
-            .start()
-    }
+/// Create a span for HTTP request from sandbox.
+pub fn http_request(sandbox_id: Uuid, method: &str, url: &str) -> SandboxSpan {
+    SpanBuilder::new("http.request")
+        .kind(SpanKind::Client)
+        .sandbox_id(sandbox_id)
+        .attribute(attributes::HTTP_METHOD, method)
+        .attribute(attributes::HTTP_URL, url)
+        .start()
+}
 
-    /// Create a span for signature verification.
-    pub fn signature_verify(module_hash: &str) -> SandboxSpan {
-        SpanBuilder::new("signature.verify")
-            .kind(SpanKind::Internal)
-            .module_hash(module_hash)
-            .start()
-    }
+/// Create a span for audit log entry.
+pub fn audit_log(sandbox_id: Uuid, action: &str) -> SandboxSpan {
+    SpanBuilder::new("audit.log")
+        .kind(SpanKind::Internal)
+        .sandbox_id(sandbox_id)
+        .attribute(attributes::OPERATION, action)
+        .start()
+}
+
+/// Create a span for signature verification.
+pub fn signature_verify(module_hash: &str) -> SandboxSpan {
+    SpanBuilder::new("signature.verify")
+        .kind(SpanKind::Internal)
+        .module_hash(module_hash)
+        .start()
 }
 
 /// Convenience macro for creating spans with automatic error handling.
