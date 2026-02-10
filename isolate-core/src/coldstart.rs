@@ -31,6 +31,7 @@ use crate::engine::WasmEngine;
 use crate::error::{Error, Result};
 
 use dashmap::DashMap;
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -112,6 +113,11 @@ impl PrecompileCache {
             "Failed to serialize compiled module: {}", e
         )))?;
 
+        // Write hash file for integrity verification
+        let hash_path = self.hash_path(&hash);
+        let digest = Sha256::digest(&serialized);
+        std::fs::write(&hash_path, hex::encode(digest))?;
+
         // Write to disk
         let path = self.module_path(&hash);
         std::fs::write(&path, &serialized)?;
@@ -144,9 +150,24 @@ impl PrecompileCache {
         // Load pre-compiled bytes from disk
         let bytes = std::fs::read(&path)?;
 
+        // Verify integrity before deserializing
+        let hash_path = self.hash_path(hash);
+        if let Ok(expected_hex) = std::fs::read_to_string(&hash_path) {
+            let actual = hex::encode(Sha256::digest(&bytes));
+            if actual != expected_hex.trim() {
+                return Err(Error::Engine(
+                    "Module cache integrity check failed".to_string(),
+                ));
+            }
+        } else {
+            return Err(Error::Engine(
+                "Module cache hash file missing — cannot verify integrity".to_string(),
+            ));
+        }
+
         // SAFETY: Deserializing a module requires that the bytes are a valid
-        // serialized Wasmtime module and have not been tampered with. We trust
-        // our own cache directory which we control exclusively.
+        // serialized Wasmtime module and have not been tampered with. Integrity
+        // is verified via SHA-256 hash check above.
         let module = unsafe {
             Module::deserialize(engine.engine(), &bytes)
                 .map_err(|e| Error::Engine(format!("Failed to deserialize module: {}", e)))?
@@ -177,6 +198,10 @@ impl PrecompileCache {
         if path.exists() {
             std::fs::remove_file(&path)?;
         }
+        let hash_path = self.hash_path(hash);
+        if hash_path.exists() {
+            let _ = std::fs::remove_file(&hash_path);
+        }
         self.memory_cache.remove(hash);
         Ok(())
     }
@@ -185,7 +210,10 @@ impl PrecompileCache {
     pub fn clear(&self) -> Result<()> {
         for entry in std::fs::read_dir(&self.cache_dir)? {
             let entry = entry?;
-            if entry.path().extension().map_or(false, |e| e == "cwasm") {
+            let ext = entry.path().extension().map(|e| e.to_owned());
+            if ext.as_deref() == Some(std::ffi::OsStr::new("cwasm"))
+                || ext.as_deref() == Some(std::ffi::OsStr::new("sha256"))
+            {
                 std::fs::remove_file(entry.path())?;
             }
         }
@@ -211,6 +239,11 @@ impl PrecompileCache {
     fn module_path(&self, hash: &ModuleHash) -> PathBuf {
         let name = if hash.0.len() >= 16 { &hash.0[..16] } else { &hash.0 };
         self.cache_dir.join(format!("{}.cwasm", name))
+    }
+
+    fn hash_path(&self, hash: &ModuleHash) -> PathBuf {
+        let name = if hash.0.len() >= 16 { &hash.0[..16] } else { &hash.0 };
+        self.cache_dir.join(format!("{}.sha256", name))
     }
 
     fn evict_lru(&self) {
