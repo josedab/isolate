@@ -10,6 +10,9 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+/// Type alias for a boxed host function closure.
+type BoxedHostFn = Box<dyn Fn(&[u8]) -> Result<Vec<u8>> + Send + Sync>;
+
 /// Ergonomic builder for constructing a [`HostFunctions`] registry.
 pub struct HostFnRegistry {
     inner: HostFunctions,
@@ -195,7 +198,7 @@ pub struct HostFnDescriptor {
 /// Adapter implementing [`HostFn`] for a boxed closure.
 pub struct FnHostAdapter {
     name: String,
-    func: Box<dyn Fn(&[u8]) -> Result<Vec<u8>> + Send + Sync>,
+    func: BoxedHostFn,
 }
 
 impl HostFn for FnHostAdapter {

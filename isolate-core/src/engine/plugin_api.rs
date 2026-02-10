@@ -10,6 +10,9 @@ use crate::error::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+/// Type alias for a boxed plugin function closure.
+type BoxedPluginFn = Box<dyn Fn(&[u8]) -> Result<Vec<u8>> + Send + Sync>;
+
 /// A plugin that bundles related host functions.
 pub struct HostPlugin {
     /// Plugin metadata.
@@ -37,7 +40,7 @@ pub struct PluginMetadata {
 struct PluginFunction {
     name: String,
     description: String,
-    func: Box<dyn Fn(&[u8]) -> Result<Vec<u8>> + Send + Sync>,
+    func: BoxedPluginFn,
 }
 
 impl HostPlugin {
