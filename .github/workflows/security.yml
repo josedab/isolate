@@ -43,7 +43,6 @@ jobs:
 
       - name: Check dependencies
         run: cargo deny check
-        continue-on-error: true
 
   # SAST (Static Application Security Testing)
   semgrep:

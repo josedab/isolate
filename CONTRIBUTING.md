@@ -12,7 +12,11 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 - Rust 1.75.0 or later
 - Git
-- (Optional) Python 3.9+ for Python bindings development
+- (Optional) Python 3.9+ with development headers for `isolate-python` bindings
+
+> **Note:** `isolate-python` is excluded from the default workspace build via
+> `default-members` in `Cargo.toml`. Standard `cargo build` / `cargo test` work
+> without Python installed.
 
 ### Setting Up the Development Environment
 
@@ -22,20 +26,38 @@ By participating in this project, you agree to maintain a respectful and inclusi
    cd isolate
    ```
 
-2. Build the project:
+2. Verify your environment:
+   ```bash
+   cargo xtask doctor
+   ```
+
+3. Build the project:
    ```bash
    cargo build
    ```
 
-3. Run the tests:
+4. Run the tests:
    ```bash
    cargo test
    ```
 
-4. Run clippy for linting:
-   ```bash
-   cargo clippy --all-targets --all-features
-   ```
+## Quick Workflow Reference
+
+The project provides `cargo xtask` commands to streamline development:
+
+```bash
+cargo xtask doctor      # Verify your environment is set up correctly
+cargo xtask check       # Run fmt + lint + test (use before pushing)
+cargo xtask test        # Run all tests with --all-features
+cargo xtask test-core   # Run core crate tests only (faster feedback)
+cargo xtask fmt         # Format all code
+cargo xtask lint        # Run clippy
+cargo xtask pre-commit  # Full pre-push validation
+cargo xtask docs        # Generate documentation
+cargo xtask help        # Show all commands
+```
+
+If you prefer, `just` recipes are also available (see `justfile`).
 
 ## Project Structure
 
@@ -44,8 +66,9 @@ isolate/
 ├── isolate-core/        # Core library
 ├── isolate-cli/         # Command-line tool
 ├── isolate-server/      # gRPC server
-├── isolate-python/      # Python bindings
-├── docs/                # Documentation
+├── isolate-python/      # Python bindings (requires python3-dev)
+├── xtask/               # Developer workflow commands
+├── docs/                # Documentation (Docusaurus)
 └── .github/             # GitHub workflows and templates
 ```
 
@@ -70,23 +93,26 @@ isolate/
 
 3. Write tests for new functionality.
 
-4. Run the full test suite:
+4. Validate your changes:
    ```bash
-   cargo test --workspace --all-features
+   cargo xtask check
    ```
 
-5. Run formatting and linting:
+   This runs formatting checks, clippy, and the full test suite. You can also
+   run individual steps:
    ```bash
-   cargo fmt --all
-   cargo clippy --all-targets --all-features -- -D warnings
+   cargo xtask fmt         # Format code
+   cargo xtask lint        # Clippy lints
+   cargo xtask test-core   # Fast core-only tests
+   cargo xtask test        # Full test suite
    ```
 
-6. Commit your changes with a clear message:
+5. Commit your changes with a clear message:
    ```bash
    git commit -m "feat: add new capability for X"
    ```
 
-7. Push and create a pull request.
+6. Push and create a pull request.
 
 ## Coding Standards
 
@@ -174,7 +200,7 @@ Releases are managed by maintainers. The process:
 If you discover a security vulnerability:
 
 1. **DO NOT** open a public issue
-2. Email security@example.com with details
+2. Use [GitHub's private vulnerability reporting](https://github.com/josedab/isolate/security/advisories/new) or contact [@josedab](https://github.com/josedab) directly
 3. Allow time for a fix before public disclosure
 
 ## Getting Help

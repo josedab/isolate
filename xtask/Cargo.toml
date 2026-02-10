@@ -1,0 +1,13 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# xtask is a workspace-native task runner for Isolate.
+# Usage: cargo xtask <command>
+# See: https://github.com/matklad/cargo-xtask
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
