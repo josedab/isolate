@@ -363,35 +363,37 @@ impl SecretsManager {
                 .map(|v| SecretValue::new(v.into_bytes()))
                 .map_err(|_| SecretsError::NotFound(secret_ref.path.clone())),
             SecretProvider::File { base_path } => {
-                let full_path = format!("{}/{}", base_path, secret_ref.path);
-                std::fs::read(&full_path)
+                let base = std::path::Path::new(base_path)
+                    .canonicalize()
+                    .map_err(|e| SecretsError::ProviderError(e.to_string()))?;
+                let full_path = base.join(&secret_ref.path);
+                let canonical = full_path
+                    .canonicalize()
+                    .map_err(|e| SecretsError::ProviderError(e.to_string()))?;
+                if !canonical.starts_with(&base) {
+                    return Err(SecretsError::ProviderError(
+                        "path traversal denied".to_string(),
+                    ));
+                }
+                std::fs::read(&canonical)
                     .map(SecretValue::new)
                     .map_err(|e| SecretsError::ProviderError(e.to_string()))
             }
-            SecretProvider::Vault { address, mount } => {
-                // Would use vault client
-                Err(SecretsError::ProviderError(format!(
-                    "Vault provider not implemented: {} mount {}",
-                    address, mount
-                )))
+            SecretProvider::Vault { .. } => {
+                Err(SecretsError::ProviderError("Provider not available".to_string()))
             }
-            SecretProvider::AwsSecretsManager { region } => {
-                // Would use AWS SDK
-                Err(SecretsError::ProviderError(format!(
-                    "AWS provider not implemented: region {}",
-                    region
-                )))
+            SecretProvider::AwsSecretsManager { .. } => {
+                Err(SecretsError::ProviderError("Provider not available".to_string()))
             }
-            SecretProvider::GcpSecretManager { project } => Err(SecretsError::ProviderError(
-                format!("GCP provider not implemented: project {}", project),
-            )),
-            SecretProvider::AzureKeyVault { vault_name } => Err(SecretsError::ProviderError(
-                format!("Azure provider not implemented: vault {}", vault_name),
-            )),
-            SecretProvider::Kubernetes { namespace } => Err(SecretsError::ProviderError(format!(
-                "K8s provider not implemented: namespace {}",
-                namespace
-            ))),
+            SecretProvider::GcpSecretManager { .. } => {
+                Err(SecretsError::ProviderError("Provider not available".to_string()))
+            }
+            SecretProvider::AzureKeyVault { .. } => {
+                Err(SecretsError::ProviderError("Provider not available".to_string()))
+            }
+            SecretProvider::Kubernetes { .. } => {
+                Err(SecretsError::ProviderError("Provider not available".to_string()))
+            }
         }
     }
 
