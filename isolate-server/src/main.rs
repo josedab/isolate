@@ -181,7 +181,7 @@ async fn health_handler(
                     req.headers()
                         .get("x-api-key")
                         .and_then(|v| v.to_str().ok())
-                        .map_or(false, |k| k == expected_key)
+                        .is_some_and(|k| k == expected_key)
                 }
                 _ => true, // No API key configured; allow access
             };

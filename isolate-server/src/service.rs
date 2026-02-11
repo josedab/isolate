@@ -52,7 +52,7 @@ impl IsolateServiceImpl {
     }
 
     /// Parse capabilities from proto.
-    fn parse_capabilities(caps: &[proto::Capability]) -> Result<Vec<Capability>, Status> {
+    fn parse_capabilities(caps: &[proto::Capability]) -> Result<Vec<Capability>, Box<Status>> {
         let mut result = Vec::new();
         for cap in caps {
             let capability = match cap.r#type.as_str() {
@@ -69,10 +69,10 @@ impl IsolateServiceImpl {
                 "random" => Capability::secure_random(),
                 "env" => Capability::env_var(&cap.value),
                 _ => {
-                    return Err(Status::invalid_argument(format!(
+                    return Err(Box::new(Status::invalid_argument(format!(
                         "Unknown capability type: {}",
                         cap.r#type
-                    )))
+                    ))))
                 }
             };
             result.push(capability);
@@ -162,7 +162,7 @@ impl IsolateService for IsolateServiceImpl {
                     builder.cpu_time_limit(Duration::from_secs(config.cpu_time_limit_secs as u64));
             }
 
-            let capabilities = Self::parse_capabilities(&config.capabilities)?;
+            let capabilities = Self::parse_capabilities(&config.capabilities).map_err(|e| *e)?;
             builder = builder.capabilities(capabilities);
 
             for (key, value) in config.env {
@@ -549,5 +549,482 @@ impl IsolateService for IsolateServiceImpl {
         };
 
         Ok(Response::new(GetMetricsResponse { data }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MINIMAL_WASM: &[u8] = include_bytes!("../../isolate-core/tests/fixtures/minimal.wasm");
+    const HELLO_WASM: &[u8] = include_bytes!("../../isolate-core/tests/fixtures/hello.wasm");
+    const EXIT_42_WASM: &[u8] = include_bytes!("../../isolate-core/tests/fixtures/exit_42.wasm");
+
+    // -- parse_capabilities tests --
+
+    #[test]
+    fn test_parse_capabilities_stdout() {
+        let caps = vec![proto::Capability {
+            r#type: "stdout".into(),
+            value: String::new(),
+        }];
+        let result = IsolateServiceImpl::parse_capabilities(&caps).unwrap();
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_capabilities_multiple() {
+        let caps = vec![
+            proto::Capability { r#type: "stdout".into(), value: String::new() },
+            proto::Capability { r#type: "stderr".into(), value: String::new() },
+            proto::Capability { r#type: "stdin".into(), value: String::new() },
+            proto::Capability { r#type: "fs:read".into(), value: "/tmp".into() },
+            proto::Capability { r#type: "fs:write".into(), value: "/out".into() },
+            proto::Capability { r#type: "fs:temp".into(), value: String::new() },
+            proto::Capability { r#type: "dns".into(), value: String::new() },
+            proto::Capability { r#type: "time:system".into(), value: String::new() },
+            proto::Capability { r#type: "time:monotonic".into(), value: String::new() },
+            proto::Capability { r#type: "random".into(), value: String::new() },
+            proto::Capability { r#type: "env".into(), value: "HOME".into() },
+        ];
+        let result = IsolateServiceImpl::parse_capabilities(&caps).unwrap();
+        assert_eq!(result.len(), 11);
+    }
+
+    #[test]
+    fn test_parse_capabilities_unknown_type() {
+        let caps = vec![proto::Capability {
+            r#type: "nonexistent".into(),
+            value: String::new(),
+        }];
+        let result = IsolateServiceImpl::parse_capabilities(&caps);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_capabilities_empty() {
+        let result = IsolateServiceImpl::parse_capabilities(&[]).unwrap();
+        assert!(result.is_empty());
+    }
+
+    // -- constructor tests --
+
+    #[test]
+    fn test_new_service() {
+        let service = IsolateServiceImpl::new(10);
+        assert_eq!(service.max_sandboxes, 10);
+        assert_eq!(service.sandboxes.len(), 0);
+    }
+
+    #[test]
+    fn test_dashboard_returns_shared_reference() {
+        let service = IsolateServiceImpl::new(5);
+        let d1 = service.dashboard();
+        let d2 = service.dashboard();
+        assert!(Arc::ptr_eq(&d1, &d2));
+    }
+
+    // -- gRPC method tests --
+
+    #[tokio::test]
+    async fn test_create_sandbox_minimal() {
+        let service = IsolateServiceImpl::new(10);
+        let req = Request::new(CreateSandboxRequest {
+            module: MINIMAL_WASM.to_vec(),
+            config: None,
+        });
+        let resp = service.create_sandbox(req).await.unwrap();
+        let inner = resp.into_inner();
+        assert!(!inner.sandbox_id.is_empty());
+        assert!(!inner.module_hash.is_empty());
+        assert!(inner.creation_time_ms >= 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_create_sandbox_with_config() {
+        let service = IsolateServiceImpl::new(10);
+        let req = Request::new(CreateSandboxRequest {
+            module: MINIMAL_WASM.to_vec(),
+            config: Some(proto::SandboxConfig {
+                memory_limit: 1024 * 1024,
+                fuel_limit: 100_000,
+                wall_time_limit_secs: 5,
+                cpu_time_limit_secs: 0,
+                capabilities: vec![proto::Capability {
+                    r#type: "stdout".into(),
+                    value: String::new(),
+                }],
+                env: std::collections::HashMap::new(),
+                args: vec![],
+            }),
+        });
+        let resp = service.create_sandbox(req).await.unwrap();
+        assert!(!resp.into_inner().sandbox_id.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_create_sandbox_invalid_module() {
+        let service = IsolateServiceImpl::new(10);
+        let req = Request::new(CreateSandboxRequest {
+            module: vec![0, 1, 2, 3],
+            config: None,
+        });
+        let result = service.create_sandbox(req).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_run_sandbox() {
+        let service = IsolateServiceImpl::new(10);
+
+        let create_resp = service
+            .create_sandbox(Request::new(CreateSandboxRequest {
+                module: HELLO_WASM.to_vec(),
+                config: Some(proto::SandboxConfig {
+                    memory_limit: 0,
+                    fuel_limit: 1_000_000,
+                    wall_time_limit_secs: 5,
+                    cpu_time_limit_secs: 0,
+                    capabilities: vec![proto::Capability {
+                        r#type: "stdout".into(),
+                        value: String::new(),
+                    }],
+                    env: std::collections::HashMap::new(),
+                    args: vec![],
+                }),
+            }))
+            .await
+            .unwrap();
+        let sandbox_id = create_resp.into_inner().sandbox_id;
+
+        let run_resp = service
+            .run_sandbox(Request::new(RunSandboxRequest {
+                sandbox_id: sandbox_id.clone(),
+                input: vec![],
+                entry_point: String::new(),
+            }))
+            .await
+            .unwrap();
+        let output = run_resp.into_inner();
+        assert_eq!(output.exit_code, 0);
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "Hello from WASM!\n");
+    }
+
+    #[tokio::test]
+    async fn test_run_sandbox_not_found() {
+        let service = IsolateServiceImpl::new(10);
+        let result = service
+            .run_sandbox(Request::new(RunSandboxRequest {
+                sandbox_id: "nonexistent".into(),
+                input: vec![],
+                entry_point: String::new(),
+            }))
+            .await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_get_sandbox() {
+        let service = IsolateServiceImpl::new(10);
+
+        let create_resp = service
+            .create_sandbox(Request::new(CreateSandboxRequest {
+                module: MINIMAL_WASM.to_vec(),
+                config: None,
+            }))
+            .await
+            .unwrap();
+        let sandbox_id = create_resp.into_inner().sandbox_id;
+
+        let get_resp = service
+            .get_sandbox(Request::new(GetSandboxRequest {
+                sandbox_id: sandbox_id.clone(),
+            }))
+            .await
+            .unwrap();
+        let info = get_resp.into_inner().sandbox.unwrap();
+        assert_eq!(info.id, sandbox_id);
+        assert!(!info.module_hash.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_sandbox_not_found() {
+        let service = IsolateServiceImpl::new(10);
+        let result = service
+            .get_sandbox(Request::new(GetSandboxRequest {
+                sandbox_id: "nonexistent".into(),
+            }))
+            .await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_terminate_sandbox() {
+        let service = IsolateServiceImpl::new(10);
+
+        let create_resp = service
+            .create_sandbox(Request::new(CreateSandboxRequest {
+                module: MINIMAL_WASM.to_vec(),
+                config: None,
+            }))
+            .await
+            .unwrap();
+        let sandbox_id = create_resp.into_inner().sandbox_id;
+
+        let term_resp = service
+            .terminate_sandbox(Request::new(TerminateSandboxRequest {
+                sandbox_id: sandbox_id.clone(),
+            }))
+            .await
+            .unwrap();
+        assert!(term_resp.into_inner().terminated);
+
+        // Verify sandbox is removed
+        let get_result = service
+            .get_sandbox(Request::new(GetSandboxRequest { sandbox_id }))
+            .await;
+        assert!(get_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_terminate_sandbox_not_found() {
+        let service = IsolateServiceImpl::new(10);
+        let result = service
+            .terminate_sandbox(Request::new(TerminateSandboxRequest {
+                sandbox_id: "nonexistent".into(),
+            }))
+            .await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_list_sandboxes_empty() {
+        let service = IsolateServiceImpl::new(10);
+        let resp = service
+            .list_sandboxes(Request::new(ListSandboxesRequest {
+                state_filter: String::new(),
+                offset: 0,
+                limit: 10,
+            }))
+            .await
+            .unwrap();
+        let inner = resp.into_inner();
+        assert_eq!(inner.total, 0);
+        assert!(inner.sandboxes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_sandboxes_with_entries() {
+        let service = IsolateServiceImpl::new(10);
+
+        for _ in 0..2 {
+            service
+                .create_sandbox(Request::new(CreateSandboxRequest {
+                    module: MINIMAL_WASM.to_vec(),
+                    config: None,
+                }))
+                .await
+                .unwrap();
+        }
+
+        let resp = service
+            .list_sandboxes(Request::new(ListSandboxesRequest {
+                state_filter: String::new(),
+                offset: 0,
+                limit: 10,
+            }))
+            .await
+            .unwrap();
+        assert_eq!(resp.into_inner().total, 2);
+    }
+
+    #[tokio::test]
+    async fn test_list_sandboxes_pagination() {
+        let service = IsolateServiceImpl::new(10);
+
+        for _ in 0..3 {
+            service
+                .create_sandbox(Request::new(CreateSandboxRequest {
+                    module: MINIMAL_WASM.to_vec(),
+                    config: None,
+                }))
+                .await
+                .unwrap();
+        }
+
+        let resp = service
+            .list_sandboxes(Request::new(ListSandboxesRequest {
+                state_filter: String::new(),
+                offset: 0,
+                limit: 2,
+            }))
+            .await
+            .unwrap();
+        let inner = resp.into_inner();
+        assert_eq!(inner.total, 3);
+        assert_eq!(inner.sandboxes.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_json() {
+        let service = IsolateServiceImpl::new(10);
+        let resp = service
+            .get_metrics(Request::new(GetMetricsRequest {
+                format: "json".into(),
+            }))
+            .await
+            .unwrap();
+        let data = resp.into_inner().data;
+        let parsed: serde_json::Value = serde_json::from_str(&data).unwrap();
+        assert_eq!(parsed["sandboxes_active"], 0);
+        assert_eq!(parsed["max_sandboxes"], 10);
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_prometheus() {
+        let service = IsolateServiceImpl::new(10);
+        let resp = service
+            .get_metrics(Request::new(GetMetricsRequest {
+                format: "prometheus".into(),
+            }))
+            .await
+            .unwrap();
+        let _ = resp.into_inner().data;
+    }
+
+    #[tokio::test]
+    async fn test_run_exit_code_42() {
+        let service = IsolateServiceImpl::new(10);
+
+        let create_resp = service
+            .create_sandbox(Request::new(CreateSandboxRequest {
+                module: EXIT_42_WASM.to_vec(),
+                config: Some(proto::SandboxConfig {
+                    memory_limit: 0,
+                    fuel_limit: 1_000_000,
+                    wall_time_limit_secs: 5,
+                    cpu_time_limit_secs: 0,
+                    capabilities: vec![],
+                    env: std::collections::HashMap::new(),
+                    args: vec![],
+                }),
+            }))
+            .await
+            .unwrap();
+        let sandbox_id = create_resp.into_inner().sandbox_id;
+
+        let run_resp = service
+            .run_sandbox(Request::new(RunSandboxRequest {
+                sandbox_id,
+                input: vec![],
+                entry_point: String::new(),
+            }))
+            .await
+            .unwrap();
+        assert_eq!(run_resp.into_inner().exit_code, 42);
+    }
+
+    #[tokio::test]
+    async fn test_create_sandbox_with_invalid_capability() {
+        let service = IsolateServiceImpl::new(10);
+        let req = Request::new(CreateSandboxRequest {
+            module: MINIMAL_WASM.to_vec(),
+            config: Some(proto::SandboxConfig {
+                memory_limit: 0,
+                fuel_limit: 0,
+                wall_time_limit_secs: 0,
+                cpu_time_limit_secs: 0,
+                capabilities: vec![proto::Capability {
+                    r#type: "invalid_type".into(),
+                    value: String::new(),
+                }],
+                env: std::collections::HashMap::new(),
+                args: vec![],
+            }),
+        });
+        let result = service.create_sandbox(req).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().code(), tonic::Code::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn test_full_lifecycle() {
+        let service = IsolateServiceImpl::new(10);
+
+        // Create
+        let create_resp = service
+            .create_sandbox(Request::new(CreateSandboxRequest {
+                module: MINIMAL_WASM.to_vec(),
+                config: Some(proto::SandboxConfig {
+                    memory_limit: 0,
+                    fuel_limit: 1_000_000,
+                    wall_time_limit_secs: 5,
+                    cpu_time_limit_secs: 0,
+                    capabilities: vec![],
+                    env: std::collections::HashMap::new(),
+                    args: vec![],
+                }),
+            }))
+            .await
+            .unwrap();
+        let sandbox_id = create_resp.into_inner().sandbox_id;
+
+        // Get
+        let info = service
+            .get_sandbox(Request::new(GetSandboxRequest {
+                sandbox_id: sandbox_id.clone(),
+            }))
+            .await
+            .unwrap()
+            .into_inner()
+            .sandbox
+            .unwrap();
+        assert_eq!(info.id, sandbox_id);
+
+        // Run
+        let run_resp = service
+            .run_sandbox(Request::new(RunSandboxRequest {
+                sandbox_id: sandbox_id.clone(),
+                input: vec![],
+                entry_point: String::new(),
+            }))
+            .await
+            .unwrap();
+        assert_eq!(run_resp.into_inner().exit_code, 0);
+
+        // List
+        let list_resp = service
+            .list_sandboxes(Request::new(ListSandboxesRequest {
+                state_filter: String::new(),
+                offset: 0,
+                limit: 10,
+            }))
+            .await
+            .unwrap();
+        assert_eq!(list_resp.into_inner().total, 1);
+
+        // Terminate
+        let term_resp = service
+            .terminate_sandbox(Request::new(TerminateSandboxRequest {
+                sandbox_id: sandbox_id.clone(),
+            }))
+            .await
+            .unwrap();
+        assert!(term_resp.into_inner().terminated);
+
+        // Verify removed
+        let list_resp = service
+            .list_sandboxes(Request::new(ListSandboxesRequest {
+                state_filter: String::new(),
+                offset: 0,
+                limit: 10,
+            }))
+            .await
+            .unwrap();
+        assert_eq!(list_resp.into_inner().total, 0);
     }
 }
