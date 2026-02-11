@@ -54,6 +54,8 @@
 
 use crate::capability::{Capability, CapabilitySet};
 use crate::error::{Error, Result};
+use crate::profile::LanguageProfile;
+use crate::ratelimit::RateLimitConfig;
 use crate::resource::ResourceLimits;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -160,6 +162,8 @@ pub struct SandboxConfig {
     pub snapshot: SnapshotConfig,
     /// Entry point function name (default: "_start").
     pub entry_point: String,
+    /// Rate limiting configuration.
+    pub rate_limit: RateLimitConfig,
 }
 
 impl SandboxConfig {
@@ -185,6 +189,7 @@ pub struct SandboxConfigBuilder {
     args: Vec<String>,
     snapshot: SnapshotConfig,
     entry_point: String,
+    rate_limit: RateLimitConfig,
 }
 
 impl SandboxConfigBuilder {
@@ -304,6 +309,33 @@ impl SandboxConfigBuilder {
         self
     }
 
+    /// Apply a language-specific optimization profile.
+    ///
+    /// Sets resource limits and default capabilities based on the language.
+    /// Settings applied by the profile can be overridden by subsequent builder calls.
+    pub fn apply_profile(mut self, profile: LanguageProfile) -> Self {
+        self.resources = profile.resource_limits();
+        for cap in profile.default_capabilities() {
+            self.capabilities.grant(cap);
+        }
+        self
+    }
+
+    /// Set rate limiting configuration.
+    pub fn rate_limit(mut self, config: RateLimitConfig) -> Self {
+        self.rate_limit = config;
+        self
+    }
+
+    /// Set a maximum requests-per-second rate limit.
+    pub fn max_requests_per_second(mut self, rps: u32) -> Self {
+        self.rate_limit.requests_per_second = Some(rps);
+        if self.rate_limit.burst_size.is_none() {
+            self.rate_limit.burst_size = Some(rps);
+        }
+        self
+    }
+
     /// Build the configuration.
     pub fn build(self) -> Result<SandboxConfig> {
         let module = self
@@ -318,6 +350,7 @@ impl SandboxConfigBuilder {
             args: self.args,
             snapshot: self.snapshot,
             entry_point: self.entry_point,
+            rate_limit: self.rate_limit,
         })
     }
 }

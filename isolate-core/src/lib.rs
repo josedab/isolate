@@ -151,11 +151,18 @@
 
 // Core modules (always available)
 pub mod capability;
+pub mod coldstart;
 pub mod config;
+pub mod dashboard;
 pub mod engine;
 pub mod error;
 pub mod metrics;
+pub mod pipeline;
+pub mod policy_gen;
+pub mod profile;
+pub mod ratelimit;
 pub mod resource;
+pub mod rpc;
 pub mod sandbox;
 pub mod stability;
 
@@ -263,4 +270,5 @@ pub mod chaos;
 // Re-export main types at crate root
 pub use config::{SandboxConfig, SandboxConfigBuilder};
 pub use error::{Error, Result};
+pub use profile::LanguageProfile;
 pub use sandbox::{Output, Sandbox, SandboxId, SandboxState};
