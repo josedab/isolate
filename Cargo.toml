@@ -54,7 +54,7 @@ opentelemetry-otlp = { version = "0.27", features = ["tonic"] }
 tracing-opentelemetry = "0.28"
 
 # Metrics
-prometheus = "0.13"
+prometheus = "0.14"
 
 # gRPC
 tonic = "0.12"
