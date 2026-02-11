@@ -42,14 +42,21 @@
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+pub mod auto_warm;
 pub mod clone_pool;
 pub mod cow;
+pub mod live_migration;
 pub mod manager;
 pub mod orchestrator;
 mod pool;
 pub mod serialization;
 pub mod storage;
 
+pub use auto_warm::{AccessTracker, AutoWarmConfig, WarmingRecommendation};
+pub use live_migration::{
+    FailoverPolicy, FailoverRegistry, FrozenState, LiveMigration, LiveMigrationConfig,
+    LiveMigrationState, MigrationProgress,
+};
 pub use clone_pool::{ClonePool, ClonePoolConfig, ClonePoolStats};
 pub use cow::{
     CowMemoryStore, CowSnapshot, CowSnapshotDiff, CowStats, PageHash, SnapshotVersioner,
