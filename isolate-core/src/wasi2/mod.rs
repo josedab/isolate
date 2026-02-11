@@ -42,10 +42,12 @@
 pub mod async_io;
 pub mod capability_bridge;
 mod component;
+pub mod composition;
 mod context;
 pub mod dual_mode;
 mod host;
 pub mod migration;
+pub mod readiness;
 pub mod runtime;
 pub mod wit;
 
