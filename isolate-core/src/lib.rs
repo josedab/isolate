@@ -66,7 +66,14 @@
 //! | `networking` | `http`, `network` | HTTP client and network policy |
 //! | `agent` | `agent`, `llm` | AI agent framework for tool-using sandboxes |
 //! | `policy-engine` | `policy`, `audit`, `compose`, `compliance`, `policy_builder`, `policy_file`, `policy_gen`, `policy_lang` | Policy rules, audit logging, composition, policy language |
-//! | `platform` | `admin`, `gateway`, `orchestrator`, `kv`, `secrets`, `ipc`, `marketplace`, `plugin`, `workflow`, `vfs`, `provenance`, `graphql_schema`, `pipeline`, `playground`, `rpc`, `sandbox_kv`, `workflow_engine` | Full platform services |
+//! | `platform` | All platform sub-features combined | Full platform services (meta-feature) |
+//! | `platform-admin` | `admin`, `gateway`, `orchestrator` | Admin, gateway, orchestrator |
+//! | `platform-storage` | `kv`, `sandbox_kv`, `vfs`, `secrets` | KV store, VFS, secrets |
+//! | `platform-workflow` | `workflow`, `workflow_engine`, `pipeline` | Workflows and pipelines |
+//! | `platform-marketplace` | `marketplace`, `plugin`, `provenance` | Marketplace and plugins |
+//! | `platform-comm` | `ipc`, `rpc`, `graphql_schema` | IPC, RPC, GraphQL |
+//! | `platform-hosting` | `serverless`, `playground`, `saas` | Serverless and hosting |
+//! | `platform-infra` | `iac` | Infrastructure as code |
 //! | `extras` | `ai_exec`, `ai_sandbox`, `benchmark`, `carbon`, `enclave`, `jsrt`, `replay`, `security`, `transpiler`, `verify` | Additional integrations |
 //! | `observability` | `dashboard`, `dashboard_api`, `observability`, `tracing_ctx`, `wasm_analytics` | Dashboard, tracing, analytics |
 //! | `billing` | `billing`, `cloud_cost` | Billing and cloud cost tracking |
@@ -137,7 +144,14 @@
 //! - `networking` - HTTP client and network policy modules
 //! - `agent` - AI agent framework
 //! - `policy-engine` - Policy rules, audit logging, composition, policy language
-//! - `platform` - Admin, gateway, orchestrator, KV, secrets, IPC, marketplace, etc.
+//! - `platform` - All platform sub-features (meta-feature)
+//! - `platform-admin` - Admin, gateway, orchestrator
+//! - `platform-storage` - KV store, VFS, secrets
+//! - `platform-workflow` - Workflows and pipelines
+//! - `platform-marketplace` - Marketplace and plugins
+//! - `platform-comm` - IPC, RPC, GraphQL
+//! - `platform-hosting` - Serverless, playground, SaaS
+//! - `platform-infra` - Infrastructure as code
 //! - `extras` - AI sandbox, benchmark, carbon tracking, enclave, JS runtime, security, verification
 //! - `observability` - Dashboard, tracing context, WASM analytics
 //! - `billing` - Billing and cloud cost tracking
@@ -215,46 +229,46 @@ pub mod policy_gen;
 #[allow(missing_docs)]
 pub mod policy_lang;
 
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-admin"))]
 pub mod admin;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-admin"))]
 pub mod gateway;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-comm"))]
 pub mod graphql_schema;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-infra"))]
 pub mod iac;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-comm"))]
 pub mod ipc;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-storage"))]
 pub mod kv;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-marketplace"))]
 pub mod marketplace;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-admin"))]
 pub mod orchestrator;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-workflow"))]
 pub mod pipeline;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-hosting"))]
 pub mod playground;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-marketplace"))]
 pub mod plugin;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-marketplace"))]
 pub mod provenance;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-comm"))]
 pub mod rpc;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-storage"))]
 pub mod sandbox_kv;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-storage"))]
 pub mod secrets;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-hosting"))]
 pub mod serverless;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-storage"))]
 pub mod vfs;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-workflow"))]
 pub mod workflow;
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-workflow"))]
 pub mod workflow_engine;
 
-#[cfg(feature = "platform")]
+#[cfg(any(feature = "platform", feature = "platform-hosting"))]
 pub mod saas;
 
 #[cfg(feature = "extras")]
