@@ -106,7 +106,12 @@ impl ChannelHub {
         let config = ChannelConfig::new(id.clone()).with_capacity(self.config.default_capacity);
         self.create_channel(config)?;
 
-        Ok(self.channels.get(&id).unwrap().clone())
+        // Channel was just inserted above; use expect for clarity
+        Ok(self
+            .channels
+            .get(&id)
+            .expect("channel was just inserted")
+            .clone())
     }
 
     /// Get a channel by ID.
