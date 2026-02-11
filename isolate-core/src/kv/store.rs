@@ -218,8 +218,9 @@ impl NamespaceInner {
 
         if let Some(entry) = self.entries.get(key) {
             if entry.is_expired() {
-                let entry = self.entries.remove(key).unwrap();
-                self.total_bytes = self.total_bytes.saturating_sub(entry.size_bytes());
+                if let Some(entry) = self.entries.remove(key) {
+                    self.total_bytes = self.total_bytes.saturating_sub(entry.size_bytes());
+                }
                 return Ok(None);
             }
             Ok(Some(entry.clone()))
@@ -245,10 +246,11 @@ impl NamespaceInner {
         }
 
         // Check if_not_exists
-        if options.if_not_exists && self.entries.contains_key(&key) {
-            let existing = self.entries.get(&key).unwrap();
-            if !existing.is_expired() {
-                return Ok(existing.clone());
+        if options.if_not_exists {
+            if let Some(existing) = self.entries.get(&key) {
+                if !existing.is_expired() {
+                    return Ok(existing.clone());
+                }
             }
         }
 
