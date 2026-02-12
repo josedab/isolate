@@ -38,6 +38,7 @@
 #![allow(dead_code)]
 
 mod differ;
+pub mod migration;
 mod patcher;
 mod version;
 
