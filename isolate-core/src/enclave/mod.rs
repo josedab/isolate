@@ -10,6 +10,7 @@ pub mod attestation;
 pub mod audit;
 pub mod compliance;
 pub mod hal;
+pub mod key_management;
 
 pub use attestation::{
     AttestationCheck, AttestationPolicy, AttestationTrustLevel, AttestationVerifier, CheckSeverity,
