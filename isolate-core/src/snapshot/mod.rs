@@ -47,6 +47,7 @@ pub mod checkout_pool;
 pub mod checkpoint;
 pub mod clone_pool;
 pub mod cow;
+pub mod live;
 pub mod live_migration;
 pub mod manager;
 pub mod orchestrator;
@@ -59,6 +60,9 @@ pub mod storage;
 pub use auto_warm::{AccessTracker, AutoWarmConfig, WarmingRecommendation};
 pub use instant_clone::{
     InstantCloneEngine, CloneTemplate, CloneInstance, CrossNodeRestore, DiskSnapshotPersistence,
+};
+pub use live::{
+    LiveSnapshotManager, LiveSnapshotConfig, LiveSnapshotMetrics, HealthStatus, LiveSnapshotState,
 };
 pub use live_migration::{
     FailoverPolicy, FailoverRegistry, FrozenState, LiveMigration, LiveMigrationConfig,
