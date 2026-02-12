@@ -693,7 +693,54 @@ impl Sandbox {
     /// Returns a receiver that yields [`OutputChunk`]s as they are produced,
     /// plus a join handle that resolves to the final [`Output`].
     ///
-    /// `buffer_size` controls the channel capacity (back-pressure threshold).
+    /// Unlike [`run()`](Self::run), which buffers all output until completion,
+    /// this method streams stdout/stderr chunks as they are written by the
+    /// WASM module. The sandbox transitions to `Terminated` immediately after
+    /// the background task is spawned.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - Bytes to provide on the sandbox's stdin. Pass `&[]` for no input.
+    /// * `buffer_size` - Channel capacity controlling back-pressure. A larger
+    ///   buffer reduces the chance of the producer blocking, but uses more
+    ///   memory. Clamped to a minimum of 1.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The sandbox is not in the [`SandboxState::Ready`] state
+    /// - Rate limiting rejects the execution attempt
+    /// - The streaming WASM instance cannot be created
+    ///
+    /// The returned `JoinHandle` may also resolve to an error if WASM execution
+    /// fails (trap, out of fuel, epoch timeout, etc.).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use isolate_core::{Sandbox, SandboxConfig, capability::Capability};
+    /// # async fn example() -> isolate_core::Result<()> {
+    /// let wasm = std::fs::read("module.wasm")?;
+    /// let config = SandboxConfig::builder()
+    ///     .module(&wasm)?
+    ///     .fuel(1_000_000)
+    ///     .capability(Capability::stdout())
+    ///     .build()?;
+    ///
+    /// let mut sandbox = Sandbox::create(config).await?;
+    /// let (mut rx, handle) = sandbox.run_streaming(&[], 32).await?;
+    ///
+    /// // Consume chunks as they arrive
+    /// while let Some(chunk) = rx.recv().await {
+    ///     println!("chunk: {:?}", chunk);
+    /// }
+    ///
+    /// // Wait for final result
+    /// let output = handle.await.expect("task panicked")?;
+    /// assert_eq!(output.exit_code, 0);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn run_streaming(
         &mut self,
         input: &[u8],
