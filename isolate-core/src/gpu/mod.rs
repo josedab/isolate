@@ -10,6 +10,7 @@
 //! - Shader validation and safety checking
 
 pub mod hal;
+pub mod scheduler;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
