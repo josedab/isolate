@@ -41,6 +41,7 @@ pub mod bundle;
 pub mod dashboard;
 mod engine;
 pub mod evaluator;
+pub mod governance;
 mod rules;
 pub mod yaml_parser;
 
