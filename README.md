@@ -188,6 +188,7 @@ let config = SandboxConfig::builder()
 ```bash
 # Run a WASM module
 isolate run module.wasm
+# => Hello from WASM!
 
 # Run with capabilities
 isolate run module.wasm \
@@ -195,9 +196,11 @@ isolate run module.wasm \
     --cap-http api.example.com \
     --memory-limit 128M \
     --timeout 30s
+# => [sandbox] exit_code=0 duration=142ms fuel=483201
 
 # Run with input
 echo "input data" | isolate run module.wasm
+# => Processed 10 bytes
 ```
 
 ## gRPC Server
