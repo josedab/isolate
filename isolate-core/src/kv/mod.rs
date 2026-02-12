@@ -28,6 +28,7 @@
 #![allow(dead_code)]
 
 mod store;
+pub mod replication;
 
 pub use store::{
     Entry, KvConfig, KvError, KvStore, Namespace, NamespaceId, NamespaceStats, SetOptions,
