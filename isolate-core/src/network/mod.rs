@@ -39,6 +39,7 @@
 pub mod dns;
 pub mod policy;
 pub mod tcp;
+pub mod zero_trust;
 
 pub use dns::DnsResolver;
 pub use policy::{NetworkPolicy, NetworkPolicyBuilder, PolicyAction, PolicyRule};
