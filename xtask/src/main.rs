@@ -308,11 +308,15 @@ fn run_new_module(name: Option<&str>, feature: Option<&str>) -> Result<(), ()> {
     let mod_rs = format!(
         r#"//! `{name}` module.
 //!
-//! TODO: Add module documentation.
+//! This module provides functionality for the `{name}` feature.
+//! Update this documentation with specific details about the module's
+//! purpose, types, and usage examples.
 
 #![allow(missing_docs)]
 
-/// TODO: Implement module functionality.
+/// Returns the module identifier.
+///
+/// Replace this placeholder with the actual module functionality.
 pub fn hello() -> &'static str {{
     "{name} module"
 }}
