@@ -40,6 +40,7 @@
 pub mod bundle;
 pub mod dashboard;
 mod engine;
+pub mod evaluator;
 mod rules;
 
 pub use bundle::{
