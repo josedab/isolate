@@ -39,6 +39,7 @@
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+pub mod causality;
 mod diff;
 mod event;
 mod recorder;
@@ -59,6 +60,7 @@ pub use replay::{
 pub use snapshot::{SnapshotManager, StateSnapshot};
 pub use timeline::{StepResult, Timeline, TimelineNavigation};
 pub use watchpoint::{WatchCondition, WatchType, Watchpoint, WatchpointHit, WatchpointManager};
+pub use causality::{CausalAnalyzer, CausalChain, CausalEdge, CausalRelation, RootCauseResult, ExecutionSlice};
 
 use uuid::Uuid;
 
