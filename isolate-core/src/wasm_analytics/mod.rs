@@ -13,6 +13,7 @@
 #![allow(dead_code)]
 
 pub mod anomaly;
+pub mod collector;
 pub mod instrumentation;
 pub mod recommendations;
 pub mod timeseries;
