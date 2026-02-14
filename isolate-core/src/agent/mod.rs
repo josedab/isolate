@@ -47,10 +47,15 @@
 mod session;
 mod tools;
 mod types;
+pub mod function_calling;
 
 pub use session::{AgentSession, ExecutionRecord};
 pub use tools::{ToolDefinition, ToolParameter, ToolParameterType, ToolRegistry};
 pub use types::{
     AgentConfig, AgentConfigBuilder, CodeExecutionRequest, CodeExecutionResult, ExecutionStatus,
     ResourceUsageSummary,
+};
+pub use function_calling::{
+    ExecutorConfig, FunctionCallExecutor, FunctionCallInfo, FunctionDefinition, ToolCall,
+    ToolCallResult, ToolSpec,
 };
