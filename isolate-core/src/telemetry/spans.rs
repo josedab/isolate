@@ -355,16 +355,16 @@ mod tests {
         let sandbox_id = Uuid::new_v4();
 
         // Test all predefined spans
-        spans::sandbox_create(sandbox_id, Some("abc123")).end();
-        spans::sandbox_execute(sandbox_id).end_ok();
-        spans::sandbox_terminate(sandbox_id, "user request").end();
-        spans::module_compile("hash123").end_ok();
-        spans::snapshot_create(sandbox_id, "snap-1").end();
-        spans::snapshot_restore(sandbox_id, "snap-1").end();
-        spans::capability_check(sandbox_id, "stdout").end_ok();
-        spans::http_request(sandbox_id, "GET", "https://example.com").end();
-        spans::audit_log(sandbox_id, "sandbox_created").end();
-        spans::signature_verify("hash123").end_ok();
+        sandbox_create(sandbox_id, Some("abc123")).end();
+        sandbox_execute(sandbox_id).end_ok();
+        sandbox_terminate(sandbox_id, "user request").end();
+        module_compile("hash123").end_ok();
+        snapshot_create(sandbox_id, "snap-1").end();
+        snapshot_restore(sandbox_id, "snap-1").end();
+        capability_check(sandbox_id, "stdout").end_ok();
+        http_request(sandbox_id, "GET", "https://example.com").end();
+        audit_log(sandbox_id, "sandbox_created").end();
+        signature_verify("hash123").end_ok();
     }
 
     #[test]
