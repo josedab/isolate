@@ -82,6 +82,7 @@ pub mod proto {
 
 use proto::isolate_service_server::IsolateServiceServer;
 use service::IsolateServiceImpl;
+use isolate_core::dashboard::DashboardState;
 
 /// Isolate gRPC Server
 #[derive(Parser, Debug)]
@@ -138,16 +139,16 @@ struct Args {
     no_tracing: bool,
 }
 
-/// HTTP health check handler
+/// HTTP health check and dashboard API handler.
 async fn health_handler(
     req: Request<hyper::body::Incoming>,
     service_healthy: Arc<std::sync::atomic::AtomicBool>,
+    dashboard: Arc<DashboardState>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let path = req.uri().path();
 
     let response = match path {
         "/healthz" | "/health" | "/livez" => {
-            // Liveness probe - always return OK if the server is running
             Response::builder()
                 .status(StatusCode::OK)
                 .header("Content-Type", "application/json")
@@ -155,7 +156,6 @@ async fn health_handler(
                 .unwrap()
         }
         "/readyz" | "/ready" => {
-            // Readiness probe - check if service is ready to accept traffic
             if service_healthy.load(std::sync::atomic::Ordering::Relaxed) {
                 Response::builder()
                     .status(StatusCode::OK)
@@ -170,6 +170,58 @@ async fn health_handler(
                     .unwrap()
             }
         }
+        "/api/dashboard/overview" => {
+            let overview = dashboard.overview();
+            let json = serde_json::to_string(&overview).unwrap_or_default();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .unwrap()
+        }
+        "/api/dashboard/sandboxes" => {
+            let sandboxes = dashboard.list_sandboxes();
+            let json = serde_json::to_string(&sandboxes).unwrap_or_default();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .unwrap()
+        }
+        "/api/dashboard/events" => {
+            let events = dashboard.recent_events(50);
+            let json = serde_json::to_string(&events).unwrap_or_default();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .unwrap()
+        }
+        _ if path.starts_with("/api/dashboard/sandboxes/") => {
+            let id_str = &path["/api/dashboard/sandboxes/".len()..];
+            match id_str.parse::<isolate_core::sandbox::SandboxId>() {
+                Ok(id) => match dashboard.get_sandbox(&id) {
+                    Some(sandbox) => {
+                        let json = serde_json::to_string(&sandbox).unwrap_or_default();
+                        Response::builder()
+                            .status(StatusCode::OK)
+                            .header("Content-Type", "application/json")
+                            .body(Full::new(Bytes::from(json)))
+                            .unwrap()
+                    }
+                    None => Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .header("Content-Type", "application/json")
+                        .body(Full::new(Bytes::from(r#"{"error":"sandbox not found"}"#)))
+                        .unwrap(),
+                },
+                Err(_) => Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .body(Full::new(Bytes::from(r#"{"error":"invalid sandbox id"}"#)))
+                    .unwrap(),
+            }
+        }
         _ => Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Full::new(Bytes::from("Not Found")))
@@ -179,18 +231,20 @@ async fn health_handler(
     Ok(response)
 }
 
-/// Run the HTTP health server
+/// Run the HTTP health and dashboard API server.
 async fn run_health_server(
     addr: SocketAddr,
     service_healthy: Arc<std::sync::atomic::AtomicBool>,
+    dashboard: Arc<DashboardState>,
 ) -> anyhow::Result<()> {
     let listener = TcpListener::bind(addr).await?;
-    tracing::info!(addr = %addr, "HTTP health endpoint started");
+    tracing::info!(addr = %addr, "HTTP health/dashboard endpoint started");
 
     loop {
         let (stream, _) = listener.accept().await?;
         let io = TokioIo::new(stream);
         let healthy = service_healthy.clone();
+        let dash = dashboard.clone();
 
         tokio::spawn(async move {
             if let Err(err) = http1::Builder::new()
@@ -198,7 +252,8 @@ async fn run_health_server(
                     io,
                     service_fn(move |req| {
                         let healthy = healthy.clone();
-                        health_handler(req, healthy)
+                        let dash = dash.clone();
+                        health_handler(req, healthy, dash)
                     }),
                 )
                 .await
@@ -305,13 +360,15 @@ async fn main() -> anyhow::Result<()> {
 
     // Create the service
     let service = IsolateServiceImpl::new(args.max_sandboxes);
+    let dashboard = service.dashboard();
 
     // Start HTTP health server if enabled
     if !args.no_health_http {
         let health_addr = args.health_addr;
         let healthy = service_healthy.clone();
+        let dash = dashboard.clone();
         tokio::spawn(async move {
-            if let Err(e) = run_health_server(health_addr, healthy).await {
+            if let Err(e) = run_health_server(health_addr, healthy, dash).await {
                 tracing::error!(error = %e, "HTTP health server failed");
             }
         });

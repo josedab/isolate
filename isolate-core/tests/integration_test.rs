@@ -527,3 +527,105 @@ async fn test_stdout_flood_with_io_limit() {
         }
     }
 }
+
+// ==================== Pipeline execute() tests ====================
+
+mod pipeline_tests {
+    use isolate_core::{
+        capability::Capability,
+        config::SandboxConfig,
+        engine::WasmEngine,
+        pipeline::{PipelineDefinition, Stage},
+    };
+    use std::sync::Arc;
+
+    const RUNNABLE_WASM: &[u8] = include_bytes!("fixtures/minimal.wasm");
+    const HELLO_WASM: &[u8] = include_bytes!("fixtures/hello.wasm");
+
+    #[tokio::test]
+    async fn test_pipeline_execute_single_stage() {
+        let engine = Arc::new(WasmEngine::new().unwrap());
+
+        let config = SandboxConfig::builder()
+            .module(RUNNABLE_WASM)
+            .unwrap()
+            .fuel(1_000_000)
+            .build()
+            .unwrap();
+
+        let pipeline = PipelineDefinition::builder()
+            .stage(Stage::new("run", config))
+            .build()
+            .unwrap();
+
+        let result = pipeline.execute(engine, &[]).await.unwrap();
+        assert!(result.success);
+        assert_eq!(result.stage_results.len(), 1);
+        assert_eq!(result.stage_results[0].stage_id.0, "run");
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_execute_chained_stages() {
+        let engine = Arc::new(WasmEngine::new().unwrap());
+
+        let config_a = SandboxConfig::builder()
+            .module(HELLO_WASM)
+            .unwrap()
+            .fuel(1_000_000)
+            .capability(Capability::stdout())
+            .build()
+            .unwrap();
+
+        let config_b = SandboxConfig::builder()
+            .module(RUNNABLE_WASM)
+            .unwrap()
+            .fuel(1_000_000)
+            .build()
+            .unwrap();
+
+        let pipeline = PipelineDefinition::builder()
+            .stage(Stage::new("hello", config_a))
+            .stage(Stage::new("finish", config_b))
+            .chain("hello", "finish")
+            .build()
+            .unwrap();
+
+        let result = pipeline.execute(engine, &[]).await.unwrap();
+        assert!(result.success);
+        assert_eq!(result.stage_results.len(), 2);
+        assert!(result.total_duration.as_millis() > 0);
+    }
+
+    #[tokio::test]
+    async fn test_pipeline_execute_stage_failure_stops() {
+        let engine = Arc::new(WasmEngine::new().unwrap());
+        let exit42_wasm = include_bytes!("fixtures/exit_42.wasm");
+
+        let config_fail = SandboxConfig::builder()
+            .module(exit42_wasm.as_slice())
+            .unwrap()
+            .fuel(1_000_000)
+            .build()
+            .unwrap();
+
+        let config_ok = SandboxConfig::builder()
+            .module(RUNNABLE_WASM)
+            .unwrap()
+            .fuel(1_000_000)
+            .build()
+            .unwrap();
+
+        let pipeline = PipelineDefinition::builder()
+            .stage(Stage::new("fail", config_fail))
+            .stage(Stage::new("should_not_run", config_ok))
+            .chain("fail", "should_not_run")
+            .build()
+            .unwrap();
+
+        let result = pipeline.execute(engine, &[]).await.unwrap();
+        assert!(!result.success);
+        assert!(result.failed_stage.is_some());
+        // Second stage should not have executed
+        assert_eq!(result.stage_results.len(), 1);
+    }
+}

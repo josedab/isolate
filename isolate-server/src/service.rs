@@ -11,6 +11,7 @@ use crate::proto::{
 use isolate_core::{
     capability::Capability, engine::WasmEngine, metrics::global_registry, Sandbox, SandboxConfig,
 };
+use isolate_core::dashboard::DashboardState;
 
 use dashmap::DashMap;
 use std::sync::Arc;
@@ -29,6 +30,8 @@ pub struct IsolateServiceImpl {
     semaphore: Arc<Semaphore>,
     /// Maximum sandboxes.
     max_sandboxes: usize,
+    /// Dashboard state (shared with HTTP endpoints).
+    dashboard: Arc<DashboardState>,
 }
 
 impl IsolateServiceImpl {
@@ -39,7 +42,13 @@ impl IsolateServiceImpl {
             sandboxes: DashMap::new(),
             semaphore: Arc::new(Semaphore::new(max_sandboxes)),
             max_sandboxes,
+            dashboard: Arc::new(DashboardState::new(1000)),
         }
+    }
+
+    /// Get a shared reference to the dashboard state.
+    pub fn dashboard(&self) -> Arc<DashboardState> {
+        self.dashboard.clone()
     }
 
     /// Parse capabilities from proto.
@@ -164,26 +173,30 @@ impl IsolateService for IsolateServiceImpl {
             .await
             .map_err(|e| Status::internal(format!("Failed to create sandbox: {}", e)))?;
 
-        let sandbox_id = sandbox.id().to_string();
+        let sandbox_id = sandbox.id();
+        let sandbox_id_str = sandbox_id.to_string();
         let module_hash = sandbox.module_hash().to_string();
         let creation_time = start.elapsed();
 
         // Record span attributes
-        Span::current().record("sandbox.id", &sandbox_id);
+        Span::current().record("sandbox.id", &sandbox_id_str);
         Span::current().record("sandbox.module_hash", &module_hash);
 
         // Store sandbox
-        self.sandboxes.insert(sandbox_id.clone(), Arc::new(tokio::sync::Mutex::new(sandbox)));
+        self.sandboxes.insert(sandbox_id_str.clone(), Arc::new(tokio::sync::Mutex::new(sandbox)));
+
+        // Track in dashboard
+        self.dashboard.register_sandbox(sandbox_id, module_hash.clone());
 
         tracing::info!(
-            sandbox_id = %sandbox_id,
+            sandbox_id = %sandbox_id_str,
             module_hash = %module_hash,
             creation_time_ms = creation_time.as_secs_f64() * 1000.0,
             "Sandbox created via gRPC"
         );
 
         Ok(Response::new(CreateSandboxResponse {
-            sandbox_id,
+            sandbox_id: sandbox_id_str,
             module_hash,
             creation_time_ms: creation_time.as_secs_f64() * 1000.0,
         }))
@@ -221,6 +234,15 @@ impl IsolateService for IsolateServiceImpl {
 
         // Record execution results in span
         Span::current().record("sandbox.exit_code", output.exit_code);
+
+        // Track in dashboard
+        let sandbox_id_parsed = guard.id();
+        self.dashboard.record_run(
+            &sandbox_id_parsed,
+            output.duration,
+            output.resource_usage.clone(),
+            output.exit_code == 0,
+        );
         tracing::info!(
             sandbox_id = %req.sandbox_id,
             exit_code = output.exit_code,
@@ -296,12 +318,17 @@ impl IsolateService for IsolateServiceImpl {
             .ok_or_else(|| Status::not_found("Sandbox not found"))?;
 
         let mut guard = sandbox.1.lock().await;
+        let sandbox_uuid = guard.id();
         let metrics = guard
             .terminate()
             .await
             .map_err(|e| Status::internal(format!("Failed to terminate: {}", e)))?;
 
         tracing::info!(sandbox_id = %req.sandbox_id, "Sandbox terminated via gRPC");
+
+        // Track in dashboard
+        self.dashboard.update_state(&sandbox_uuid, isolate_core::sandbox::SandboxState::Terminated);
+        self.dashboard.remove_sandbox(&sandbox_uuid);
 
         Ok(Response::new(TerminateSandboxResponse {
             terminated: true,

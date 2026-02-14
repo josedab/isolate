@@ -33,6 +33,15 @@
 - [WASM Engine](./internals/wasm-engine.md)
 - [Capability System](./internals/capability-system.md)
 
+# Reference Architectures
+
+- [Overview](./reference-architectures/README.md)
+- [Serverless FaaS Platform](./reference-architectures/faas-platform.md)
+- [SaaS Plugin System](./reference-architectures/saas-plugins.md)
+- [Edge Compute](./reference-architectures/edge-compute.md)
+- [CI/CD Secure Runner](./reference-architectures/cicd-runner.md)
+- [Multi-Tenant Analytics](./reference-architectures/analytics-udfs.md)
+
 ---
 
 [Contributing](./contributing.md)
