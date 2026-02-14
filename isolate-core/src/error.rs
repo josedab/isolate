@@ -491,4 +491,142 @@ mod tests {
         assert!(cap.is_capability_error());
         assert!(!cap.is_resource_limit());
     }
+
+    #[test]
+    fn test_engine_error() {
+        let err = Error::Engine("wasmtime internal failure".into());
+        assert_eq!(format!("{}", err), "Internal engine error: wasmtime internal failure");
+        assert!(err.suggestion().is_some());
+        assert!(!err.is_timeout());
+        assert!(!err.is_resource_limit());
+        assert!(!err.is_capability_error());
+    }
+
+    #[test]
+    fn test_module_validation_error() {
+        let err = Error::ModuleValidation("invalid section layout".into());
+        assert_eq!(format!("{}", err), "Module validation failed: invalid section layout");
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_function_not_found_error() {
+        let err = Error::FunctionNotFound("_start".into());
+        assert_eq!(format!("{}", err), "Function not found: _start");
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_invalid_signature_error() {
+        let err = Error::InvalidSignature {
+            name: "main".into(),
+            expected: "() -> ()".into(),
+            actual: "(i32) -> i32".into(),
+        };
+        let msg = format!("{}", err);
+        assert!(msg.contains("main"));
+        assert!(msg.contains("() -> ()"));
+        assert!(msg.contains("(i32) -> i32"));
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_http_error() {
+        let err = Error::Http("connection refused".into());
+        assert_eq!(format!("{}", err), "HTTP error: connection refused");
+        assert!(err.is_http_error());
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_kv_store_error() {
+        let err = Error::KvStore("quota exceeded".into());
+        assert_eq!(format!("{}", err), "KV store error: quota exceeded");
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_gateway_error() {
+        let err = Error::Gateway("route not found".into());
+        assert_eq!(format!("{}", err), "Gateway error: route not found");
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_marketplace_error() {
+        let err = Error::Marketplace("module not found".into());
+        assert_eq!(format!("{}", err), "Marketplace error: module not found");
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_orchestrator_error() {
+        let err = Error::Orchestrator("scheduler overloaded".into());
+        assert_eq!(format!("{}", err), "Orchestrator error: scheduler overloaded");
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_policy_error() {
+        let err = Error::Policy("deny rule matched".into());
+        assert_eq!(format!("{}", err), "Policy error: deny rule matched");
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_pool_exhausted_error() {
+        let err = Error::PoolExhausted;
+        assert_eq!(format!("{}", err), "Warm pool exhausted, no available sandboxes");
+        assert!(err.suggestion().is_some());
+    }
+
+    #[test]
+    fn test_io_error_from_conversion() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file missing");
+        let err: Error = io_err.into();
+        assert!(matches!(err, Error::Io { .. }));
+        let msg = format!("{}", err);
+        assert!(msg.contains("file missing"));
+    }
+
+    #[test]
+    fn test_all_errors_have_suggestions() {
+        let errors: Vec<Error> = vec![
+            Error::Create("test".into()),
+            Error::Compilation("test".into()),
+            Error::Instantiation("test".into()),
+            Error::Execution("test".into()),
+            Error::Timeout(Duration::from_secs(1)),
+            Error::FuelExhausted { limit: 100 },
+            Error::MemoryLimitExceeded { limit: 1024, requested: 2048 },
+            Error::CapabilityDenied(Capability::stdout()),
+            Error::InvalidCapability("test".into()),
+            Error::InvalidConfig("test".into()),
+            Error::InvalidState { expected: "Running".into(), actual: "Terminated".into() },
+            Error::Snapshot("test".into()),
+            Error::SnapshotNotFound("snap-1".into()),
+            Error::Io { source: std::io::Error::new(std::io::ErrorKind::Other, "test") },
+            Error::FilesystemAccessDenied { path: PathBuf::from("/etc") },
+            Error::NetworkAccessDenied { host: "evil.com".into() },
+            Error::Engine("test".into()),
+            Error::ModuleValidation("test".into()),
+            Error::FunctionNotFound("_start".into()),
+            Error::InvalidSignature { name: "f".into(), expected: "a".into(), actual: "b".into() },
+            Error::PoolExhausted,
+            Error::Http("test".into()),
+            Error::KvStore("test".into()),
+            Error::Policy("test".into()),
+            Error::Gateway("test".into()),
+            Error::Orchestrator("test".into()),
+            Error::Marketplace("test".into()),
+        ];
+
+        for err in &errors {
+            assert!(
+                err.suggestion().is_some(),
+                "Error variant {:?} should have a suggestion",
+                err
+            );
+        }
+    }
 }
