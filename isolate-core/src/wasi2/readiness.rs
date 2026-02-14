@@ -45,8 +45,8 @@ impl InterfaceStability {
             "wasi:io/streams" | "wasi:io/poll" => StabilityLevel::Stable,
             "wasi:sockets/tcp" | "wasi:sockets/udp" => StabilityLevel::Preview,
             "wasi:sockets/ip-name-lookup" => StabilityLevel::Preview,
-            "wasi:http/types" | "wasi:http/outgoing-handler" => StabilityLevel::Preview,
-            "wasi:http/incoming-handler" => StabilityLevel::Experimental,
+            "wasi:http/types" | "wasi:http/outgoing-handler" => StabilityLevel::Stable,
+            "wasi:http/incoming-handler" => StabilityLevel::Preview,
             "wasi:keyvalue/store" | "wasi:keyvalue/batch" => StabilityLevel::Experimental,
             _ => StabilityLevel::Experimental,
         }
@@ -189,7 +189,7 @@ mod tests {
     fn test_readiness_assessment_experimental() {
         let interfaces = vec![
             "wasi:cli/stdout".to_string(),
-            "wasi:http/incoming-handler".to_string(),
+            "wasi:keyvalue/store".to_string(),
         ];
         let assessment = ReadinessAssessment::evaluate(&interfaces);
         assert!(!assessment.is_production_ready);
