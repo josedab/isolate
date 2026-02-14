@@ -202,6 +202,128 @@ pub enum DashboardEvent {
         duration: Duration,
         success: bool,
     },
+    /// An alert was triggered.
+    Alert {
+        level: AlertLevel,
+        message: String,
+    },
+}
+
+/// Alert severity levels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AlertLevel {
+    Info,
+    Warning,
+    Critical,
+}
+
+/// Configurable alert thresholds.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertThresholds {
+    /// Max active sandboxes before warning.
+    pub max_active_sandboxes: u64,
+    /// Max failure rate (0.0 – 1.0) before critical alert.
+    pub max_failure_rate: f64,
+    /// Max average execution duration before warning.
+    pub max_avg_duration_ms: u64,
+}
+
+impl Default for AlertThresholds {
+    fn default() -> Self {
+        Self {
+            max_active_sandboxes: 500,
+            max_failure_rate: 0.1,
+            max_avg_duration_ms: 5_000,
+        }
+    }
+}
+
+impl DashboardState {
+    /// Check current state against alert thresholds and emit events.
+    pub fn check_alerts(&self, thresholds: &AlertThresholds) {
+        let overview = self.overview();
+
+        if overview.active_sandboxes as u64 > thresholds.max_active_sandboxes {
+            self.push_event(DashboardEvent::Alert {
+                level: AlertLevel::Warning,
+                message: format!(
+                    "Active sandbox count ({}) exceeds threshold ({})",
+                    overview.active_sandboxes, thresholds.max_active_sandboxes
+                ),
+            });
+        }
+
+        let total_runs = overview.total_completed + overview.total_failed;
+        if total_runs > 0 {
+            let failure_rate = overview.total_failed as f64 / total_runs as f64;
+            if failure_rate > thresholds.max_failure_rate {
+                self.push_event(DashboardEvent::Alert {
+                    level: AlertLevel::Critical,
+                    message: format!(
+                        "Failure rate ({:.1}%) exceeds threshold ({:.1}%)",
+                        failure_rate * 100.0,
+                        thresholds.max_failure_rate * 100.0
+                    ),
+                });
+            }
+        }
+    }
+
+    /// Export the full dashboard state as a JSON string.
+    pub fn export_json(&self) -> String {
+        let overview = self.overview();
+        let sandboxes = self.list_sandboxes();
+
+        let export = serde_json::json!({
+            "overview": overview,
+            "sandboxes": sandboxes,
+            "uptime_secs": self.started_at.elapsed().as_secs(),
+        });
+
+        serde_json::to_string_pretty(&export).unwrap_or_default()
+    }
+
+    /// Get resource usage summary across all tracked sandboxes.
+    pub fn resource_summary(&self) -> ResourceSummary {
+        let mut total_fuel = 0u64;
+        let mut total_memory = 0u64;
+        let mut total_io_read = 0u64;
+        let mut total_io_write = 0u64;
+        let mut count = 0u64;
+
+        for entry in self.sandboxes.iter() {
+            if let Some(ref usage) = entry.value().resource_usage {
+                total_fuel += usage.fuel_consumed;
+                total_memory += usage.peak_memory as u64;
+                total_io_read += usage.bytes_read;
+                total_io_write += usage.bytes_written;
+                count += 1;
+            }
+        }
+
+        ResourceSummary {
+            sandbox_count: count,
+            total_fuel_consumed: total_fuel,
+            total_peak_memory: total_memory,
+            total_bytes_read: total_io_read,
+            total_bytes_written: total_io_write,
+            avg_fuel: if count > 0 { total_fuel / count } else { 0 },
+            avg_memory: if count > 0 { total_memory / count } else { 0 },
+        }
+    }
+}
+
+/// Aggregate resource usage summary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceSummary {
+    pub sandbox_count: u64,
+    pub total_fuel_consumed: u64,
+    pub total_peak_memory: u64,
+    pub total_bytes_read: u64,
+    pub total_bytes_written: u64,
+    pub avg_fuel: u64,
+    pub avg_memory: u64,
 }
 
 #[cfg(test)]
@@ -320,5 +442,95 @@ mod tests {
 
         dashboard.remove_sandbox(&id);
         assert!(dashboard.get_sandbox(&id).is_none());
+    }
+
+    #[test]
+    fn test_alert_thresholds_active_sandboxes() {
+        let dashboard = DashboardState::new(100);
+        let thresholds = AlertThresholds {
+            max_active_sandboxes: 1,
+            ..AlertThresholds::default()
+        };
+
+        let id1 = SandboxId::new();
+        let id2 = SandboxId::new();
+        dashboard.register_sandbox(id1, "h".to_string());
+        dashboard.register_sandbox(id2, "h".to_string());
+        dashboard.update_state(&id1, SandboxState::Running);
+        dashboard.update_state(&id2, SandboxState::Running);
+
+        dashboard.check_alerts(&thresholds);
+
+        let events = dashboard.recent_events(100);
+        let alert_events: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, DashboardEvent::Alert { .. }))
+            .collect();
+        assert!(!alert_events.is_empty());
+    }
+
+    #[test]
+    fn test_alert_failure_rate() {
+        let dashboard = DashboardState::new(100);
+        let thresholds = AlertThresholds {
+            max_failure_rate: 0.1,
+            ..AlertThresholds::default()
+        };
+
+        let id = SandboxId::new();
+        dashboard.register_sandbox(id, "h".to_string());
+        // 5 failures, 0 successes → 100% failure rate
+        for _ in 0..5 {
+            dashboard.record_run(&id, Duration::from_millis(10), ResourceUsage::default(), false);
+        }
+
+        dashboard.check_alerts(&thresholds);
+
+        let events = dashboard.recent_events(100);
+        let critical: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, DashboardEvent::Alert { level: AlertLevel::Critical, .. }))
+            .collect();
+        assert!(!critical.is_empty());
+    }
+
+    #[test]
+    fn test_export_json() {
+        let dashboard = DashboardState::new(100);
+        let id = SandboxId::new();
+        dashboard.register_sandbox(id, "hash".to_string());
+
+        let json = dashboard.export_json();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(parsed["overview"]["total_sandboxes"].as_u64().unwrap() >= 1);
+    }
+
+    #[test]
+    fn test_resource_summary_empty() {
+        let dashboard = DashboardState::new(100);
+        let summary = dashboard.resource_summary();
+        assert_eq!(summary.sandbox_count, 0);
+        assert_eq!(summary.avg_fuel, 0);
+    }
+
+    #[test]
+    fn test_resource_summary_with_data() {
+        let dashboard = DashboardState::new(100);
+        let id = SandboxId::new();
+        dashboard.register_sandbox(id, "h".to_string());
+
+        let usage = ResourceUsage {
+            fuel_consumed: 1000,
+            peak_memory: 2048,
+            bytes_read: 100,
+            bytes_written: 50,
+            ..ResourceUsage::default()
+        };
+        dashboard.record_run(&id, Duration::from_millis(10), usage, true);
+
+        let summary = dashboard.resource_summary();
+        assert_eq!(summary.sandbox_count, 1);
+        assert_eq!(summary.total_fuel_consumed, 1000);
+        assert_eq!(summary.total_peak_memory, 2048);
     }
 }
