@@ -43,6 +43,7 @@
 #![allow(dead_code)]
 
 mod runtime;
+pub mod module_system;
 pub mod transpiler;
 
 pub use runtime::{
