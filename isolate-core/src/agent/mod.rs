@@ -49,6 +49,7 @@ mod tools;
 pub mod trace;
 mod types;
 pub mod function_calling;
+pub mod guardrails;
 pub mod protocol;
 
 pub use session::{AgentSession, ExecutionRecord};
@@ -68,4 +69,8 @@ pub use function_calling::{
 pub use protocol::{
     BudgetEnforcer, BudgetViolation, JsonSchema, JsonSchemaType, ProtocolMessage,
     ProtocolValidator, ValidationError,
+};
+pub use guardrails::{
+    ChainDepthTracker, ContentFilter, GuardrailConfig, ProviderConfig, ProviderType,
+    SessionRateLimiter, ViolationKind,
 };
