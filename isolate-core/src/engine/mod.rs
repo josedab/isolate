@@ -3,11 +3,17 @@
 //! This module provides the core WASM execution capabilities using Wasmtime.
 
 mod capture;
+pub mod event_stream;
 mod host;
 pub mod host_sdk;
+pub mod multi_tenant;
 pub mod plugin_api;
 pub mod pre_initialized;
+pub mod registry;
 pub mod streaming;
+pub mod triggers;
+pub mod scheduler;
+pub mod toolchain;
 mod wasm;
 
 pub use capture::{
