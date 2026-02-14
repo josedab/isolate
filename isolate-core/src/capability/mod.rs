@@ -69,6 +69,7 @@
 mod audit;
 pub mod designer;
 mod enforcer;
+pub mod policy_engine;
 mod types;
 
 pub use audit::{AuditEvent, AuditLog};

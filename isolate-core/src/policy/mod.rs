@@ -42,6 +42,7 @@ pub mod dashboard;
 mod engine;
 pub mod evaluator;
 mod rules;
+pub mod yaml_parser;
 
 pub use bundle::{
     BundleError, BundleEvent, BundleEventType, BundleManager, DryRunResult, PolicyBundle,
