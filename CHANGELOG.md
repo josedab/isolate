@@ -7,28 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2024-12-29
+### Added
+
+- Language profiles for multi-language WASM support
+- Sandbox profiles for reusable configuration presets
+
+## [0.1.0] - 2025-01-XX
 
 ### Added
 
-- Initial release of Isolate sandbox runtime
-- Core sandbox execution with Wasmtime 27
-- WASI preview1 support for standard I/O operations
+- WASM sandbox execution with Wasmtime 27
 - Capability-based security system
   - Filesystem read/write capabilities with path restrictions
   - Network capabilities (HTTP, TCP, DNS)
   - Environment variable access control
   - Clock and timer capabilities
-- Resource limit enforcement
+- Resource limits enforcement
   - Memory limits via Wasmtime StoreLimits
   - CPU time limits via fuel metering
   - I/O bandwidth limits with metering
-  - Execution timeout via epoch interruption
+- Epoch-based timeout interruption (10ms tick interval)
+- Language profiles for multi-language WASM compilation targets
+- Sandbox profiles for reusable sandbox configurations
+- WASI Preview 1 support for standard I/O operations
+- gRPC server (`isolate-server`)
+- Command-line interface (`isolate-cli`)
 - Audit logging for security-relevant operations
 - Prometheus metrics integration
 - OpenTelemetry tracing support
-- gRPC server (`isolate-server`)
-- Command-line interface (`isolate-cli`)
 - Python bindings (`isolate-python`)
 
 ### Experimental

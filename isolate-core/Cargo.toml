@@ -1,14 +1,15 @@
 [package]
 name = "isolate-core"
-description = "Secure sandbox runtime for executing untrusted WASM code"
+description = "Secure sandbox runtime for executing untrusted WebAssembly code with capability-based security"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-keywords = ["wasm", "sandbox", "isolation", "security", "runtime"]
-categories = ["wasm", "development-tools"]
+readme = "../README.md"
+keywords = ["wasm", "sandbox", "security", "isolation", "webassembly"]
+categories = ["wasm", "web-programming"]
 
 [features]
 default = []
@@ -138,4 +139,8 @@ harness = false
 
 [[bench]]
 name = "coldstart"
+harness = false
+
+[[bench]]
+name = "pre_initialized"
 harness = false
