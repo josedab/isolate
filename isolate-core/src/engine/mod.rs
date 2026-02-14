@@ -7,7 +7,10 @@ mod host;
 pub mod streaming;
 mod wasm;
 
-pub use capture::{new_capture_buffer, CaptureBuffer, CaptureStream, NullStream};
+pub use capture::{
+    new_capture_buffer, CaptureBuffer, CaptureStream, NullStream, OutputChunk, OutputSource,
+    StreamingCaptureStream,
+};
 pub use host::{HostFunctions, HostState};
 pub use streaming::{
     channel, ChannelError, GuestHalf, HostHalf, RingReader, RingWriter, StreamingChannel,

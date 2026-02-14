@@ -536,6 +536,120 @@ impl Sandbox {
         Ok(self.metrics.clone())
     }
 
+    /// Run the sandbox with real-time streaming output.
+    ///
+    /// Returns a receiver that yields [`OutputChunk`]s as they are produced,
+    /// plus a join handle that resolves to the final [`Output`].
+    ///
+    /// `buffer_size` controls the channel capacity (back-pressure threshold).
+    pub async fn run_streaming(
+        &mut self,
+        input: &[u8],
+        buffer_size: usize,
+    ) -> Result<(
+        tokio::sync::mpsc::Receiver<crate::engine::OutputChunk>,
+        tokio::task::JoinHandle<Result<Output>>,
+    )> {
+        use crate::engine::OutputChunk;
+
+        self.ensure_state(SandboxState::Ready)?;
+
+        if let Some(ref limiter) = self.rate_limiter {
+            limiter.try_acquire()?;
+        }
+
+        self.state = SandboxState::Running;
+
+        let (tx, rx) = tokio::sync::mpsc::channel::<OutputChunk>(buffer_size.max(1));
+        let sender = std::sync::Arc::new(tx);
+
+        let input_data = if input.is_empty() { None } else { Some(input.to_vec()) };
+
+        let mut instance = self.engine.instantiate_streaming(
+            &self.compiled,
+            &self.config,
+            self.enforcer.clone(),
+            self.meter.clone(),
+            input_data,
+            sender,
+        )?;
+
+        const EPOCH_TICK_INTERVAL: Duration = Duration::from_millis(10);
+        let epoch_ticker_handle = if let Some(timeout) = self.config.resources.time.wall_time {
+            let epochs_until_timeout =
+                (timeout.as_millis() / EPOCH_TICK_INTERVAL.as_millis()).max(1) as u64;
+            instance.set_epoch_deadline(epochs_until_timeout);
+
+            let engine = self.engine.clone();
+            let cancel_token = tokio_util::sync::CancellationToken::new();
+            let token_clone = cancel_token.clone();
+            let handle = tokio::spawn(async move {
+                let mut interval = tokio::time::interval(EPOCH_TICK_INTERVAL);
+                loop {
+                    tokio::select! {
+                        _ = token_clone.cancelled() => break,
+                        _ = interval.tick() => engine.increment_epoch(),
+                    }
+                }
+            });
+            Some((handle, cancel_token))
+        } else {
+            None
+        };
+
+        let meter = self.meter.clone();
+        let mut metrics = self.metrics.clone();
+        let id = self.id;
+        let rate_limiter = self.rate_limiter.clone();
+
+        let join = tokio::task::spawn_blocking(move || {
+            let start = Instant::now();
+            metrics.record_run_start();
+
+            let result = instance.run();
+
+            if let Some((handle, cancel_token)) = epoch_ticker_handle {
+                cancel_token.cancel();
+                // Best-effort wait; the handle will be dropped anyway
+                drop(handle);
+            }
+
+            let duration = start.elapsed();
+
+            match result {
+                Ok(exec_result) => {
+                    metrics.record_run_complete(duration, true);
+                    if let Some(fuel) = exec_result.fuel_consumed {
+                        let _ = meter.record_fuel(fuel);
+                    }
+                    if let Some(ref limiter) = rate_limiter {
+                        limiter.record_execution();
+                        let total_bytes =
+                            exec_result.stdout.len() as u64 + exec_result.stderr.len() as u64;
+                        let _ = limiter.record_bandwidth(total_bytes);
+                    }
+                    tracing::info!(sandbox_id = %id, exit_code = exec_result.exit_code, "Streaming execution completed");
+                    Ok(Output {
+                        exit_code: exec_result.exit_code,
+                        stdout: exec_result.stdout,
+                        stderr: exec_result.stderr,
+                        duration,
+                        resource_usage: meter.usage(),
+                    })
+                }
+                Err(e) => {
+                    metrics.record_run_complete(duration, false);
+                    Err(e)
+                }
+            }
+        });
+
+        // Mark as terminated once the task is spawned (caller owns the handle)
+        self.state = SandboxState::Terminated;
+
+        Ok((rx, join))
+    }
+
     /// Ensure the sandbox is in the expected state.
     fn ensure_state(&self, expected: SandboxState) -> Result<()> {
         if self.state != expected {
