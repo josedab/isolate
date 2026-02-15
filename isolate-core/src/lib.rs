@@ -150,21 +150,48 @@
 //! - `full` - Enable all features
 
 // Core modules (always available)
+pub mod ai_sandbox;
+pub mod autoscale;
+pub mod benchmark;
+pub mod billing;
 pub mod capability;
+pub mod cloud_cost;
 pub mod coldstart;
+pub mod compliance;
 pub mod config;
 pub mod dashboard;
+pub mod dashboard_api;
+pub mod deploy;
 pub mod engine;
 pub mod error;
+pub mod federation;
+pub mod georep;
+pub mod graphql_schema;
+pub mod hot_reload;
 pub mod metrics;
+pub mod module_registry;
+pub mod observability;
+pub mod oci_registry;
 pub mod pipeline;
+pub mod playground;
+pub mod policy_builder;
+pub mod policy_file;
 pub mod policy_gen;
+pub mod policy_lang;
 pub mod profile;
 pub mod ratelimit;
+pub mod replay;
 pub mod resource;
 pub mod rpc;
 pub mod sandbox;
+pub mod sandbox_kv;
+pub mod sandbox_profile;
 pub mod stability;
+pub mod tracing_ctx;
+pub mod transpiler;
+pub mod version;
+pub mod wasm_analytics;
+pub mod workflow_engine;
 
 // Optional module groups (enabled via feature flags)
 #[cfg(feature = "pool")]
@@ -200,7 +227,6 @@ pub mod iac;
 pub mod ipc;
 #[cfg(feature = "platform")]
 pub mod kv;
-#[cfg(feature = "platform")]
 pub mod marketplace;
 #[cfg(feature = "platform")]
 pub mod orchestrator;
@@ -272,3 +298,4 @@ pub use config::{SandboxConfig, SandboxConfigBuilder};
 pub use error::{Error, Result};
 pub use profile::LanguageProfile;
 pub use sandbox::{Output, Sandbox, SandboxId, SandboxState};
+pub use sandbox_profile::SandboxProfile;
