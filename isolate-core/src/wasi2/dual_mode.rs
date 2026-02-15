@@ -372,6 +372,71 @@ impl Default for ComponentSettings {
     }
 }
 
+/// A sandbox that automatically detects WASI version and delegates to the
+/// appropriate engine (Preview 1 module or Preview 2 component).
+pub struct DualModeSandbox {
+    /// Detected WASI version.
+    version: WasiVersion,
+    /// The raw WASM bytes (kept for re-instantiation).
+    wasm_bytes: Vec<u8>,
+    /// Capabilities granted to this sandbox.
+    capabilities: CapabilitySet,
+    /// Resource limits.
+    resources: crate::resource::ResourceLimits,
+}
+
+impl DualModeSandbox {
+    /// Create a dual-mode sandbox by auto-detecting the WASM binary type.
+    pub fn new(
+        wasm_bytes: Vec<u8>,
+        capabilities: CapabilitySet,
+        resources: crate::resource::ResourceLimits,
+    ) -> Result<Self> {
+        let version = detect_wasi_version(&wasm_bytes);
+        if version == WasiVersion::Unknown {
+            return Err(Error::ModuleValidation(
+                "Cannot detect WASI version: invalid WASM binary".to_string(),
+            ));
+        }
+        Ok(Self { version, wasm_bytes, capabilities, resources })
+    }
+
+    /// Return the detected WASI version.
+    pub fn version(&self) -> WasiVersion {
+        self.version
+    }
+
+    /// Run the sandbox using the appropriate WASI implementation.
+    ///
+    /// For Preview 1 modules, delegates to `Sandbox::create/run`.
+    /// For Preview 2 components, delegates to `ComponentSandbox::create/run`.
+    pub async fn run(&self, input: &[u8]) -> Result<crate::sandbox::Output> {
+        match self.version {
+            WasiVersion::Preview1 => {
+                let mut builder = crate::SandboxConfig::builder()
+                    .module(&self.wasm_bytes)?;
+                for cap in self.capabilities.iter() {
+                    builder = builder.capability(cap.clone());
+                }
+                let config = builder.build()?;
+                let mut sb = crate::Sandbox::create(config).await?;
+                sb.run(input).await
+            }
+            WasiVersion::Preview2 => {
+                let config = super::context::ComponentConfig::builder()
+                    .component(&self.wasm_bytes)?
+                    .resources(self.resources.clone())
+                    .build()?;
+                let mut sb = super::component::ComponentSandbox::create(config).await?;
+                sb.run(input).await
+            }
+            WasiVersion::Unknown => Err(Error::ModuleValidation(
+                "Cannot run: unknown WASI version".to_string(),
+            )),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
