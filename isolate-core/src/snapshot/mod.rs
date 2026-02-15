@@ -43,12 +43,14 @@
 #![allow(dead_code)]
 
 pub mod auto_warm;
+pub mod checkout_pool;
 pub mod clone_pool;
 pub mod cow;
 pub mod live_migration;
 pub mod manager;
 pub mod orchestrator;
 mod pool;
+pub mod s3_store;
 pub mod serialization;
 pub mod storage;
 
