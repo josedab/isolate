@@ -35,11 +35,16 @@
 //! ```
 
 pub mod autoscale;
+pub mod billing;
+pub mod hierarchy;
+pub mod prewarm;
 mod quota;
 mod tenant;
 pub mod warm;
 
 pub use autoscale::{AutoScaleConfig, AutoScaleEvent, AutoScaleSnapshot, AutoScaler};
+pub use billing::{FairScheduler, ScheduleDecision, TenantUsageSummary, UsageMeter, UsageRecord};
+pub use prewarm::{PreWarmAction, PreWarmConfig, PreWarmDecision, PreWarmEngine, PreWarmStrategy};
 pub use quota::{QuotaError, ResourceUsage, TenantQuota};
 pub use tenant::{PoolConfig, PoolError, ResourceLease, ResourcePool, TenantId, TenantInfo};
 pub use warm::{
