@@ -10,6 +10,9 @@
 // Allow dead code until the feature stabilizes.
 #![allow(dead_code)]
 
+pub mod compliance;
+pub mod rotation;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
