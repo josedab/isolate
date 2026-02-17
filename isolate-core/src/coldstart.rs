@@ -417,4 +417,125 @@ mod tests {
         stats.misses.store(1, Ordering::Relaxed);
         assert!((stats.hit_rate() - 0.75).abs() < f64::EPSILON);
     }
+
+    #[test]
+    fn test_cache_hit_after_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PrecompileCache::new(dir.path().to_path_buf(), 10).unwrap();
+        let engine = WasmEngine::new().unwrap();
+
+        let wasm = wat::parse_str("(module)").unwrap();
+        let hash = cache.precompile(&engine, &wasm).unwrap();
+
+        // Should be a hit now
+        let module = cache.load(&engine, &hash).unwrap();
+        assert!(module.is_some());
+        assert_eq!(cache.stats().hits(), 1);
+        assert_eq!(cache.stats().misses(), 0);
+    }
+
+    #[test]
+    fn test_cache_miss_unknown_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PrecompileCache::new(dir.path().to_path_buf(), 10).unwrap();
+        let engine = WasmEngine::new().unwrap();
+
+        let hash = ModuleHash("totally_unknown_hash".to_string());
+        let result = cache.load(&engine, &hash).unwrap();
+        assert!(result.is_none());
+        assert_eq!(cache.stats().misses(), 1);
+    }
+
+    #[test]
+    fn test_lru_eviction_when_capacity_exceeded() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PrecompileCache::new(dir.path().to_path_buf(), 2).unwrap();
+        let engine = WasmEngine::new().unwrap();
+
+        // Insert 3 modules with capacity of 2
+        let wasm1 = wat::parse_str("(module)").unwrap();
+        let wasm2 = wat::parse_str("(module (func))").unwrap();
+        let wasm3 = wat::parse_str("(module (func) (func))").unwrap();
+
+        let _h1 = cache.precompile(&engine, &wasm1).unwrap();
+        let _h2 = cache.precompile(&engine, &wasm2).unwrap();
+        let _h3 = cache.precompile(&engine, &wasm3).unwrap();
+
+        // Memory cache should have evicted one entry
+        assert!(cache.len() <= 2);
+    }
+
+    #[test]
+    fn test_sha256_integrity_check_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PrecompileCache::new(dir.path().to_path_buf(), 10).unwrap();
+        let engine = WasmEngine::new().unwrap();
+
+        let wasm = wat::parse_str("(module)").unwrap();
+        let hash = cache.precompile(&engine, &wasm).unwrap();
+
+        // Corrupt the hash file
+        let hash_path = dir.path().join(format!("{}.sha256", &hash.0[..16]));
+        std::fs::write(&hash_path, "corrupted_hash_value").unwrap();
+
+        // Load should fail integrity check
+        let result = cache.load(&engine, &hash);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_corrupt_cwasm_deserialization() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PrecompileCache::new(dir.path().to_path_buf(), 10).unwrap();
+        let engine = WasmEngine::new().unwrap();
+
+        let wasm = wat::parse_str("(module)").unwrap();
+        let hash = cache.precompile(&engine, &wasm).unwrap();
+
+        // Corrupt the .cwasm file
+        let cwasm_path = dir.path().join(format!("{}.cwasm", &hash.0[..16]));
+        let corrupt_data = b"this is not valid cwasm data at all";
+        std::fs::write(&cwasm_path, corrupt_data).unwrap();
+
+        // Update hash file to match corrupt data so integrity check passes
+        let hash_path = dir.path().join(format!("{}.sha256", &hash.0[..16]));
+        let actual_hash = hex::encode(Sha256::digest(corrupt_data));
+        std::fs::write(&hash_path, &actual_hash).unwrap();
+
+        // Load should fail on deserialization
+        let result = cache.load(&engine, &hash);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cache_remove() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PrecompileCache::new(dir.path().to_path_buf(), 10).unwrap();
+        let engine = WasmEngine::new().unwrap();
+
+        let wasm = wat::parse_str("(module)").unwrap();
+        let hash = cache.precompile(&engine, &wasm).unwrap();
+        assert!(cache.contains(&hash));
+
+        cache.remove(&hash).unwrap();
+        assert!(!cache.contains(&hash));
+        assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn test_missing_hash_file_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PrecompileCache::new(dir.path().to_path_buf(), 10).unwrap();
+        let engine = WasmEngine::new().unwrap();
+
+        let wasm = wat::parse_str("(module)").unwrap();
+        let hash = cache.precompile(&engine, &wasm).unwrap();
+
+        // Remove hash file but keep .cwasm
+        let hash_path = dir.path().join(format!("{}.sha256", &hash.0[..16]));
+        std::fs::remove_file(&hash_path).unwrap();
+
+        let result = cache.load(&engine, &hash);
+        assert!(result.is_err());
+    }
 }
