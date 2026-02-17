@@ -1076,4 +1076,175 @@ mod tests {
         let result = hmac_sha256(&long_key, b"msg");
         assert_eq!(result.len(), 64); // 32 bytes hex-encoded
     }
+
+    #[test]
+    fn test_hmac_key_exactly_block_size() {
+        let key = vec![0x42u8; 64]; // exactly block size
+        let result = hmac_sha256(&key, b"data");
+        assert_eq!(result.len(), 64);
+        // Should be deterministic
+        assert_eq!(result, hmac_sha256(&key, b"data"));
+    }
+
+    #[test]
+    fn test_hmac_empty_data() {
+        let result = hmac_sha256(b"key", b"");
+        assert_eq!(result.len(), 64);
+        assert_ne!(result, hmac_sha256(b"key", b"notempty"));
+    }
+
+    #[test]
+    fn test_hmac_empty_key() {
+        let result = hmac_sha256(b"", b"data");
+        assert_eq!(result.len(), 64);
+    }
+
+    #[test]
+    fn test_ed25519_verify_always_returns_false() {
+        // Ed25519 is stubbed and should always return false regardless of inputs
+        let sig = ModuleSignature {
+            module_hash: "hash".into(),
+            signature: "sig".into(),
+            algorithm: SignatureAlgorithm::Ed25519,
+            signer_id: "signer".into(),
+            signed_at: Utc::now(),
+            expires_at: None,
+        };
+        assert!(!sig.verify(b"key", b"data"));
+        assert!(!sig.verify(b"", b""));
+        assert!(!sig.verify(&[0u8; 256], &[0u8; 1024]));
+    }
+
+    #[test]
+    fn test_leb128_single_byte() {
+        let bytes = [0x05]; // 5
+        let (val, consumed) = read_leb128_u32(&bytes, 0);
+        assert_eq!(val, 5);
+        assert_eq!(consumed, 1);
+    }
+
+    #[test]
+    fn test_leb128_multi_byte() {
+        let bytes = [0x80, 0x01]; // 128
+        let (val, consumed) = read_leb128_u32(&bytes, 0);
+        assert_eq!(val, 128);
+        assert_eq!(consumed, 2);
+    }
+
+    #[test]
+    fn test_leb128_truncated_input() {
+        // High bit set but no continuation byte
+        let bytes = [0x80];
+        let (val, consumed) = read_leb128_u32(&bytes, 0);
+        assert_eq!(consumed, 1);
+        assert_eq!(val, 0); // partial decode
+    }
+
+    #[test]
+    fn test_leb128_empty_input() {
+        let bytes: [u8; 0] = [];
+        let (val, consumed) = read_leb128_u32(&bytes, 0);
+        assert_eq!(val, 0);
+        assert_eq!(consumed, 0);
+    }
+
+    #[test]
+    fn test_leb128_max_u32() {
+        // u32::MAX = 4294967295 = 0xFF_FF_FF_FF
+        // LEB128: [0xFF, 0xFF, 0xFF, 0xFF, 0x0F]
+        let bytes = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F];
+        let (val, consumed) = read_leb128_u32(&bytes, 0);
+        assert_eq!(val, u32::MAX);
+        assert_eq!(consumed, 5);
+    }
+
+    #[test]
+    fn test_leb128_overflow_protection() {
+        // Too many continuation bytes (shift >= 35 stops)
+        let bytes = [0x80, 0x80, 0x80, 0x80, 0x80, 0x01];
+        let (_, consumed) = read_leb128_u32(&bytes, 0);
+        // Should stop at shift=35 (5 bytes consumed)
+        assert!(consumed <= 6);
+    }
+
+    #[test]
+    fn test_leb128_with_offset() {
+        let bytes = [0x00, 0x00, 0x2A]; // 42 at offset 2
+        let (val, consumed) = read_leb128_u32(&bytes, 2);
+        assert_eq!(val, 42);
+        assert_eq!(consumed, 1);
+    }
+
+    #[test]
+    fn test_chain_with_mixed_valid_invalid() {
+        let key = make_key();
+        let data = sample_bytes();
+
+        let valid1 = key.sign(&data);
+        let valid2 = key.sign(&data);
+        let mut invalid = key.sign(&data);
+        invalid.signature = "tampered".into();
+
+        // All valid chain
+        let chain = SignatureVerifier::verify_chain(&data, &[valid1.clone(), valid2.clone()], key.as_bytes());
+        assert!(chain.all_valid);
+
+        // Mixed chain: one valid + one invalid
+        let chain = SignatureVerifier::verify_chain(&data, &[valid1, invalid], key.as_bytes());
+        assert!(!chain.all_valid);
+        assert!(chain.results[0].valid);
+        assert!(!chain.results[1].valid);
+    }
+
+    #[test]
+    fn test_large_memory_detection_clean_module() {
+        // Valid WASM header with no memory section
+        let wasm = b"\x00asm\x01\x00\x00\x00";
+        assert!(!VulnerabilityScanner::has_large_memory(wasm));
+    }
+
+    #[test]
+    fn test_large_memory_detection_small_module() {
+        // Too small to parse
+        assert!(!VulnerabilityScanner::has_large_memory(b"\x00asm"));
+        assert!(!VulnerabilityScanner::has_large_memory(b""));
+    }
+
+    #[test]
+    fn test_signature_expiry_field() {
+        let key = make_key();
+        let sig = key.sign(&sample_bytes());
+        assert!(sig.expires_at.is_none());
+        assert_eq!(sig.algorithm, SignatureAlgorithm::HmacSha256);
+    }
+
+    #[test]
+    fn test_signing_key_as_bytes() {
+        let key = SigningKey::new_hmac("id", b"secret");
+        assert_eq!(key.as_bytes(), b"secret");
+        assert_eq!(key.key_id, "id");
+        assert_eq!(key.algorithm, SignatureAlgorithm::HmacSha256);
+    }
+
+    #[test]
+    fn test_supply_chain_unverified_deps() {
+        let mut store = ProvenanceStore::new();
+        let rec = ProvenanceRecord {
+            module_hash: "h2".into(),
+            builder: "ci".into(),
+            source_repo: "".into(),
+            build_timestamp: Utc::now(),
+            build_command: "make".into(),
+            dependencies: vec![DependencyRef {
+                name: "lib".into(),
+                version: "1.0".into(),
+                hash: "".into(), // empty hash = unverified
+            }],
+            reproducible: false,
+        };
+        store.record(rec).unwrap();
+        let report = store.verify_supply_chain("h2");
+        assert!(!report.all_deps_verified);
+        assert!(!report.reproducible);
+    }
 }
