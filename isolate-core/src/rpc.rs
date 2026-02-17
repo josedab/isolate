@@ -463,4 +463,170 @@ mod tests {
         stats.record_circuit_broken();
         assert_eq!(stats.calls_circuit_broken.load(Ordering::Relaxed), 1);
     }
+
+    #[test]
+    fn test_circuit_breaker_five_failures_opens() {
+        let cb = CircuitBreaker::new(CircuitBreakerConfig::default());
+        assert_eq!(cb.state(), CircuitState::Closed);
+
+        for _ in 0..5 {
+            cb.record_failure();
+        }
+        assert_eq!(cb.state(), CircuitState::Open);
+        assert!(!cb.allow_request());
+    }
+
+    #[test]
+    fn test_circuit_breaker_success_resets_failure_count() {
+        let cb = CircuitBreaker::new(CircuitBreakerConfig {
+            failure_threshold: 5,
+            ..Default::default()
+        });
+
+        // 4 failures then 1 success should reset
+        for _ in 0..4 {
+            cb.record_failure();
+        }
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitState::Closed);
+
+        // Need 5 fresh failures to open
+        for _ in 0..4 {
+            cb.record_failure();
+        }
+        assert_eq!(cb.state(), CircuitState::Closed);
+    }
+
+    #[test]
+    fn test_circuit_breaker_full_cycle() {
+        let cb = CircuitBreaker::new(CircuitBreakerConfig {
+            failure_threshold: 2,
+            open_duration: Duration::from_millis(10),
+            success_threshold: 1,
+        });
+
+        // Closed → Open
+        assert_eq!(cb.state(), CircuitState::Closed);
+        cb.record_failure();
+        cb.record_failure();
+        assert_eq!(cb.state(), CircuitState::Open);
+
+        // Open → HalfOpen (after timeout)
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(cb.allow_request());
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+
+        // HalfOpen → Closed (on success)
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitState::Closed);
+    }
+
+    #[test]
+    fn test_circuit_breaker_half_open_failure_reopens() {
+        let cb = CircuitBreaker::new(CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_millis(10),
+            success_threshold: 2,
+        });
+
+        // Trip to Open
+        cb.record_failure();
+        assert_eq!(cb.state(), CircuitState::Open);
+
+        // Wait for HalfOpen
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(cb.allow_request());
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+
+        // Failure in HalfOpen re-opens the circuit
+        cb.record_failure();
+        assert_eq!(cb.state(), CircuitState::Open);
+    }
+
+    #[test]
+    fn test_circuit_breaker_half_open_needs_threshold_successes() {
+        let cb = CircuitBreaker::new(CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_millis(10),
+            success_threshold: 3,
+        });
+
+        cb.record_failure();
+        std::thread::sleep(Duration::from_millis(20));
+        cb.allow_request(); // transition to HalfOpen
+
+        // 2 successes are not enough
+        cb.record_success();
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+
+        // 3rd success closes it
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitState::Closed);
+    }
+
+    #[test]
+    fn test_trace_context_to_traceparent_format() {
+        let ctx = TraceContext::new(
+            "0af7651916cd43dd8448eb211c80319c",
+            "b7ad6b7169203331",
+        );
+        let tp = ctx.to_traceparent();
+        // W3C format: version-trace_id-span_id-flags
+        assert!(tp.starts_with("00-"));
+        let parts: Vec<&str> = tp.split('-').collect();
+        assert_eq!(parts.len(), 4);
+        assert_eq!(parts[0], "00"); // version
+        assert_eq!(parts[1], "0af7651916cd43dd8448eb211c80319c");
+        assert_eq!(parts[2], "b7ad6b7169203331");
+        assert_eq!(parts[3], "01"); // sampled flag
+    }
+
+    #[test]
+    fn test_trace_context_unsampled() {
+        let mut ctx = TraceContext::new("abc", "def");
+        ctx.flags = 0;
+        assert!(!ctx.is_sampled());
+        assert!(ctx.to_traceparent().ends_with("-00"));
+    }
+
+    #[test]
+    fn test_registry_add_remove_lookup() {
+        let registry = RpcRegistry::new();
+        let id1 = SandboxId::new();
+        let id2 = SandboxId::new();
+
+        registry.register(id1, "svc-a".into());
+        registry.register(id2, "svc-b".into());
+        assert_eq!(registry.services().len(), 2);
+
+        assert_eq!(registry.resolve("svc-a"), Some(id1));
+        assert_eq!(registry.resolve("svc-b"), Some(id2));
+
+        registry.unregister("svc-a");
+        assert_eq!(registry.resolve("svc-a"), None);
+        assert_eq!(registry.resolve("svc-b"), Some(id2));
+        assert_eq!(registry.services().len(), 1);
+    }
+
+    #[test]
+    fn test_registry_overwrite() {
+        let registry = RpcRegistry::new();
+        let id1 = SandboxId::new();
+        let id2 = SandboxId::new();
+
+        registry.register(id1, "svc".into());
+        registry.register(id2, "svc".into());
+        assert_eq!(registry.resolve("svc"), Some(id2));
+        assert_eq!(registry.services().len(), 1);
+    }
+
+    #[test]
+    fn test_rpc_request_with_trace_context() {
+        let ctx = TraceContext::new("trace1", "span1");
+        let req = RpcRequest::new("svc", "method").with_trace_context(ctx);
+        assert!(req.trace_context.is_some());
+        let tc = req.trace_context.unwrap();
+        assert_eq!(tc.trace_id, "trace1");
+    }
 }
