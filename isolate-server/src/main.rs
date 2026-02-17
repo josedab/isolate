@@ -416,3 +416,137 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http_body_util::Empty;
+    use hyper::body::Bytes;
+
+    fn default_healthy() -> Arc<std::sync::atomic::AtomicBool> {
+        Arc::new(std::sync::atomic::AtomicBool::new(true))
+    }
+
+    fn default_dashboard() -> Arc<DashboardState> {
+        Arc::new(DashboardState::new(100))
+    }
+
+    /// Test the health handler by starting a real HTTP server and making requests.
+    async fn test_request(path: &str) -> (StatusCode, String) {
+        test_request_with(path, default_healthy(), default_dashboard()).await
+    }
+
+    async fn test_request_with(
+        path: &str,
+        healthy: Arc<std::sync::atomic::AtomicBool>,
+        dashboard: Arc<DashboardState>,
+    ) -> (StatusCode, String) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let h = healthy.clone();
+        let d = dashboard.clone();
+        tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let io = TokioIo::new(stream);
+            http1::Builder::new()
+                .serve_connection(
+                    io,
+                    service_fn(move |req| {
+                        let h = h.clone();
+                        let d = d.clone();
+                        health_handler(req, h, d)
+                    }),
+                )
+                .await
+                .unwrap();
+        });
+
+        let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let io = TokioIo::new(stream);
+        let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
+        tokio::spawn(conn);
+
+        let req = hyper::Request::builder()
+            .uri(path)
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let resp = sender.send_request(req).await.unwrap();
+        let status = resp.status();
+        let body_bytes = http_body_util::BodyExt::collect(resp.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
+        (status, String::from_utf8_lossy(&body_bytes).to_string())
+    }
+
+    #[tokio::test]
+    async fn test_healthz_returns_200() {
+        let (status, _) = test_request("/healthz").await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_health_alias_returns_200() {
+        let (status, _) = test_request("/health").await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_livez_returns_200() {
+        let (status, _) = test_request("/livez").await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_readyz_returns_200_when_healthy() {
+        let (status, _) = test_request("/readyz").await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_readyz_returns_503_when_not_healthy() {
+        let healthy = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let (status, _) = test_request_with("/readyz", healthy, default_dashboard()).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn test_unknown_path_returns_404() {
+        let (status, _) = test_request("/nonexistent").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_malformed_sandbox_id_returns_400() {
+        let (status, body) = test_request("/api/dashboard/sandboxes/not-a-valid-uuid").await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(body.contains("invalid sandbox id"));
+    }
+
+    #[tokio::test]
+    async fn test_nonexistent_sandbox_returns_404() {
+        let valid_uuid = uuid::Uuid::new_v4().to_string();
+        let path = format!("/api/dashboard/sandboxes/{}", valid_uuid);
+        let (status, _) = test_request(&path).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_dashboard_overview_returns_200() {
+        let (status, _) = test_request("/api/dashboard/overview").await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_dashboard_sandboxes_list_returns_200() {
+        let (status, _) = test_request("/api/dashboard/sandboxes").await;
+        assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_dashboard_events_returns_200() {
+        let (status, _) = test_request("/api/dashboard/events").await;
+        assert_eq!(status, StatusCode::OK);
+    }
+}
