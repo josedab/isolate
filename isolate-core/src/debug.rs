@@ -727,4 +727,162 @@ mod tests {
         assert_eq!(bps[0].line, 42);
         assert!(bps[0].verified);
     }
+
+    #[test]
+    fn test_pause_while_already_paused() {
+        let mut session = DebugSession::new();
+        session.handle_request(DapRequest { seq: 1, command: DapCommand::Initialize });
+
+        // First pause
+        session.handle_request(DapRequest {
+            seq: 2,
+            command: DapCommand::Pause { thread_id: 1 },
+        });
+        assert_eq!(*session.state(), SessionState::Stopped(StopReason::Pause));
+
+        // Pause again while already paused — should succeed
+        let resp = session.handle_request(DapRequest {
+            seq: 3,
+            command: DapCommand::Pause { thread_id: 1 },
+        });
+        assert!(resp.success);
+        assert_eq!(*session.state(), SessionState::Stopped(StopReason::Pause));
+    }
+
+    #[test]
+    fn test_breakpoint_add_remove_via_replace() {
+        let mut session = DebugSession::new();
+
+        // Add breakpoints
+        let bps = session.set_breakpoints(
+            "test.rs",
+            vec![
+                SourceBreakpoint { line: 1, column: None, condition: None },
+                SourceBreakpoint { line: 5, column: None, condition: None },
+                SourceBreakpoint { line: 10, column: None, condition: None },
+            ],
+        );
+        assert_eq!(bps.len(), 3);
+        assert_eq!(session.get_breakpoints("test.rs").len(), 3);
+
+        // Replace with fewer (effectively removing some)
+        let bps = session.set_breakpoints(
+            "test.rs",
+            vec![SourceBreakpoint { line: 5, column: None, condition: None }],
+        );
+        assert_eq!(bps.len(), 1);
+        assert_eq!(session.get_breakpoints("test.rs").len(), 1);
+
+        // Clear all by setting empty
+        let bps = session.set_breakpoints("test.rs", vec![]);
+        assert_eq!(bps.len(), 0);
+        assert_eq!(session.get_breakpoints("test.rs").len(), 0);
+    }
+
+    #[test]
+    fn test_seq_counter_starts_at_zero() {
+        let mut session = DebugSession::new();
+        assert_eq!(session.next_seq(), 1);
+        assert_eq!(session.next_seq(), 2);
+    }
+
+    #[test]
+    fn test_seq_counter_wrapping() {
+        let mut session = DebugSession::new();
+        session.seq_counter = u64::MAX - 1;
+        assert_eq!(session.next_seq(), u64::MAX);
+        // Next call would overflow; Rust wraps in debug → panics, or wraps in release.
+        // We just verify it reaches MAX.
+    }
+
+    #[test]
+    fn test_many_breakpoints() {
+        let mut session = DebugSession::new();
+        let bps: Vec<SourceBreakpoint> = (0..1000)
+            .map(|i| SourceBreakpoint { line: i, column: None, condition: None })
+            .collect();
+        let verified = session.set_breakpoints("large.rs", bps);
+        assert_eq!(verified.len(), 1000);
+        assert_eq!(session.all_breakpoints().len(), 1000);
+    }
+
+    #[test]
+    fn test_step_commands_set_running() {
+        let mut session = DebugSession::new();
+        session.handle_request(DapRequest { seq: 1, command: DapCommand::Initialize });
+
+        let commands = [
+            DapCommand::Next { thread_id: 1 },
+            DapCommand::StepIn { thread_id: 1 },
+            DapCommand::StepOut { thread_id: 1 },
+        ];
+
+        for (i, cmd) in commands.into_iter().enumerate() {
+            // Pause first
+            session.handle_request(DapRequest {
+                seq: (i * 2 + 2) as u64,
+                command: DapCommand::Pause { thread_id: 1 },
+            });
+            assert_eq!(*session.state(), SessionState::Stopped(StopReason::Pause));
+
+            // Step should set Running
+            let resp = session.handle_request(DapRequest {
+                seq: (i * 2 + 3) as u64,
+                command: cmd,
+            });
+            assert!(resp.success);
+            assert_eq!(*session.state(), SessionState::Running);
+        }
+    }
+
+    #[test]
+    fn test_breakpoint_ids_are_unique() {
+        let mut session = DebugSession::new();
+        let bp1 = session.set_breakpoints(
+            "a.rs",
+            vec![SourceBreakpoint { line: 1, column: None, condition: None }],
+        );
+        let bp2 = session.set_breakpoints(
+            "b.rs",
+            vec![SourceBreakpoint { line: 1, column: None, condition: None }],
+        );
+        assert_ne!(bp1[0].id, bp2[0].id);
+    }
+
+    #[test]
+    fn test_disconnect_from_uninitialized() {
+        let mut session = DebugSession::new();
+        let resp = session.handle_request(DapRequest {
+            seq: 1,
+            command: DapCommand::Disconnect,
+        });
+        assert!(resp.success);
+        assert_eq!(*session.state(), SessionState::Terminated);
+    }
+
+    #[test]
+    fn test_create_event_increments_seq() {
+        let mut session = DebugSession::new();
+        let e1 = session.create_event(DapEventType::Initialized);
+        let e2 = session.create_event(DapEventType::Terminated);
+        assert_eq!(e2.seq, e1.seq + 1);
+    }
+
+    #[test]
+    fn test_evaluate_with_frame_id() {
+        let mut session = DebugSession::new();
+        let resp = session.handle_request(DapRequest {
+            seq: 1,
+            command: DapCommand::Evaluate {
+                expression: "x + y".into(),
+                frame_id: Some(42),
+            },
+        });
+        assert!(resp.success);
+        if let Some(DapResponseBody::Evaluate(body)) = resp.body {
+            assert_eq!(body.result, "x + y");
+        } else {
+            panic!("expected Evaluate body");
+        }
+    }
 }
