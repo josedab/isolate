@@ -304,7 +304,7 @@ cargo +nightly fuzz run fuzz_wasm_module
 
 ## Contributing
 
-We welcome contributions! See the [Quickstart guide](docs/QUICKSTART.md) to go from clone to first passing test in 60 seconds, or read [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines.
+We welcome contributions! See the [Quickstart guide](docs/QUICKSTART.md) to go from clone to first passing test in 60 seconds, read [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines, or check [DEVELOPMENT.md](DEVELOPMENT.md) for a quick command reference.
 
 ### Good First Issues
 
