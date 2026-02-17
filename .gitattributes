@@ -1,0 +1,13 @@
+# Auto-detect text files and normalize line endings to LF on commit.
+* text=auto
+
+# Rust source files always use LF.
+*.rs text eol=lf
+*.toml text eol=lf
+
+# Shell scripts always use LF.
+*.sh text eol=lf
+
+# Keep binary files as-is.
+*.wasm binary
+*.cwasm binary
