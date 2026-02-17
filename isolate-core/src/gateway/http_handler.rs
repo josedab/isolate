@@ -369,4 +369,146 @@ mod tests {
         assert!(match_path_pattern("/a/:x", "/a/123").is_some());
         assert!(match_path_pattern("/a/b/c", "/a/b").is_none());
     }
+
+    #[test]
+    fn test_exact_path_matching() {
+        let mut router = FunctionRouter::new(FunctionRouterConfig::default());
+        router.add_route(FunctionRoute {
+            path: "/exact/path".to_string(),
+            methods: vec!["GET".to_string()],
+            module_hash: "hash".to_string(),
+            timeout_ms: 1000,
+            max_body_size: 1024,
+            rate_limit_rps: None,
+            require_auth: false,
+        });
+
+        assert!(router.match_route("/exact/path", "GET").is_some());
+        assert!(router.match_route("/exact/path/extra", "GET").is_none());
+        assert!(router.match_route("/exact", "GET").is_none());
+    }
+
+    #[test]
+    fn test_parameterized_path_matching() {
+        let mut router = FunctionRouter::new(FunctionRouterConfig::default());
+        router.add_route(FunctionRoute {
+            path: "/users/:id/posts/:post_id".to_string(),
+            methods: vec!["GET".to_string()],
+            module_hash: "hash".to_string(),
+            timeout_ms: 1000,
+            max_body_size: 1024,
+            rate_limit_rps: None,
+            require_auth: false,
+        });
+
+        let m = router.match_route("/users/42/posts/99", "GET").unwrap();
+        assert_eq!(m.params.get("id").unwrap(), "42");
+        assert_eq!(m.params.get("post_id").unwrap(), "99");
+    }
+
+    #[test]
+    fn test_url_encoded_parameters() {
+        // URL-encoded params pass through as-is (no decoding in router)
+        let params = match_path_pattern("/api/:path", "/api/%2e%2e").unwrap();
+        assert_eq!(params.get("path").unwrap(), "%2e%2e");
+    }
+
+    #[test]
+    fn test_path_traversal_in_params() {
+        // ../.. in path params are matched literally, not traversed
+        let params = match_path_pattern("/files/:name", "/files/..%2F..%2Fetc%2Fpasswd").unwrap();
+        assert_eq!(params.get("name").unwrap(), "..%2F..%2Fetc%2Fpasswd");
+    }
+
+    #[test]
+    fn test_per_route_rate_limit() {
+        let mut router = FunctionRouter::new(FunctionRouterConfig {
+            global_rps: 10_000,
+            ..FunctionRouterConfig::default()
+        });
+        router.add_route(FunctionRoute {
+            path: "/limited".to_string(),
+            methods: vec!["GET".to_string()],
+            module_hash: "hash".to_string(),
+            timeout_ms: 1000,
+            max_body_size: 1024,
+            rate_limit_rps: Some(2),
+            require_auth: false,
+        });
+
+        assert!(router.check_rate_limit("/limited"));
+        assert!(router.check_rate_limit("/limited"));
+        assert!(!router.check_rate_limit("/limited"));
+    }
+
+    #[test]
+    fn test_case_insensitive_method_matching() {
+        let mut router = FunctionRouter::new(FunctionRouterConfig::default());
+        router.add_route(test_route());
+
+        assert!(router.match_route("/api/hello", "get").is_some());
+        assert!(router.match_route("/api/hello", "Get").is_some());
+        assert!(router.match_route("/api/hello", "GET").is_some());
+    }
+
+    #[test]
+    fn test_empty_routes() {
+        let router = FunctionRouter::new(FunctionRouterConfig::default());
+        assert_eq!(router.route_count(), 0);
+        assert!(router.match_route("/anything", "GET").is_none());
+    }
+
+    #[test]
+    fn test_function_response_json() {
+        let data = serde_json::json!({"key": "value"});
+        let resp = FunctionResponse::json(&data);
+        assert_eq!(resp.status, 200);
+        assert_eq!(
+            resp.headers.get("content-type").unwrap(),
+            "application/json"
+        );
+        let parsed: serde_json::Value = serde_json::from_slice(&resp.body).unwrap();
+        assert_eq!(parsed["key"], "value");
+    }
+
+    #[test]
+    fn test_multiple_routes_first_match_wins() {
+        let mut router = FunctionRouter::new(FunctionRouterConfig::default());
+        router.add_route(FunctionRoute {
+            path: "/api/:id".to_string(),
+            methods: vec!["GET".to_string()],
+            module_hash: "first".to_string(),
+            timeout_ms: 1000,
+            max_body_size: 1024,
+            rate_limit_rps: None,
+            require_auth: false,
+        });
+        router.add_route(FunctionRoute {
+            path: "/api/:name".to_string(),
+            methods: vec!["GET".to_string()],
+            module_hash: "second".to_string(),
+            timeout_ms: 1000,
+            max_body_size: 1024,
+            rate_limit_rps: None,
+            require_auth: false,
+        });
+
+        let m = router.match_route("/api/test", "GET").unwrap();
+        assert_eq!(m.route.module_hash, "first");
+    }
+
+    #[test]
+    fn test_trailing_slash_handling() {
+        // match_path_pattern trims slashes, so /a/b/ == /a/b
+        assert!(match_path_pattern("/a/b", "/a/b/").is_some());
+        assert!(match_path_pattern("/a/b/", "/a/b").is_some());
+    }
+
+    #[test]
+    fn test_config_defaults() {
+        let config = FunctionRouterConfig::default();
+        assert_eq!(config.global_rps, 10_000);
+        assert_eq!(config.default_timeout_ms, 30_000);
+        assert!(config.enable_cors);
+    }
 }
