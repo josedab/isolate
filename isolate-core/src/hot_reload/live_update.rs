@@ -56,7 +56,7 @@ impl ConnectionTracker {
 
     /// Acquire a connection slot for a version. Returns a guard that
     /// decrements the count on drop.
-    pub fn acquire(&self, version_id: &VersionId) -> ConnectionGuard {
+    pub fn acquire(&self, version_id: &VersionId) -> ConnectionGuard<'_> {
         self.connections
             .entry(version_id.clone())
             .or_insert_with(|| AtomicU64::new(0))
