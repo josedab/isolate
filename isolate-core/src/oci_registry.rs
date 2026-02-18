@@ -15,7 +15,6 @@
 
 #![allow(dead_code)]
 
-use crate::config::ModuleHash;
 use crate::module_registry::{content_hash, ModuleMetadata};
 
 use serde::{Deserialize, Serialize};
@@ -135,6 +134,8 @@ pub enum OciError {
     InvalidWasm(String),
     #[error("Verification failed: {0}")]
     VerificationFailed(String),
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 /// OCI-compatible module registry.
@@ -210,7 +211,8 @@ impl OciRegistry {
             pushed_at: SystemTime::now(),
         };
 
-        let mut repos = self.repositories.write().unwrap();
+        let mut repos = self.repositories.write()
+            .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         repos
             .entry(reference.repository.clone())
             .or_default()
@@ -221,7 +223,8 @@ impl OciRegistry {
 
     /// Pull a WASM module from the registry.
     pub fn pull(&self, reference: &ImageReference) -> Result<(OciManifest, Vec<u8>), OciError> {
-        let repos = self.repositories.read().unwrap();
+        let repos = self.repositories.read()
+            .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         let tags = repos
             .get(&reference.repository)
             .ok_or_else(|| OciError::RepositoryNotFound(reference.repository.clone()))?;
@@ -234,7 +237,8 @@ impl OciRegistry {
 
     /// Get manifest without pulling the WASM bytes.
     pub fn get_manifest(&self, reference: &ImageReference) -> Result<OciManifest, OciError> {
-        let repos = self.repositories.read().unwrap();
+        let repos = self.repositories.read()
+            .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         let tags = repos
             .get(&reference.repository)
             .ok_or_else(|| OciError::RepositoryNotFound(reference.repository.clone()))?;
@@ -246,7 +250,8 @@ impl OciRegistry {
 
     /// List tags for a repository.
     pub fn list_tags(&self, repository: &str) -> Result<Vec<String>, OciError> {
-        let repos = self.repositories.read().unwrap();
+        let repos = self.repositories.read()
+            .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         let tags = repos
             .get(repository)
             .ok_or_else(|| OciError::RepositoryNotFound(repository.to_string()))?;
@@ -255,13 +260,17 @@ impl OciRegistry {
 
     /// List all repositories.
     pub fn list_repositories(&self) -> Vec<String> {
-        let repos = self.repositories.read().unwrap();
+        let repos = match self.repositories.read() {
+            Ok(r) => r,
+            Err(_) => return Vec::new(),
+        };
         repos.keys().cloned().collect()
     }
 
     /// Delete a specific tag.
     pub fn delete(&self, reference: &ImageReference) -> Result<bool, OciError> {
-        let mut repos = self.repositories.write().unwrap();
+        let mut repos = self.repositories.write()
+            .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         let tags = repos
             .get_mut(&reference.repository)
             .ok_or_else(|| OciError::RepositoryNotFound(reference.repository.clone()))?;
