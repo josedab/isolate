@@ -64,6 +64,7 @@ pub enum KvError {
 #[derive(Debug, Clone)]
 struct KvEntry {
     value: Vec<u8>,
+    #[allow(dead_code)]
     created_at: std::time::Instant,
     updated_at: std::time::Instant,
 }

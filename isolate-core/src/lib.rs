@@ -190,18 +190,24 @@ pub mod version;
 
 // Optional module groups (enabled via feature flags)
 #[cfg(feature = "pool")]
+#[allow(missing_docs)]
 pub mod pool;
 #[cfg(feature = "pool")]
+#[allow(missing_docs)]
 pub mod predict;
 
 #[cfg(feature = "networking")]
+#[allow(missing_docs)]
 pub mod http;
 #[cfg(feature = "networking")]
+#[allow(missing_docs)]
 pub mod network;
 
 #[cfg(feature = "agent")]
+#[allow(missing_docs)]
 pub mod agent;
 #[cfg(feature = "agent")]
+#[allow(missing_docs)]
 pub mod llm;
 
 #[cfg(feature = "policy-engine")]
@@ -230,69 +236,100 @@ pub mod policy_gen;
 pub mod policy_lang;
 
 #[cfg(any(feature = "platform", feature = "platform-admin"))]
+#[allow(missing_docs)]
 pub mod admin;
 #[cfg(any(feature = "platform", feature = "platform-admin"))]
+#[allow(missing_docs)]
 pub mod gateway;
 #[cfg(any(feature = "platform", feature = "platform-comm"))]
+#[allow(missing_docs)]
 pub mod graphql_schema;
 #[cfg(any(feature = "platform", feature = "platform-infra"))]
+#[allow(missing_docs)]
 pub mod iac;
 #[cfg(any(feature = "platform", feature = "platform-comm"))]
+#[allow(missing_docs)]
 pub mod ipc;
 #[cfg(any(feature = "platform", feature = "platform-storage"))]
+#[allow(missing_docs)]
 pub mod kv;
 #[cfg(any(feature = "platform", feature = "platform-marketplace"))]
+#[allow(missing_docs)]
 pub mod marketplace;
 #[cfg(any(feature = "platform", feature = "platform-admin"))]
+#[allow(missing_docs)]
 pub mod orchestrator;
 #[cfg(any(feature = "platform", feature = "platform-workflow"))]
+#[allow(missing_docs)]
 pub mod pipeline;
 #[cfg(any(feature = "platform", feature = "platform-hosting"))]
+#[allow(missing_docs)]
 pub mod playground;
 #[cfg(any(feature = "platform", feature = "platform-marketplace"))]
+#[allow(missing_docs)]
 pub mod plugin;
 #[cfg(any(feature = "platform", feature = "platform-marketplace"))]
+#[allow(missing_docs)]
 pub mod provenance;
 #[cfg(any(feature = "platform", feature = "platform-comm"))]
+#[allow(missing_docs)]
 pub mod rpc;
 #[cfg(any(feature = "platform", feature = "platform-storage"))]
+#[allow(missing_docs)]
 pub mod sandbox_kv;
 #[cfg(any(feature = "platform", feature = "platform-storage"))]
+#[allow(missing_docs)]
 pub mod secrets;
 #[cfg(any(feature = "platform", feature = "platform-hosting"))]
+#[allow(missing_docs)]
 pub mod serverless;
 #[cfg(any(feature = "platform", feature = "platform-storage"))]
+#[allow(missing_docs)]
 pub mod vfs;
 #[cfg(any(feature = "platform", feature = "platform-workflow"))]
+#[allow(missing_docs)]
 pub mod workflow;
 #[cfg(any(feature = "platform", feature = "platform-workflow"))]
+#[allow(missing_docs)]
 pub mod workflow_engine;
 
 #[cfg(any(feature = "platform", feature = "platform-hosting"))]
+#[allow(missing_docs)]
 pub mod saas;
 
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod ai_exec;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod ai_sandbox;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod benchmark;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod carbon;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod enclave;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod jsrt;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod replay;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod security;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod transpiler;
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod verify;
 
 #[cfg(feature = "extras")]
+#[allow(missing_docs)]
 pub mod bench_compare;
 
 #[cfg(feature = "observability")]
@@ -312,42 +349,57 @@ pub mod tracing_ctx;
 pub mod wasm_analytics;
 
 #[cfg(feature = "billing")]
+#[allow(missing_docs)]
 pub mod billing;
 #[cfg(feature = "billing")]
+#[allow(missing_docs)]
 pub mod cloud_cost;
 
 #[cfg(feature = "deployment")]
+#[allow(missing_docs)]
 pub mod autoscale;
 #[cfg(feature = "deployment")]
+#[allow(missing_docs)]
 pub mod deploy;
 #[cfg(feature = "deployment")]
+#[allow(missing_docs)]
 pub mod hot_reload;
 #[cfg(feature = "deployment")]
+#[allow(missing_docs)]
 pub mod module_registry;
 #[cfg(feature = "deployment")]
+#[allow(missing_docs)]
 pub mod oci_registry;
 #[cfg(feature = "deployment")]
+#[allow(missing_docs)]
 pub mod registry_security;
 
 #[cfg(feature = "federation")]
+#[allow(missing_docs)]
 pub mod federation;
 #[cfg(feature = "federation")]
+#[allow(missing_docs)]
 pub mod georep;
 
 // Feature-gated experimental modules
 #[cfg(feature = "snapshots")]
+#[allow(missing_docs)]
 pub mod snapshot;
 
 #[cfg(feature = "wasi-preview2")]
+#[allow(missing_docs)]
 pub mod wasi2;
 
 #[cfg(feature = "debug-support")]
+#[allow(missing_docs)]
 pub mod debug;
 
 #[cfg(feature = "module-signing")]
+#[allow(missing_docs)]
 pub mod signing;
 
 #[cfg(feature = "kubernetes")]
+#[allow(missing_docs)]
 pub mod k8s;
 
 #[cfg(feature = "otel-telemetry")]
@@ -355,21 +407,27 @@ pub mod k8s;
 pub mod telemetry;
 
 #[cfg(feature = "ai-detection")]
+#[allow(missing_docs)]
 pub mod ai;
 
 #[cfg(feature = "nlp-policies")]
+#[allow(missing_docs)]
 pub mod nlp;
 
 #[cfg(feature = "hotpatch")]
+#[allow(missing_docs)]
 pub mod hotpatch;
 
 #[cfg(feature = "distributed-mesh")]
+#[allow(missing_docs)]
 pub mod mesh;
 
 #[cfg(feature = "gpu-compute")]
+#[allow(missing_docs)]
 pub mod gpu;
 
 #[cfg(feature = "chaos-testing")]
+#[allow(missing_docs)]
 pub mod chaos;
 
 // Re-export main types at crate root

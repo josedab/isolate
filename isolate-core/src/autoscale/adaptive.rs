@@ -88,6 +88,7 @@ impl Histogram {
         self.values.push(value);
     }
 
+    #[allow(dead_code)]
     fn len(&self) -> usize {
         self.values.len()
     }
