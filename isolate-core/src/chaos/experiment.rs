@@ -3,12 +3,12 @@
 //! Extends the chaos module with a YAML-like experiment definition DSL,
 //! report generation, and steady-state validation.
 
-#![allow(dead_code)]
+#![allow(dead_code, unused_assignments)]
 
 use super::{
-    AbortCondition, ChaosEngine, ChaosEvent, ChaosEventType, ExperimentMetrics,
-    ExperimentOutcome, ExperimentResult, FaultInjection, FaultTarget, FaultType,
-    InjectionSchedule, SteadyStateHypothesis,
+    ChaosEngine, ExperimentMetrics,
+    ExperimentOutcome, FaultTarget, FaultType,
+    SteadyStateHypothesis,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -184,22 +184,24 @@ impl ExperimentRunner {
 
             match &step.action {
                 StepAction::InjectFault { fault_type, .. } => {
-                    step_message = format!("Injected: {:?}", fault_type);
+                    let msg = format!("Injected: {:?}", fault_type);
                     events.push(ExperimentEvent {
                         timestamp: SystemTime::now(),
                         step: step.name.clone(),
-                        message: step_message.clone(),
+                        message: msg.clone(),
                         event_type: ExperimentEventType::FaultInjected,
                     });
+                    step_message = msg;
                 }
                 StepAction::RemoveFaults => {
-                    step_message = "Removed all faults".to_string();
+                    let msg = "Removed all faults".to_string();
                     events.push(ExperimentEvent {
                         timestamp: SystemTime::now(),
                         step: step.name.clone(),
-                        message: step_message.clone(),
+                        message: msg.clone(),
                         event_type: ExperimentEventType::FaultRemoved,
                     });
+                    step_message = msg;
                 }
                 StepAction::ValidateHypothesis => {
                     let hypothesis = definition.hypothesis.to_steady_state();
