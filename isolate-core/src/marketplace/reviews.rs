@@ -2,7 +2,6 @@
 //!
 //! User ratings, text reviews, and moderation for marketplace modules.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use parking_lot::RwLock;

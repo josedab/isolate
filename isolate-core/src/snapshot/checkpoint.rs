@@ -3,7 +3,7 @@
 //! Provides checkpoint creation, persistence to disk, and restore operations
 //! with cross-node compatibility validation.
 
-use super::storage::{SnapshotEntry, SnapshotStore, StorageStats};
+use super::storage::{SnapshotStore, StorageStats};
 use super::{Snapshot, SnapshotId};
 use crate::config::ModuleHash;
 use crate::error::{Error, Result};

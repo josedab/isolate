@@ -3,7 +3,7 @@
 //! Provides a storage backend interface for S3-compatible object stores.
 //! Uses a local cache directory to reduce round-trips.
 
-use super::storage::{GcResult, SnapshotEntry, SnapshotStore, StorageStats};
+use super::storage::{SnapshotEntry, SnapshotStore, StorageStats};
 use super::{Snapshot, SnapshotId};
 use crate::config::ModuleHash;
 use crate::error::{Error, Result};

@@ -2,7 +2,7 @@
 
 use super::tools::ToolRegistry;
 use super::trace::{
-    ExecutionTrace, ResourceBudget, SpanKind, SpanStatus, TraceBuilder, TraceSpan, TraceStore,
+    ResourceBudget, SpanKind, SpanStatus, TraceBuilder, TraceSpan, TraceStore,
 };
 use super::types::*;
 use crate::capability::Capability;

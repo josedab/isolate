@@ -4,7 +4,6 @@
 //! for frequently-used modules to ensure sub-millisecond warm starts.
 
 use crate::config::ModuleHash;
-use crate::error::Result;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};

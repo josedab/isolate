@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::dag::Workflow;
-use super::nodes::{ConditionFn, MergeStrategy, NodeKind, TransformFn};
+use super::nodes::{MergeStrategy, NodeKind};
 
 /// Status of a workflow execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

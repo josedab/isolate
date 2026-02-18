@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::recording::{EventKind, Recording, RecordingEvent};
+use super::recording::{EventKind, Recording};
 
 /// A timeline entry (summarized event for navigation).
 #[derive(Debug, Clone, Serialize, Deserialize)]

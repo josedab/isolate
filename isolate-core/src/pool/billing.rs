@@ -3,11 +3,8 @@
 //! Tracks per-tenant resource consumption (CPU-seconds, memory-seconds, I/O bytes)
 //! and emits billing events for downstream processing.
 
-use super::tenant::TenantId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// A billable usage record for a single sandbox execution.

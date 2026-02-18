@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::ir::{IRInstruction, IRType, WasmIR};
+use super::ir::{IRInstruction, WasmIR};
 
 /// Optimization level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
