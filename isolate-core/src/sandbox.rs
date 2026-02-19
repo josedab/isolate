@@ -633,7 +633,12 @@ impl Sandbox {
             )?);
         }
 
-        let instance = instance_guard.as_mut().unwrap();
+        let instance = instance_guard.as_mut().ok_or_else(|| {
+            Error::InvalidState {
+                expected: "instance initialized".to_string(),
+                actual: "instance is None after initialization".to_string(),
+            }
+        })?;
         let result = instance.call(function, args);
 
         let duration = start.elapsed();
