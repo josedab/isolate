@@ -181,9 +181,21 @@ async fn health_handler(
                     req.headers()
                         .get("x-api-key")
                         .and_then(|v| v.to_str().ok())
-                        .is_some_and(|k| k == expected_key)
+                        .is_some_and(|k| {
+                            // Constant-time comparison to prevent timing attacks
+                            let k_bytes = k.as_bytes();
+                            let expected_bytes = expected_key.as_bytes();
+                            if k_bytes.len() != expected_bytes.len() {
+                                return false;
+                            }
+                            let mut result = 0u8;
+                            for (a, b) in k_bytes.iter().zip(expected_bytes.iter()) {
+                                result |= a ^ b;
+                            }
+                            result == 0
+                        })
                 }
-                _ => true, // No API key configured; allow access
+                _ => false, // No API key configured; deny access
             };
 
             if !api_key_valid {
@@ -431,15 +443,31 @@ mod tests {
         Arc::new(DashboardState::new(100))
     }
 
+    /// Shared test API key — set once for all tests via ctor.
+    const TEST_API_KEY: &str = "test-api-key-for-tests";
+
     /// Test the health handler by starting a real HTTP server and making requests.
     async fn test_request(path: &str) -> (StatusCode, String) {
-        test_request_with(path, default_healthy(), default_dashboard()).await
+        test_request_with_headers(path, default_healthy(), default_dashboard(), vec![]).await
     }
 
-    async fn test_request_with(
+    /// Test with an authenticated dashboard request.
+    async fn test_dashboard_request(path: &str) -> (StatusCode, String) {
+        std::env::set_var("ISOLATE_DASHBOARD_API_KEY", TEST_API_KEY);
+        test_request_with_headers(
+            path,
+            default_healthy(),
+            default_dashboard(),
+            vec![("x-api-key", TEST_API_KEY)],
+        )
+        .await
+    }
+
+    async fn test_request_with_headers(
         path: &str,
         healthy: Arc<std::sync::atomic::AtomicBool>,
         dashboard: Arc<DashboardState>,
+        headers: Vec<(&str, &str)>,
     ) -> (StatusCode, String) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -467,10 +495,11 @@ mod tests {
         let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
         tokio::spawn(conn);
 
-        let req = hyper::Request::builder()
-            .uri(path)
-            .body(Empty::<Bytes>::new())
-            .unwrap();
+        let mut builder = hyper::Request::builder().uri(path);
+        for (key, value) in headers {
+            builder = builder.header(key, value);
+        }
+        let req = builder.body(Empty::<Bytes>::new()).unwrap();
         let resp = sender.send_request(req).await.unwrap();
         let status = resp.status();
         let body_bytes = http_body_util::BodyExt::collect(resp.into_body())
@@ -507,7 +536,7 @@ mod tests {
     #[tokio::test]
     async fn test_readyz_returns_503_when_not_healthy() {
         let healthy = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let (status, _) = test_request_with("/readyz", healthy, default_dashboard()).await;
+        let (status, _) = test_request_with_headers("/readyz", healthy, default_dashboard(), vec![]).await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     }
 
@@ -519,7 +548,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_malformed_sandbox_id_returns_400() {
-        let (status, body) = test_request("/api/dashboard/sandboxes/not-a-valid-uuid").await;
+        let (status, body) = test_dashboard_request("/api/dashboard/sandboxes/not-a-valid-uuid").await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(body.contains("invalid sandbox id"));
     }
@@ -528,25 +557,33 @@ mod tests {
     async fn test_nonexistent_sandbox_returns_404() {
         let valid_uuid = uuid::Uuid::new_v4().to_string();
         let path = format!("/api/dashboard/sandboxes/{}", valid_uuid);
-        let (status, _) = test_request(&path).await;
+        let (status, _) = test_dashboard_request(&path).await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
     async fn test_dashboard_overview_returns_200() {
-        let (status, _) = test_request("/api/dashboard/overview").await;
+        let (status, _) = test_dashboard_request("/api/dashboard/overview").await;
         assert_eq!(status, StatusCode::OK);
     }
 
     #[tokio::test]
     async fn test_dashboard_sandboxes_list_returns_200() {
-        let (status, _) = test_request("/api/dashboard/sandboxes").await;
+        let (status, _) = test_dashboard_request("/api/dashboard/sandboxes").await;
         assert_eq!(status, StatusCode::OK);
     }
 
     #[tokio::test]
     async fn test_dashboard_events_returns_200() {
-        let (status, _) = test_request("/api/dashboard/events").await;
+        let (status, _) = test_dashboard_request("/api/dashboard/events").await;
         assert_eq!(status, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_dashboard_rejects_unauthenticated() {
+        std::env::set_var("ISOLATE_DASHBOARD_API_KEY", TEST_API_KEY);
+        let (status, body) = test_request("/api/dashboard/overview").await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(body.contains("unauthorized"));
     }
 }
