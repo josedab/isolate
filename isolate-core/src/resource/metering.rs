@@ -91,12 +91,12 @@ impl ResourceMeter {
         ResourceUsage {
             peak_memory: usage.peak_memory,
             current_memory: usage.current_memory,
-            fuel_consumed: self.inner.counters.fuel_consumed.load(Ordering::Relaxed),
+            fuel_consumed: self.inner.counters.fuel_consumed.load(Ordering::Acquire),
             cpu_time: usage.cpu_time,
             wall_time: self.inner.start_time.elapsed(),
-            bytes_read: self.inner.counters.bytes_read.load(Ordering::Relaxed),
-            bytes_written: self.inner.counters.bytes_written.load(Ordering::Relaxed),
-            io_operations: self.inner.counters.io_operations.load(Ordering::Relaxed),
+            bytes_read: self.inner.counters.bytes_read.load(Ordering::Acquire),
+            bytes_written: self.inner.counters.bytes_written.load(Ordering::Acquire),
+            io_operations: self.inner.counters.io_operations.load(Ordering::Acquire),
         }
     }
 
@@ -146,7 +146,7 @@ impl ResourceMeter {
     /// Record fuel consumption.
     pub fn record_fuel(&self, amount: u64) -> Result<()> {
         let consumed =
-            self.inner.counters.fuel_consumed.fetch_add(amount, Ordering::Relaxed) + amount;
+            self.inner.counters.fuel_consumed.fetch_add(amount, Ordering::AcqRel) + amount;
 
         if let Some(limit) = self.inner.limits.cpu.fuel {
             if consumed > limit {
@@ -160,7 +160,7 @@ impl ResourceMeter {
     /// Get remaining fuel, if limited.
     pub fn remaining_fuel(&self) -> Option<u64> {
         self.inner.limits.cpu.fuel.map(|limit| {
-            let consumed = self.inner.counters.fuel_consumed.load(Ordering::Relaxed);
+            let consumed = self.inner.counters.fuel_consumed.load(Ordering::Acquire);
             limit.saturating_sub(consumed)
         })
     }
@@ -197,18 +197,17 @@ impl ResourceMeter {
 
     /// Record bytes read.
     pub fn record_read(&self, bytes: u64) -> Result<()> {
-        let total = self.inner.counters.bytes_read.fetch_add(bytes, Ordering::Relaxed) + bytes;
-        self.inner.counters.io_operations.fetch_add(1, Ordering::Relaxed);
+        let total = self.inner.counters.bytes_read.fetch_add(bytes, Ordering::AcqRel) + bytes;
+        self.inner.counters.io_operations.fetch_add(1, Ordering::AcqRel);
 
         if let Some(limit) = self.inner.limits.io.read_bytes {
             if total > limit {
                 // Rollback the addition since we exceeded the limit
-                self.inner.counters.bytes_read.fetch_sub(bytes, Ordering::Relaxed);
-                self.inner.counters.io_operations.fetch_sub(1, Ordering::Relaxed);
-                return Err(Error::Execution(format!(
-                    "I/O read limit exceeded: {} > {}",
-                    total, limit
-                )));
+                self.inner.counters.bytes_read.fetch_sub(bytes, Ordering::AcqRel);
+                self.inner.counters.io_operations.fetch_sub(1, Ordering::AcqRel);
+                return Err(Error::Execution(
+                    "I/O read limit exceeded".to_string(),
+                ));
             }
         }
 
@@ -217,18 +216,17 @@ impl ResourceMeter {
 
     /// Record bytes written.
     pub fn record_write(&self, bytes: u64) -> Result<()> {
-        let total = self.inner.counters.bytes_written.fetch_add(bytes, Ordering::Relaxed) + bytes;
-        self.inner.counters.io_operations.fetch_add(1, Ordering::Relaxed);
+        let total = self.inner.counters.bytes_written.fetch_add(bytes, Ordering::AcqRel) + bytes;
+        self.inner.counters.io_operations.fetch_add(1, Ordering::AcqRel);
 
         if let Some(limit) = self.inner.limits.io.write_bytes {
             if total > limit {
                 // Rollback the addition since we exceeded the limit
-                self.inner.counters.bytes_written.fetch_sub(bytes, Ordering::Relaxed);
-                self.inner.counters.io_operations.fetch_sub(1, Ordering::Relaxed);
-                return Err(Error::Execution(format!(
-                    "I/O write limit exceeded: {} > {}",
-                    total, limit
-                )));
+                self.inner.counters.bytes_written.fetch_sub(bytes, Ordering::AcqRel);
+                self.inner.counters.io_operations.fetch_sub(1, Ordering::AcqRel);
+                return Err(Error::Execution(
+                    "I/O write limit exceeded".to_string(),
+                ));
             }
         }
 
@@ -242,10 +240,10 @@ impl ResourceMeter {
         usage.peak_memory = 0;
         usage.cpu_time = Duration::ZERO;
 
-        self.inner.counters.fuel_consumed.store(0, Ordering::Relaxed);
-        self.inner.counters.bytes_read.store(0, Ordering::Relaxed);
-        self.inner.counters.bytes_written.store(0, Ordering::Relaxed);
-        self.inner.counters.io_operations.store(0, Ordering::Relaxed);
+        self.inner.counters.fuel_consumed.store(0, Ordering::Release);
+        self.inner.counters.bytes_read.store(0, Ordering::Release);
+        self.inner.counters.bytes_written.store(0, Ordering::Release);
+        self.inner.counters.io_operations.store(0, Ordering::Release);
     }
 }
 
