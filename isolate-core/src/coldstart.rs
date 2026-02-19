@@ -114,12 +114,12 @@ impl PrecompileCache {
         )))?;
 
         // Write hash file for integrity verification
-        let hash_path = self.hash_path(&hash);
+        let hash_path = self.hash_path(&hash)?;
         let digest = Sha256::digest(&serialized);
         std::fs::write(&hash_path, hex::encode(digest))?;
 
         // Write to disk
-        let path = self.module_path(&hash);
+        let path = self.module_path(&hash)?;
         std::fs::write(&path, &serialized)?;
 
         // Track in memory cache
@@ -140,7 +140,7 @@ impl PrecompileCache {
 
     /// Load a pre-compiled module from cache. Returns None if not cached.
     pub fn load(&self, engine: &WasmEngine, hash: &ModuleHash) -> Result<Option<Module>> {
-        let path = self.module_path(hash);
+        let path = self.module_path(hash)?;
 
         if !path.exists() {
             self.stats.misses.fetch_add(1, Ordering::Relaxed);
@@ -151,7 +151,7 @@ impl PrecompileCache {
         let bytes = std::fs::read(&path)?;
 
         // Verify integrity before deserializing
-        let hash_path = self.hash_path(hash);
+        let hash_path = self.hash_path(hash)?;
         if let Ok(expected_hex) = std::fs::read_to_string(&hash_path) {
             let actual = hex::encode(Sha256::digest(&bytes));
             if actual != expected_hex.trim() {
@@ -189,16 +189,16 @@ impl PrecompileCache {
 
     /// Check if a module is cached.
     pub fn contains(&self, hash: &ModuleHash) -> bool {
-        self.module_path(hash).exists()
+        self.module_path(hash).map(|p| p.exists()).unwrap_or(false)
     }
 
     /// Remove a cached module.
     pub fn remove(&self, hash: &ModuleHash) -> Result<()> {
-        let path = self.module_path(hash);
+        let path = self.module_path(hash)?;
         if path.exists() {
             std::fs::remove_file(&path)?;
         }
-        let hash_path = self.hash_path(hash);
+        let hash_path = self.hash_path(hash)?;
         if hash_path.exists() {
             let _ = std::fs::remove_file(&hash_path);
         }
@@ -236,14 +236,30 @@ impl PrecompileCache {
         self.memory_cache.is_empty()
     }
 
-    fn module_path(&self, hash: &ModuleHash) -> PathBuf {
-        let name = if hash.0.len() >= 16 { &hash.0[..16] } else { &hash.0 };
-        self.cache_dir.join(format!("{}.cwasm", name))
+    fn validate_hash_name(name: &str) -> Result<&str> {
+        if name.is_empty()
+            || !name
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() || c == '_' || c == '-')
+        {
+            return Err(Error::Execution(
+                "invalid hash format: must contain only hex digits, underscores, or hyphens"
+                    .to_string(),
+            ));
+        }
+        Ok(name)
     }
 
-    fn hash_path(&self, hash: &ModuleHash) -> PathBuf {
+    fn module_path(&self, hash: &ModuleHash) -> Result<PathBuf> {
         let name = if hash.0.len() >= 16 { &hash.0[..16] } else { &hash.0 };
-        self.cache_dir.join(format!("{}.sha256", name))
+        let name = Self::validate_hash_name(name)?;
+        Ok(self.cache_dir.join(format!("{}.cwasm", name)))
+    }
+
+    fn hash_path(&self, hash: &ModuleHash) -> Result<PathBuf> {
+        let name = if hash.0.len() >= 16 { &hash.0[..16] } else { &hash.0 };
+        let name = Self::validate_hash_name(name)?;
+        Ok(self.cache_dir.join(format!("{}.sha256", name)))
     }
 
     fn evict_lru(&self) {
@@ -346,7 +362,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let cache = PrecompileCache::new(dir.path().to_path_buf(), 10).unwrap();
         let engine = WasmEngine::new().unwrap();
-        let hash = ModuleHash("nonexistent".to_string());
+        let hash = ModuleHash("deadbeef00000000".to_string());
 
         let result = cache.load(&engine, &hash).unwrap();
         assert!(result.is_none());
@@ -440,7 +456,7 @@ mod tests {
         let cache = PrecompileCache::new(dir.path().to_path_buf(), 10).unwrap();
         let engine = WasmEngine::new().unwrap();
 
-        let hash = ModuleHash("totally_unknown_hash".to_string());
+        let hash = ModuleHash("abcdef1234567890".to_string());
         let result = cache.load(&engine, &hash).unwrap();
         assert!(result.is_none());
         assert_eq!(cache.stats().misses(), 1);
