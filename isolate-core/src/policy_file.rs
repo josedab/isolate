@@ -47,18 +47,19 @@
 //! ```rust
 //! use isolate_core::policy_file::{PolicyFile, PolicyError};
 //!
-//! let yaml = r#"
-//! version: "1"
-//! name: "test"
-//! capabilities:
-//!   stdout: true
-//! resources:
-//!   memory:
-//!     heap_max: "64MB"
-//!   timeout: "10s"
-//! "#;
+//! let json = r#"{
+//!     "version": "1",
+//!     "name": "test",
+//!     "capabilities": {
+//!         "stdout": true
+//!     },
+//!     "resources": {
+//!         "memory": { "heap_max": "64MB" },
+//!         "timeout": "10s"
+//!     }
+//! }"#;
 //!
-//! let policy = PolicyFile::from_yaml(yaml).unwrap();
+//! let policy = PolicyFile::from_json(json).unwrap();
 //! assert_eq!(policy.name, "test");
 //! assert_eq!(policy.capabilities.stdout, Some(true));
 //! ```
