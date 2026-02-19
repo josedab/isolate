@@ -231,3 +231,122 @@ tinygo build -o output.wasm -target wasi input.go
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_init_creates_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("test-project".to_string()),
+            examples: false,
+            force: false,
+        };
+        init_command(args, true).unwrap();
+        assert!(dir.path().join(".isolate.toml").exists());
+    }
+
+    #[test]
+    fn test_init_creates_examples_when_enabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("test-project".to_string()),
+            examples: true,
+            force: false,
+        };
+        init_command(args, true).unwrap();
+        assert!(dir.path().join("examples/hello.wasm").exists());
+        assert!(dir.path().join("examples/README.md").exists());
+    }
+
+    #[test]
+    fn test_init_creates_gitignore() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("test-project".to_string()),
+            examples: false,
+            force: false,
+        };
+        init_command(args, true).unwrap();
+        let gitignore = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(gitignore.contains(".isolate-snapshots/"));
+    }
+
+    #[test]
+    fn test_init_config_contains_project_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("my-cool-project".to_string()),
+            examples: false,
+            force: false,
+        };
+        init_command(args, true).unwrap();
+        let config = std::fs::read_to_string(dir.path().join(".isolate.toml")).unwrap();
+        assert!(config.contains("my-cool-project"));
+    }
+
+    #[test]
+    fn test_init_fails_if_already_initialized() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("test".to_string()),
+            examples: false,
+            force: false,
+        };
+        init_command(args, true).unwrap();
+
+        // Second init without force should fail
+        let args2 = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("test".to_string()),
+            examples: false,
+            force: false,
+        };
+        assert!(init_command(args2, true).is_err());
+    }
+
+    #[test]
+    fn test_init_force_overwrites() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("test".to_string()),
+            examples: false,
+            force: false,
+        };
+        init_command(args, true).unwrap();
+
+        // With force should succeed
+        let args2 = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("test-v2".to_string()),
+            examples: false,
+            force: true,
+        };
+        init_command(args2, true).unwrap();
+        let config = std::fs::read_to_string(dir.path().join(".isolate.toml")).unwrap();
+        assert!(config.contains("test-v2"));
+    }
+
+    #[test]
+    fn test_init_default_project_name_from_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: None,
+            examples: false,
+            force: false,
+        };
+        init_command(args, true).unwrap();
+        let config = std::fs::read_to_string(dir.path().join(".isolate.toml")).unwrap();
+        // Should contain the tempdir name as project name
+        assert!(config.contains("name = "));
+    }
+}

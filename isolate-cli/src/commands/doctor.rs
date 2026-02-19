@@ -142,3 +142,21 @@ pub fn rustc_version() -> String {
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|| "unknown".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rustc_version_returns_non_empty() {
+        let version = rustc_version();
+        assert!(!version.is_empty());
+        assert_ne!(version, "unknown");
+    }
+
+    #[test]
+    fn test_rustc_version_contains_rustc() {
+        let version = rustc_version();
+        assert!(version.contains("rustc"), "Expected 'rustc' in version string: {}", version);
+    }
+}

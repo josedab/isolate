@@ -491,3 +491,125 @@ pub async fn run_once(args: &RunArgs, format: OutputFormat, quiet: bool) -> Resu
 
     Ok(output.exit_code)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_run_args_defaults() {
+        use clap::Parser;
+        let args = RunArgs::try_parse_from(["run", "module.wasm"]).unwrap();
+        assert_eq!(args.memory_limit, "256M");
+        assert_eq!(args.timeout, 60);
+        assert_eq!(args.entry, "_start");
+        assert!(!args.cap_stdout);
+        assert!(!args.cap_stderr);
+        assert!(!args.cap_stdin);
+        assert!(!args.cap_stdio);
+        assert!(!args.watch);
+        assert_eq!(args.watch_delay, 500);
+    }
+
+    #[test]
+    fn test_run_args_cap_stdio_flag() {
+        use clap::Parser;
+        let args = RunArgs::try_parse_from(["run", "module.wasm", "--cap-stdio"]).unwrap();
+        assert!(args.cap_stdio);
+    }
+
+    #[test]
+    fn test_run_args_memory_limit() {
+        use clap::Parser;
+        let args = RunArgs::try_parse_from(["run", "module.wasm", "-m", "512M"]).unwrap();
+        assert_eq!(args.memory_limit, "512M");
+    }
+
+    #[test]
+    fn test_run_args_fuel() {
+        use clap::Parser;
+        let args = RunArgs::try_parse_from(["run", "module.wasm", "-f", "1000000"]).unwrap();
+        assert_eq!(args.fuel, Some(1000000));
+    }
+
+    #[test]
+    fn test_run_args_env_vars() {
+        use clap::Parser;
+        let args = RunArgs::try_parse_from([
+            "run",
+            "module.wasm",
+            "-e",
+            "KEY1=value1",
+            "-e",
+            "KEY2=value2",
+        ])
+        .unwrap();
+        assert_eq!(args.env.len(), 2);
+        assert_eq!(args.env[0], "KEY1=value1");
+    }
+
+    #[test]
+    fn test_run_args_fs_capabilities() {
+        use clap::Parser;
+        let args = RunArgs::try_parse_from([
+            "run",
+            "module.wasm",
+            "--cap-fs-read",
+            "/data",
+            "--cap-fs-write",
+            "/tmp",
+        ])
+        .unwrap();
+        assert_eq!(args.cap_fs_read.len(), 1);
+        assert_eq!(args.cap_fs_write.len(), 1);
+    }
+
+    #[test]
+    fn test_run_args_http_hosts() {
+        use clap::Parser;
+        let args = RunArgs::try_parse_from([
+            "run",
+            "module.wasm",
+            "--cap-http",
+            "api.example.com",
+            "--cap-http",
+            "cdn.example.com",
+        ])
+        .unwrap();
+        assert_eq!(args.cap_http.len(), 2);
+    }
+
+    #[test]
+    fn test_env_var_parsing_key_value() {
+        let env_str = "API_KEY=secret123";
+        let parts: Vec<_> = env_str.splitn(2, '=').collect();
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0], "API_KEY");
+        assert_eq!(parts[1], "secret123");
+    }
+
+    #[test]
+    fn test_env_var_parsing_value_with_equals() {
+        let env_str = "CONFIG=key=value";
+        let parts: Vec<_> = env_str.splitn(2, '=').collect();
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0], "CONFIG");
+        assert_eq!(parts[1], "key=value");
+    }
+
+    #[test]
+    fn test_env_var_expansion_pattern() {
+        let value = "${HOME}";
+        let is_expansion = value.starts_with("${") && value.ends_with("}");
+        assert!(is_expansion);
+        let var_name = &value[2..value.len() - 1];
+        assert_eq!(var_name, "HOME");
+    }
+
+    #[test]
+    fn test_env_var_non_expansion() {
+        let value = "plain_value";
+        let is_expansion = value.starts_with("${") && value.ends_with("}");
+        assert!(!is_expansion);
+    }
+}

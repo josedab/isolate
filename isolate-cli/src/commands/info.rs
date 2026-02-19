@@ -172,3 +172,73 @@ pub fn analyze_command(args: AnalyzeArgs, quiet: bool) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Minimal valid WASI WASM module
+    const MINIMAL_WASM: &[u8] = &[
+        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+        0x01, 0x08, 0x02, 0x60, 0x01, 0x7f, 0x00, 0x60, 0x00, 0x00,
+        0x02, 0x24, 0x01, 0x16, 0x77, 0x61, 0x73, 0x69, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73,
+        0x68, 0x6f, 0x74, 0x5f, 0x70, 0x72, 0x65, 0x76, 0x69, 0x65, 0x77, 0x31, 0x09, 0x70,
+        0x72, 0x6f, 0x63, 0x5f, 0x65, 0x78, 0x69, 0x74, 0x00, 0x00,
+        0x03, 0x02, 0x01, 0x01,
+        0x05, 0x03, 0x01, 0x00, 0x01,
+        0x07, 0x13, 0x02, 0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00, 0x06, 0x5f,
+        0x73, 0x74, 0x61, 0x72, 0x74, 0x00, 0x01,
+        0x0a, 0x08, 0x01, 0x06, 0x00, 0x41, 0x00, 0x10, 0x00, 0x0b,
+    ];
+
+    #[test]
+    fn test_wasm_version_extraction() {
+        // WASM bytes: magic (4 bytes) + version (4 bytes LE)
+        let wasm_bytes = MINIMAL_WASM;
+        assert!(wasm_bytes.len() >= 8);
+        let version =
+            u32::from_le_bytes([wasm_bytes[4], wasm_bytes[5], wasm_bytes[6], wasm_bytes[7]]);
+        assert_eq!(version, 1);
+    }
+
+    #[test]
+    fn test_wasm_magic_bytes() {
+        assert_eq!(&MINIMAL_WASM[0..4], b"\0asm");
+    }
+
+    #[test]
+    fn test_info_command_valid_module() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.wasm");
+        std::fs::write(&path, MINIMAL_WASM).unwrap();
+
+        let args = InfoArgs { module: path, exports: false, imports: false };
+        assert!(info_command(args, true).is_ok());
+    }
+
+    #[test]
+    fn test_info_command_nonexistent_file() {
+        let args = InfoArgs {
+            module: PathBuf::from("/nonexistent/module.wasm"),
+            exports: false,
+            imports: false,
+        };
+        assert!(info_command(args, true).is_err());
+    }
+
+    #[test]
+    fn test_module_hash_deterministic() {
+        use isolate_core::config::ModuleHash;
+        let hash1 = ModuleHash::from_bytes(MINIMAL_WASM);
+        let hash2 = ModuleHash::from_bytes(MINIMAL_WASM);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_module_hash_differs_for_different_input() {
+        use isolate_core::config::ModuleHash;
+        let hash1 = ModuleHash::from_bytes(MINIMAL_WASM);
+        let hash2 = ModuleHash::from_bytes(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+        assert_ne!(hash1, hash2);
+    }
+}

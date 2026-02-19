@@ -126,3 +126,54 @@ pub async fn interactive_command(args: InteractiveArgs) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_capability_index_mapping() {
+        let mut capabilities = Vec::new();
+        let selections = vec![0, 1, 3, 4];
+
+        for idx in &selections {
+            match *idx {
+                0 => capabilities.push(Capability::stdout()),
+                1 => capabilities.push(Capability::stderr()),
+                2 => capabilities.push(Capability::stdin()),
+                3 => {
+                    capabilities.push(Capability::system_clock());
+                    capabilities.push(Capability::monotonic_clock());
+                }
+                4 => capabilities.push(Capability::secure_random()),
+                5 => capabilities.push(Capability::dns_resolve()),
+                _ => {}
+            }
+        }
+
+        // 4 selections but index 3 adds 2 capabilities
+        assert_eq!(capabilities.len(), 5);
+    }
+
+    #[test]
+    fn test_empty_capability_selection() {
+        let mut capabilities = Vec::new();
+        let selections: Vec<usize> = vec![];
+
+        for idx in &selections {
+            match *idx {
+                0 => capabilities.push(Capability::stdout()),
+                _ => {}
+            }
+        }
+
+        assert!(capabilities.is_empty());
+    }
+
+    #[test]
+    fn test_interactive_args() {
+        use clap::Parser;
+        let args = InteractiveArgs::try_parse_from(["interactive", "module.wasm"]).unwrap();
+        assert_eq!(args.module, PathBuf::from("module.wasm"));
+    }
+}

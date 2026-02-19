@@ -167,3 +167,72 @@ pub async fn benchmark_command(args: BenchmarkArgs, quiet: bool) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_benchmark_args_defaults() {
+        use clap::Parser;
+        let args = BenchmarkArgs::try_parse_from(["bench", "module.wasm"]).unwrap();
+        assert_eq!(args.iterations, 100);
+        assert_eq!(args.warmup, 10);
+        assert!(!args.include_run);
+    }
+
+    #[test]
+    fn test_benchmark_args_custom() {
+        use clap::Parser;
+        let args = BenchmarkArgs::try_parse_from([
+            "bench",
+            "module.wasm",
+            "--iterations",
+            "50",
+            "--warmup",
+            "5",
+            "--include-run",
+        ])
+        .unwrap();
+        assert_eq!(args.iterations, 50);
+        assert_eq!(args.warmup, 5);
+        assert!(args.include_run);
+    }
+
+    #[test]
+    fn test_performance_rating_thresholds() {
+        // Test the rating logic extracted from the command
+        let rating = |p50_ms: f64| -> &str {
+            if p50_ms < 5.0 {
+                "Excellent"
+            } else if p50_ms < 10.0 {
+                "Good"
+            } else if p50_ms < 50.0 {
+                "Average"
+            } else {
+                "Slow"
+            }
+        };
+        assert_eq!(rating(1.0), "Excellent");
+        assert_eq!(rating(4.9), "Excellent");
+        assert_eq!(rating(5.0), "Good");
+        assert_eq!(rating(9.9), "Good");
+        assert_eq!(rating(10.0), "Average");
+        assert_eq!(rating(49.9), "Average");
+        assert_eq!(rating(50.0), "Slow");
+        assert_eq!(rating(100.0), "Slow");
+    }
+
+    #[test]
+    fn test_percentile_calculation() {
+        let mut durations: Vec<Duration> = (1..=100).map(|i| Duration::from_millis(i)).collect();
+        durations.sort();
+        let n = durations.len();
+        let p50 = &durations[n / 2];
+        let p95 = &durations[n * 95 / 100];
+        let p99 = &durations[n * 99 / 100];
+        assert_eq!(*p50, Duration::from_millis(51));
+        assert_eq!(*p95, Duration::from_millis(96));
+        assert_eq!(*p99, Duration::from_millis(100));
+    }
+}
