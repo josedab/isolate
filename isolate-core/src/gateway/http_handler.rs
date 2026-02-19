@@ -145,18 +145,18 @@ impl FunctionRouter {
 
     /// Check if the request passes rate limiting.
     pub fn check_rate_limit(&self, path: &str) -> bool {
-        // Global rate limit
+        // Global rate limit — check and increment inside the lock to prevent TOCTOU
         let now = std::time::Instant::now();
         {
             let mut window = self.global_window.lock().expect("global rate limit window lock poisoned");
             if now.duration_since(*window).as_secs() >= 1 {
                 *window = now;
-                self.global_counter.store(0, Ordering::Relaxed);
+                self.global_counter.store(0, Ordering::Release);
             }
-        }
-        let count = self.global_counter.fetch_add(1, Ordering::Relaxed);
-        if count >= self.config.global_rps as u64 {
-            return false;
+            let count = self.global_counter.fetch_add(1, Ordering::AcqRel);
+            if count >= self.config.global_rps as u64 {
+                return false;
+            }
         }
 
         // Per-route rate limit
@@ -167,9 +167,9 @@ impl FunctionRouter {
                     let mut window = state.window_start.lock().expect("route rate limit window lock poisoned");
                     if now.duration_since(*window).as_secs() >= 1 {
                         *window = now;
-                        state.counter.store(0, Ordering::Relaxed);
+                        state.counter.store(0, Ordering::Release);
                     }
-                    let count = state.counter.fetch_add(1, Ordering::Relaxed);
+                    let count = state.counter.fetch_add(1, Ordering::AcqRel);
                     if count >= limit as u64 {
                         return false;
                     }
