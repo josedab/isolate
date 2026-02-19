@@ -91,22 +91,22 @@ impl TenantUsage {
 
     fn rate_count(&self) -> u64 {
         let now = Self::current_minute();
-        let stored = self.minute_epoch.load(Ordering::Relaxed);
+        let stored = self.minute_epoch.load(Ordering::Acquire);
         if now != stored {
-            self.executions_this_minute.store(0, Ordering::Relaxed);
-            self.minute_epoch.store(now, Ordering::Relaxed);
+            self.executions_this_minute.store(0, Ordering::Release);
+            self.minute_epoch.store(now, Ordering::Release);
         }
-        self.executions_this_minute.load(Ordering::Relaxed)
+        self.executions_this_minute.load(Ordering::Acquire)
     }
 
     fn snapshot(&self) -> UsageSnapshot {
         UsageSnapshot {
-            concurrent_sandboxes: self.concurrent_sandboxes.load(Ordering::Relaxed) as u32,
-            total_memory: self.total_memory.load(Ordering::Relaxed),
-            total_cpu: self.total_cpu.load(Ordering::Relaxed) as u32,
+            concurrent_sandboxes: self.concurrent_sandboxes.load(Ordering::Acquire) as u32,
+            total_memory: self.total_memory.load(Ordering::Acquire),
+            total_cpu: self.total_cpu.load(Ordering::Acquire) as u32,
             executions_this_minute: self.rate_count() as u32,
-            stored_modules: self.stored_modules.load(Ordering::Relaxed) as u32,
-            storage_bytes: self.storage_bytes.load(Ordering::Relaxed),
+            stored_modules: self.stored_modules.load(Ordering::Acquire) as u32,
+            storage_bytes: self.storage_bytes.load(Ordering::Acquire),
         }
     }
 }
@@ -258,6 +258,7 @@ impl NamespaceManager {
     }
 
     /// Check if a sandbox execution is allowed under the tenant's quota.
+    /// On success, atomically reserves the quota to prevent TOCTOU races.
     pub fn check_sandbox_quota(
         &self,
         ns_id: &NamespaceId,
@@ -283,43 +284,77 @@ impl NamespaceManager {
             None => return QuotaCheckResult::Denied("usage tracking not initialized".into()),
         };
 
+        // Atomically reserve concurrent sandbox slot using compare-and-swap
+        loop {
+            let current_sandboxes = usage.concurrent_sandboxes.load(Ordering::Acquire);
+            if current_sandboxes as u32 >= ns.quota.max_concurrent_sandboxes {
+                return QuotaCheckResult::Denied(format!(
+                    "concurrent sandbox limit reached ({}/{})",
+                    current_sandboxes, ns.quota.max_concurrent_sandboxes
+                ));
+            }
+            if usage.concurrent_sandboxes.compare_exchange(
+                current_sandboxes, current_sandboxes + 1, Ordering::AcqRel, Ordering::Acquire
+            ).is_ok() {
+                break;
+            }
+        }
+
+        // Check memory quota with atomic reserve
+        loop {
+            let current_mem = usage.total_memory.load(Ordering::Acquire);
+            if current_mem + memory_bytes > ns.quota.max_total_memory {
+                // Rollback sandbox reservation
+                usage.concurrent_sandboxes.fetch_sub(1, Ordering::Release);
+                return QuotaCheckResult::Denied("total memory quota exceeded".into());
+            }
+            if usage.total_memory.compare_exchange(
+                current_mem, current_mem + memory_bytes, Ordering::AcqRel, Ordering::Acquire
+            ).is_ok() {
+                break;
+            }
+        }
+
+        // Check CPU quota with atomic reserve
+        loop {
+            let current_cpu = usage.total_cpu.load(Ordering::Acquire);
+            if current_cpu + cpu_millicores as u64 > ns.quota.max_total_cpu {
+                // Rollback memory and sandbox reservations
+                usage.total_memory.fetch_sub(memory_bytes, Ordering::Release);
+                usage.concurrent_sandboxes.fetch_sub(1, Ordering::Release);
+                return QuotaCheckResult::Denied("total CPU quota exceeded".into());
+            }
+            if usage.total_cpu.compare_exchange(
+                current_cpu, current_cpu + cpu_millicores as u64, Ordering::AcqRel, Ordering::Acquire
+            ).is_ok() {
+                break;
+            }
+        }
+
         let current = usage.snapshot();
-
-        if current.concurrent_sandboxes >= ns.quota.max_concurrent_sandboxes {
-            return QuotaCheckResult::Denied(format!(
-                "concurrent sandbox limit reached ({}/{})",
-                current.concurrent_sandboxes, ns.quota.max_concurrent_sandboxes
-            ));
-        }
-
-        if current.total_memory + memory_bytes > ns.quota.max_total_memory {
-            return QuotaCheckResult::Denied("total memory quota exceeded".into());
-        }
-
-        if current.total_cpu + cpu_millicores > ns.quota.max_total_cpu {
-            return QuotaCheckResult::Denied("total CPU quota exceeded".into());
-        }
-
         if current.executions_this_minute >= ns.quota.rate_limit_per_minute {
+            // Rollback all reservations
+            usage.total_cpu.fetch_sub(cpu_millicores as u64, Ordering::Release);
+            usage.total_memory.fetch_sub(memory_bytes, Ordering::Release);
+            usage.concurrent_sandboxes.fetch_sub(1, Ordering::Release);
             return QuotaCheckResult::Denied("rate limit exceeded".into());
         }
+
+        usage.executions_this_minute.fetch_add(1, Ordering::Release);
 
         QuotaCheckResult::Allowed
     }
 
-    /// Record the start of a sandbox execution (allocates quota).
+    /// Record the start of a sandbox execution.
+    /// Note: Quota is already reserved by check_sandbox_quota, so this is a no-op
+    /// for concurrent_sandboxes, total_memory, and total_cpu.
     pub fn record_sandbox_start(
         &self,
-        ns_id: &NamespaceId,
-        memory_bytes: u64,
-        cpu_millicores: u32,
+        _ns_id: &NamespaceId,
+        _memory_bytes: u64,
+        _cpu_millicores: u32,
     ) {
-        if let Some(usage) = self.usage.get(ns_id) {
-            usage.concurrent_sandboxes.fetch_add(1, Ordering::Relaxed);
-            usage.total_memory.fetch_add(memory_bytes, Ordering::Relaxed);
-            usage.total_cpu.fetch_add(cpu_millicores as u64, Ordering::Relaxed);
-            usage.executions_this_minute.fetch_add(1, Ordering::Relaxed);
-        }
+        // Quota already atomically reserved in check_sandbox_quota
     }
 
     /// Record the end of a sandbox execution (releases quota).
@@ -330,14 +365,25 @@ impl NamespaceManager {
         cpu_millicores: u32,
     ) {
         if let Some(usage) = self.usage.get(ns_id) {
-            usage.concurrent_sandboxes.fetch_sub(1, Ordering::Relaxed);
-            let prev_mem = usage.total_memory.fetch_sub(memory_bytes, Ordering::Relaxed);
-            if prev_mem < memory_bytes {
-                usage.total_memory.store(0, Ordering::Relaxed);
+            usage.concurrent_sandboxes.fetch_sub(1, Ordering::Release);
+            // Use compare-and-swap loop for saturating subtraction to prevent underflow
+            loop {
+                let prev_mem = usage.total_memory.load(Ordering::Acquire);
+                let new_mem = prev_mem.saturating_sub(memory_bytes);
+                if usage.total_memory.compare_exchange(
+                    prev_mem, new_mem, Ordering::AcqRel, Ordering::Acquire
+                ).is_ok() {
+                    break;
+                }
             }
-            let prev_cpu = usage.total_cpu.fetch_sub(cpu_millicores as u64, Ordering::Relaxed);
-            if prev_cpu < cpu_millicores as u64 {
-                usage.total_cpu.store(0, Ordering::Relaxed);
+            loop {
+                let prev_cpu = usage.total_cpu.load(Ordering::Acquire);
+                let new_cpu = prev_cpu.saturating_sub(cpu_millicores as u64);
+                if usage.total_cpu.compare_exchange(
+                    prev_cpu, new_cpu, Ordering::AcqRel, Ordering::Acquire
+                ).is_ok() {
+                    break;
+                }
             }
         }
     }
