@@ -225,6 +225,21 @@ fn run_doctor() -> Result<(), ()> {
         println!("— not installed (optional: cargo install cargo-watch)");
     }
 
+    // Check and install pre-commit hooks
+    println!();
+    print!("  Pre-commit hook: ");
+    let hook_path = std::path::Path::new(".git/hooks/pre-commit");
+    if hook_path.exists() {
+        println!("✅ installed");
+    } else {
+        println!("— not installed, installing...");
+        if run_install_hooks().is_ok() {
+            println!("    ✅ Hook installed successfully");
+        } else {
+            println!("    ⚠️  Failed to install hook (run `cargo xtask install-hooks` manually)");
+        }
+    }
+
     println!("\n🏁 Environment check complete!");
     Ok(())
 }
