@@ -23,7 +23,7 @@
 //! - **Rollback Support**: Automatic rollback if migration fails mid-flight
 //! - **Health Verification**: Post-migration integrity checks
 
-#![allow(dead_code)]
+
 
 use crate::config::ModuleHash;
 use crate::error::{Error, Result};

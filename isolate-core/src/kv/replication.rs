@@ -14,7 +14,7 @@
 //!
 //! Vector clocks provide causal ordering of events across nodes.
 
-#![allow(dead_code)]
+
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};

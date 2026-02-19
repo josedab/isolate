@@ -3,7 +3,7 @@
 //! Provides Raft-based leader election, split-brain protection,
 //! and work-stealing scheduling for the mesh cluster.
 
-#![allow(dead_code)]
+
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};

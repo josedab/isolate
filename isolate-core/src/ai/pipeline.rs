@@ -3,7 +3,7 @@
 //! Extracts behavioral features from sandbox execution for ML model scoring,
 //! providing real-time anomaly classification and threat assessment.
 
-#![allow(dead_code)]
+
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

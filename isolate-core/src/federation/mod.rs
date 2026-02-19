@@ -10,7 +10,7 @@
 //! - **Gossip Protocol**: Metadata propagation across peers
 //! - **Local Cache**: LRU eviction with configurable limits
 
-#![allow(dead_code)]
+
 
 pub mod cache;
 pub mod content;

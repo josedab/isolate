@@ -10,7 +10,7 @@
 //! - **Data Flow**: Typed data passing between nodes with transformations
 //! - **Execution Engine**: Topological execution with error handling
 
-#![allow(dead_code)]
+
 
 pub mod dag;
 pub mod executor;

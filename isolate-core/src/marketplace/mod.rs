@@ -7,7 +7,7 @@
 //! discovery, distribution, and trust for WASM modules.
 
 // This module is experimental and not all APIs are used yet.
-#![allow(dead_code)]
+
 
 pub mod analytics;
 pub mod content_store;

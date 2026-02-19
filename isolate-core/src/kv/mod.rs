@@ -25,7 +25,7 @@
 //! ```
 
 // This module is experimental and not all APIs are used yet.
-#![allow(dead_code)]
+
 
 mod store;
 pub mod replication;

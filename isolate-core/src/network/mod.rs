@@ -34,7 +34,7 @@
 //! assert!(!policy.allows_http_host("evil.com"));
 //! ```
 
-#![allow(dead_code)]
+
 
 pub mod dns;
 pub mod policy;

@@ -24,7 +24,7 @@
 //! | GET | /api/v1/health | Health check |
 
 // This module is experimental and not all APIs are used yet.
-#![allow(dead_code)]
+
 
 mod router;
 mod types;

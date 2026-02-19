@@ -10,7 +10,7 @@
 //! - **Anomaly Detection**: Detect unusual execution patterns
 //! - **Recommendations**: Suggest optimizations based on collected data
 
-#![allow(dead_code)]
+
 
 pub mod anomaly;
 pub mod collector;

@@ -7,7 +7,7 @@
 //! provides the event model, correlation engine, and analysis pipeline that
 //! can be fed from either real eBPF probes or simulated instrumentation.
 
-#![allow(dead_code)]
+
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

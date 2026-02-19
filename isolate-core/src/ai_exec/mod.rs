@@ -27,7 +27,7 @@
 //! ```
 
 // This module is experimental and not all APIs are used yet.
-#![allow(dead_code)]
+
 
 mod executor;
 pub mod tool_schema;

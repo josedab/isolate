@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+
 //! Prometheus metrics exporter and Grafana dashboard configuration for
 //! production observability of the Isolate Kubernetes operator.
 

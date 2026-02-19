@@ -3,7 +3,7 @@
 //! Manages GPU resources across multiple sandboxes, providing fair scheduling,
 //! VRAM quota enforcement, and batched inference for AI workloads.
 
-#![allow(dead_code)]
+
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};

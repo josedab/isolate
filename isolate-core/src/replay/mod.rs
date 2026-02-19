@@ -10,7 +10,7 @@
 //! - **Timeline**: Navigate to any point in execution
 //! - **Session Sharing**: Share replay sessions via tokens
 
-#![allow(dead_code)]
+
 
 pub mod recording;
 pub mod session;

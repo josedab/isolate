@@ -3,7 +3,7 @@
 //! Enables composing multiple WASM components via WIT interfaces,
 //! with typed imports/exports and automatic dependency resolution.
 
-#![allow(dead_code)]
+
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

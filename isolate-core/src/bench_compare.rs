@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+
 //! Comparative benchmark suite with CI regression detection.
 //!
 //! Measures Isolate's performance against baseline targets (Firecracker, gVisor,

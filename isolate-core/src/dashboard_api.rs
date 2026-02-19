@@ -15,7 +15,7 @@
 //! | GET | /api/v1/resources | Resource usage summary |
 //! | GET | /api/v1/health | Health check |
 
-#![allow(dead_code)]
+
 
 use crate::dashboard::{
     AlertLevel, AlertThresholds, DashboardEvent, DashboardState,

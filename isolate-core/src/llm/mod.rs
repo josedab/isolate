@@ -58,7 +58,7 @@
 //! # }
 //! ```
 
-#![allow(dead_code)]
+
 
 mod executor;
 mod provider;

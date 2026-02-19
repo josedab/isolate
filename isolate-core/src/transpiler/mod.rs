@@ -10,7 +10,7 @@
 //! - **Safety Layer**: Bounds checking, trap handling, capability enforcement
 //! - **Codegen Abstraction**: Target-independent native code generation
 
-#![allow(dead_code)]
+
 
 pub mod ir;
 pub mod optimizer;

@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+
 
 //! Cedar/Rego-inspired policy decision engine with decision tree compilation.
 //!
@@ -188,6 +188,7 @@ pub struct DecisionTree {
     /// Statements grouped by action name (or `"*"` for [`ActionMatch::Any`]).
     action_groups: HashMap<String, Vec<PolicyStatement>>,
     /// The raw compiled node tree (used when branching is profitable).
+    #[allow(dead_code)] // Used for future optimization path in evaluate()
     root: DecisionNode,
 }
 

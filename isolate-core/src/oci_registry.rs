@@ -13,7 +13,7 @@
 //! └── verify(reference) → VerificationResult
 //! ```
 
-#![allow(dead_code)]
+
 
 use crate::module_registry::{content_hash, ModuleMetadata};
 
@@ -118,6 +118,7 @@ pub struct VerificationCheck {
 struct StoredManifest {
     manifest: OciManifest,
     wasm_bytes: Vec<u8>,
+    #[allow(dead_code)] // Tracked for future manifest expiration policies
     pushed_at: SystemTime,
 }
 

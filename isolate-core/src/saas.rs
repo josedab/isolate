@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+
 //! Multi-tenant SaaS service layer for the Isolate platform.
 //!
 //! Provides API key management, tenant lifecycle, usage tracking,

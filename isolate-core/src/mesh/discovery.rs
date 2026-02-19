@@ -17,7 +17,7 @@
 //! - Affinity/anti-affinity rules
 //! - Geographic proximity
 
-#![allow(dead_code)]
+
 
 use super::{NodeAddr, NodeId};
 use serde::{Deserialize, Serialize};

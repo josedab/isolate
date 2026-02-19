@@ -3,7 +3,7 @@
 //! Scans WASM modules for known vulnerabilities, suspicious patterns,
 //! and verifies publisher trust levels.
 
-#![allow(dead_code)]
+
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

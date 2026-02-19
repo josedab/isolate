@@ -3,7 +3,7 @@
 //! Provides a Rego-like policy evaluation engine that evaluates conditions
 //! against runtime context, producing allow/deny decisions with full traces.
 
-#![allow(dead_code)]
+
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

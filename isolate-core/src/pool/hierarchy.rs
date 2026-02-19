@@ -3,7 +3,7 @@
 //! Provides a tree-based namespace hierarchy (org → team → project) where
 //! resource quotas are checked and usage is propagated up the tree.
 
-#![allow(dead_code)]
+
 
 use super::quota::TenantQuota;
 use crate::error::{Error, Result};

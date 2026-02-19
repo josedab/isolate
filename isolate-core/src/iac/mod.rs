@@ -7,7 +7,7 @@
 //! - State management for tracking resource lifecycle
 //! - Plan/apply workflow support
 //! - Import existing resources into IaC state
-#![allow(dead_code)]
+
 
 pub mod declarative;
 pub mod plan;

@@ -4,7 +4,7 @@
 //! accessing the real filesystem. Supports overlay mounts, quota enforcement,
 //! and capability-based access control.
 
-#![allow(dead_code)]
+
 
 mod layer;
 mod quota;

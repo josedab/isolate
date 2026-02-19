@@ -29,7 +29,7 @@
 //! ```
 
 // This module is experimental and not all APIs are used yet.
-#![allow(dead_code)]
+
 
 pub mod admission;
 #[cfg(any(feature = "platform", feature = "platform-workflow"))]

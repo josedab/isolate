@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+
 //! Instant clone engine for sub-100μs CoW sandbox cloning, disk persistence,
 //! and cross-node snapshot restore.
 

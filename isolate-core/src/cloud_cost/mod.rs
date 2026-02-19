@@ -10,7 +10,7 @@
 //! - **Cost Calculator**: Accurate cost estimation per execution
 //! - **Routing Optimizer**: Constraint-based optimal provider selection
 
-#![allow(dead_code)]
+
 
 pub mod calculator;
 pub mod optimizer;

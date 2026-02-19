@@ -42,7 +42,7 @@
 //! # }
 //! ```
 
-#![allow(dead_code)]
+
 
 mod session;
 mod tools;

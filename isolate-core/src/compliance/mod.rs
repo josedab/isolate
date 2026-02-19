@@ -10,7 +10,7 @@
 //! - **Evidence Collection**: Automated gathering of compliance evidence
 //! - **Report Generation**: Audit-ready compliance reports
 
-#![allow(dead_code)]
+
 
 pub mod audit_trail;
 pub mod ci;

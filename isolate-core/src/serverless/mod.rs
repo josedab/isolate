@@ -8,7 +8,7 @@
 //! - Runtime configuration generators for each platform
 //! - Request/response mapping between HTTP and sandbox I/O
 //! - Deployment manifest generation
-#![allow(dead_code)]
+
 
 pub mod adapter;
 pub mod function;

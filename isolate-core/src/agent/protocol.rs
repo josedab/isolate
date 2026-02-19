@@ -3,7 +3,7 @@
 //! Provides GA-quality message envelopes, schema validation, and budget
 //! enforcement for the agent tool-call pipeline.
 
-#![allow(dead_code)]
+
 
 use super::trace::ResourceBudget;
 use super::types::ResourceUsageSummary;

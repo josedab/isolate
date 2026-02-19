@@ -20,7 +20,7 @@
 //! let output = engine.run("acme-corp", &wasm_bytes, &[]).await?;
 //! ```
 
-#![allow(dead_code)]
+
 #![allow(missing_docs)]
 use crate::config::SandboxConfig;
 use crate::engine::wasm::WasmEngine;
@@ -93,6 +93,7 @@ struct TenantState {
     total_memory: AtomicU64,
     total_executions: AtomicU64,
     total_fuel_consumed: AtomicU64,
+    #[allow(dead_code)] // Tracked for future tenant lifecycle management
     created_at: Instant,
 }
 

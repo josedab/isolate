@@ -11,7 +11,7 @@
 //! - **Templates**: Pre-built policy templates for common use cases
 //! - **Simulation**: Dry-run policies against test scenarios
 
-#![allow(dead_code)]
+
 
 pub mod codegen;
 pub mod ir;
