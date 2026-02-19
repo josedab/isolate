@@ -338,12 +338,10 @@ mod tests {
             resource_types: vec!["Sandbox".to_string(), "SandboxPool".to_string()],
         };
         let op = mgr.restore("backup-1", restore_type).unwrap();
-        match &op.restore_type {
-            RestoreType::Selective { resource_types } => {
-                assert_eq!(resource_types.len(), 2);
-            }
-            _ => panic!("expected Selective restore type"),
-        }
+        let RestoreType::Selective { resource_types } = &op.restore_type else {
+            unreachable!("expected Selective restore type");
+        };
+        assert_eq!(resource_types.len(), 2);
     }
 
     #[test]

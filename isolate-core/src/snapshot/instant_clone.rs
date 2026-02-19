@@ -577,10 +577,10 @@ mod tests {
 
         let restored = inst.to_snapshot();
         assert_eq!(restored.memory_pages.len(), 4);
-        match &restored.memory_pages[&1] {
-            MemoryPage::Data(d) => assert_eq!(d, &vec![0xFF; 64]),
-            other => panic!("expected Data, got {:?}", other),
-        }
+        let MemoryPage::Data(d) = &restored.memory_pages[&1] else {
+            unreachable!("expected Data page at index 1");
+        };
+        assert_eq!(d, &vec![0xFF; 64]);
     }
 
     // -- InstantCloneEngine tests --
@@ -664,10 +664,10 @@ mod tests {
 
         let loaded = store.load(&id).unwrap();
         assert_eq!(loaded.id, id);
-        match &loaded.memory_pages[&0] {
-            MemoryPage::Data(d) => assert_eq!(d, &vec![42; 64]),
-            other => panic!("expected Data, got {:?}", other),
-        }
+        let MemoryPage::Data(d) = &loaded.memory_pages[&0] else {
+            unreachable!("expected Data page at index 0");
+        };
+        assert_eq!(d, &vec![42; 64]);
     }
 
     #[test]

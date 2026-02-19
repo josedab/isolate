@@ -479,14 +479,13 @@ mod tests {
             },
         });
         assert!(resp.success);
-        if let Some(DapResponseBody::SetBreakpoints(body)) = resp.body {
-            assert_eq!(body.breakpoints.len(), 2);
-            assert!(body.breakpoints[0].verified);
-            assert_eq!(body.breakpoints[0].line, 10);
-            assert_eq!(body.breakpoints[1].line, 20);
-        } else {
-            panic!("expected SetBreakpoints body");
-        }
+        let Some(DapResponseBody::SetBreakpoints(body)) = resp.body else {
+            unreachable!("expected SetBreakpoints body");
+        };
+        assert_eq!(body.breakpoints.len(), 2);
+        assert!(body.breakpoints[0].verified);
+        assert_eq!(body.breakpoints[0].line, 10);
+        assert_eq!(body.breakpoints[1].line, 20);
     }
 
     #[test]
@@ -527,13 +526,12 @@ mod tests {
             command: DapCommand::StackTrace { thread_id: 1 },
         });
         assert!(resp.success);
-        if let Some(DapResponseBody::StackTrace(body)) = resp.body {
-            assert_eq!(body.stack_frames.len(), 1);
-            assert_eq!(body.stack_frames[0].name, "main");
-            assert_eq!(body.total_frames, 1);
-        } else {
-            panic!("expected StackTrace body");
-        }
+        let Some(DapResponseBody::StackTrace(body)) = resp.body else {
+            unreachable!("expected StackTrace body");
+        };
+        assert_eq!(body.stack_frames.len(), 1);
+        assert_eq!(body.stack_frames[0].name, "main");
+        assert_eq!(body.total_frames, 1);
     }
 
     #[test]
@@ -544,13 +542,12 @@ mod tests {
             command: DapCommand::Scopes { frame_id: 0 },
         });
         assert!(resp.success);
-        if let Some(DapResponseBody::Scopes(body)) = resp.body {
-            assert_eq!(body.scopes.len(), 2);
-            assert_eq!(body.scopes[0].name, "Locals");
-            assert_eq!(body.scopes[1].name, "Globals");
-        } else {
-            panic!("expected Scopes body");
-        }
+        let Some(DapResponseBody::Scopes(body)) = resp.body else {
+            unreachable!("expected Scopes body");
+        };
+        assert_eq!(body.scopes.len(), 2);
+        assert_eq!(body.scopes[0].name, "Locals");
+        assert_eq!(body.scopes[1].name, "Globals");
     }
 
     #[test]
@@ -561,11 +558,10 @@ mod tests {
             command: DapCommand::Variables { variables_reference: 1 },
         });
         assert!(resp.success);
-        if let Some(DapResponseBody::Variables(body)) = resp.body {
-            assert!(body.variables.is_empty());
-        } else {
-            panic!("expected Variables body");
-        }
+        let Some(DapResponseBody::Variables(body)) = resp.body else {
+            unreachable!("expected Variables body");
+        };
+        assert!(body.variables.is_empty());
     }
 
     #[test]
@@ -579,11 +575,10 @@ mod tests {
             },
         });
         assert!(resp.success);
-        if let Some(DapResponseBody::Evaluate(body)) = resp.body {
-            assert_eq!(body.result, "2 + 2");
-        } else {
-            panic!("expected Evaluate body");
-        }
+        let Some(DapResponseBody::Evaluate(body)) = resp.body else {
+            unreachable!("expected Evaluate body");
+        };
+        assert_eq!(body.result, "2 + 2");
     }
 
     #[test]
@@ -879,10 +874,9 @@ mod tests {
             },
         });
         assert!(resp.success);
-        if let Some(DapResponseBody::Evaluate(body)) = resp.body {
-            assert_eq!(body.result, "x + y");
-        } else {
-            panic!("expected Evaluate body");
-        }
+        let Some(DapResponseBody::Evaluate(body)) = resp.body else {
+            unreachable!("expected Evaluate body");
+        };
+        assert_eq!(body.result, "x + y");
     }
 }

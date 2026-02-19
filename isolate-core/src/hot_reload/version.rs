@@ -236,10 +236,13 @@ mod tests {
         let mut v1_count = 0u32;
         let mut v2_count = 0u32;
         for _ in 0..100 {
-            match router.resolve().unwrap() {
-                id if id == v1 => v1_count += 1,
-                id if id == v2 => v2_count += 1,
-                _ => panic!("unexpected version"),
+            let id = router.resolve().unwrap();
+            if id == v1 {
+                v1_count += 1;
+            } else if id == v2 {
+                v2_count += 1;
+            } else {
+                unreachable!("unexpected version");
             }
         }
         assert_eq!(v1_count, 50);

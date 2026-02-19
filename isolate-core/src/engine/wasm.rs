@@ -879,14 +879,7 @@ mod tests {
 
         let mut instance = engine.instantiate(&compiled, &config, enforcer, meter).unwrap();
         let result = instance.run();
-
-        match result {
-            Ok(exec_result) => {
-                assert_eq!(exec_result.exit_code, 0, "Expected exit code 0");
-            }
-            Err(e) => {
-                panic!("Expected Ok, got Err: {:?}", e);
-            }
-        }
+        let exec_result = result.unwrap_or_else(|e| unreachable!("Expected Ok, got Err: {:?}", e));
+        assert_eq!(exec_result.exit_code, 0, "Expected exit code 0");
     }
 }

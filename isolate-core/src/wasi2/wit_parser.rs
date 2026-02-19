@@ -497,13 +497,12 @@ mod tests {
 
         assert_eq!(doc.interfaces[0].types.len(), 1);
         assert_eq!(doc.interfaces[0].types[0].name, "point");
-        if let WitTypeKind::Record(fields) = &doc.interfaces[0].types[0].kind {
-            assert_eq!(fields.len(), 2);
-            assert_eq!(fields[0].0, "x");
-            assert_eq!(fields[0].1, "f64");
-        } else {
-            panic!("Expected record type");
-        }
+        let WitTypeKind::Record(fields) = &doc.interfaces[0].types[0].kind else {
+            unreachable!("Expected record type");
+        };
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].0, "x");
+        assert_eq!(fields[0].1, "f64");
     }
 
     #[test]
@@ -524,11 +523,10 @@ mod tests {
         let doc = parser.parse(input).unwrap();
 
         assert_eq!(doc.interfaces[0].types.len(), 1);
-        if let WitTypeKind::Enum(values) = &doc.interfaces[0].types[0].kind {
-            assert_eq!(values, &["red", "green", "blue"]);
-        } else {
-            panic!("Expected enum type");
-        }
+        let WitTypeKind::Enum(values) = &doc.interfaces[0].types[0].kind else {
+            unreachable!("Expected enum type");
+        };
+        assert_eq!(values, &["red", "green", "blue"]);
     }
 
     #[test]
@@ -548,15 +546,14 @@ mod tests {
         let parser = WitParser::new();
         let doc = parser.parse(input).unwrap();
 
-        if let WitTypeKind::Variant(cases) = &doc.interfaces[0].types[0].kind {
-            assert_eq!(cases.len(), 3);
-            assert_eq!(cases[0].0, "ok");
-            assert_eq!(cases[0].1, Some("string".to_string()));
-            assert_eq!(cases[2].0, "none");
-            assert_eq!(cases[2].1, None);
-        } else {
-            panic!("Expected variant type");
-        }
+        let WitTypeKind::Variant(cases) = &doc.interfaces[0].types[0].kind else {
+            unreachable!("Expected variant type");
+        };
+        assert_eq!(cases.len(), 3);
+        assert_eq!(cases[0].0, "ok");
+        assert_eq!(cases[0].1, Some("string".to_string()));
+        assert_eq!(cases[2].0, "none");
+        assert_eq!(cases[2].1, None);
     }
 
     #[test]
@@ -576,11 +573,10 @@ mod tests {
         let parser = WitParser::new();
         let doc = parser.parse(input).unwrap();
 
-        if let WitTypeKind::Flags(flags) = &doc.interfaces[0].types[0].kind {
-            assert_eq!(flags, &["read", "write", "execute"]);
-        } else {
-            panic!("Expected flags type");
-        }
+        let WitTypeKind::Flags(flags) = &doc.interfaces[0].types[0].kind else {
+            unreachable!("Expected flags type");
+        };
+        assert_eq!(flags, &["read", "write", "execute"]);
     }
 
     #[test]
@@ -596,11 +592,10 @@ mod tests {
         let parser = WitParser::new();
         let doc = parser.parse(input).unwrap();
 
-        if let WitTypeKind::Alias(target) = &doc.interfaces[0].types[0].kind {
-            assert_eq!(target, "list<u8>");
-        } else {
-            panic!("Expected alias type");
-        }
+        let WitTypeKind::Alias(target) = &doc.interfaces[0].types[0].kind else {
+            unreachable!("Expected alias type");
+        };
+        assert_eq!(target, "list<u8>");
     }
 
     #[test]

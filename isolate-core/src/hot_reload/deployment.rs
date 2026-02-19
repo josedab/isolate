@@ -311,12 +311,10 @@ mod tests {
         ctrl.start_deployment(VersionId::new("v2"));
         ctrl.rollback("manual intervention");
 
-        match ctrl.state() {
-            DeploymentState::RolledBack { reason, .. } => {
-                assert_eq!(reason, "manual intervention");
-            }
-            _ => panic!("expected RolledBack"),
-        }
+        let DeploymentState::RolledBack { reason, .. } = ctrl.state() else {
+            unreachable!("expected RolledBack");
+        };
+        assert_eq!(reason, "manual intervention");
     }
 
     #[test]

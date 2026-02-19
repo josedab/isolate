@@ -435,10 +435,10 @@ mod tests {
         let msg = WsMessage::Stdout("Hello, world!".to_string());
         let json = msg.to_json();
         let parsed = WsMessage::from_json(&json).unwrap();
-        match parsed {
-            WsMessage::Stdout(s) => assert_eq!(s, "Hello, world!"),
-            _ => panic!("Wrong message type"),
-        }
+        let WsMessage::Stdout(s) = parsed else {
+            unreachable!("Wrong message type");
+        };
+        assert_eq!(s, "Hello, world!");
     }
 
     #[test]
@@ -505,10 +505,10 @@ mod tests {
 
         let output = session.drain_output();
         assert_eq!(output.len(), 1);
-        match &output[0] {
-            WsMessage::Pong { seq } => assert_eq!(*seq, 42),
-            _ => panic!("Expected Pong"),
-        }
+        let WsMessage::Pong { seq } = &output[0] else {
+            unreachable!("Expected Pong");
+        };
+        assert_eq!(*seq, 42);
     }
 
     #[test]

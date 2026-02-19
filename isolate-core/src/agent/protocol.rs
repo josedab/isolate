@@ -665,12 +665,10 @@ mod tests {
         assert!(line.ends_with('\n'));
 
         let parsed = ProtocolMessage::from_json_line(&line).unwrap();
-        match parsed {
-            ProtocolMessage::AgentRequest { tool_name, .. } => {
-                assert_eq!(tool_name, "code_execute");
-            }
-            _ => panic!("expected AgentRequest"),
-        }
+        let ProtocolMessage::AgentRequest { tool_name, .. } = parsed else {
+            unreachable!("expected AgentRequest");
+        };
+        assert_eq!(tool_name, "code_execute");
     }
 
     #[test]
@@ -684,12 +682,10 @@ mod tests {
 
         let line = msg.to_json_line().unwrap();
         let parsed = ProtocolMessage::from_json_line(&line).unwrap();
-        match parsed {
-            ProtocolMessage::AgentResponse { status, .. } => {
-                assert_eq!(status, "success");
-            }
-            _ => panic!("expected AgentResponse"),
-        }
+        let ProtocolMessage::AgentResponse { status, .. } = parsed else {
+            unreachable!("expected AgentResponse");
+        };
+        assert_eq!(status, "success");
     }
 
     #[test]
@@ -702,12 +698,10 @@ mod tests {
 
         let line = msg.to_json_line().unwrap();
         let parsed = ProtocolMessage::from_json_line(&line).unwrap();
-        match parsed {
-            ProtocolMessage::ErrorResponse { code, .. } => {
-                assert_eq!(code, "INVALID_INPUT");
-            }
-            _ => panic!("expected ErrorResponse"),
-        }
+        let ProtocolMessage::ErrorResponse { code, .. } = parsed else {
+            unreachable!("expected ErrorResponse");
+        };
+        assert_eq!(code, "INVALID_INPUT");
     }
 
     #[test]

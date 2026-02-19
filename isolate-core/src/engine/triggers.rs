@@ -673,12 +673,10 @@ mod tests {
             .build()
             .unwrap();
 
-        match &t.kind {
-            TriggerKind::Webhook { secret } => {
-                assert_eq!(secret.as_deref(), Some("s3cret"));
-            }
-            _ => panic!("expected Webhook kind"),
-        }
+        let TriggerKind::Webhook { secret } = &t.kind else {
+            unreachable!("expected Webhook kind");
+        };
+        assert_eq!(secret.as_deref(), Some("s3cret"));
     }
 
     #[test]
@@ -693,12 +691,10 @@ mod tests {
             .build()
             .unwrap();
 
-        match &t.kind {
-            TriggerKind::Timer { interval } => {
-                assert_eq!(*interval, Duration::from_secs(120));
-            }
-            _ => panic!("expected Timer kind"),
-        }
+        let TriggerKind::Timer { interval } = &t.kind else {
+            unreachable!("expected Timer kind");
+        };
+        assert_eq!(*interval, Duration::from_secs(120));
     }
 
     #[test]

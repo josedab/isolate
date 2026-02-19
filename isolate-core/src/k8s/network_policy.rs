@@ -391,11 +391,10 @@ mod tests {
     fn test_generate_pdb_percentage() {
         let pdb = generate_pdb("my-pool", "default", PdbValue::Percentage("50%".to_string()));
 
-        if let Some(PdbValue::Percentage(p)) = &pdb.spec.min_available {
-            assert_eq!(p, "50%");
-        } else {
-            panic!("Expected percentage");
-        }
+        let Some(PdbValue::Percentage(p)) = &pdb.spec.min_available else {
+            unreachable!("Expected percentage");
+        };
+        assert_eq!(p, "50%");
     }
 
     #[test]

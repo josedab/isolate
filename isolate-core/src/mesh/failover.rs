@@ -285,13 +285,12 @@ mod tests {
         let coord = setup_coordinator(FailoverPolicy::Automatic);
 
         let event = coord.initiate_failover(NodeId::new(1)).unwrap();
-        if let FailoverEvent::FailoverComplete { node_id, reassigned, failed } = event {
-            assert_eq!(node_id, NodeId::new(1));
-            assert_eq!(reassigned, 2);
-            assert_eq!(failed, 0);
-        } else {
-            panic!("Expected FailoverComplete event");
-        }
+        let FailoverEvent::FailoverComplete { node_id, reassigned, failed } = event else {
+            unreachable!("Expected FailoverComplete event");
+        };
+        assert_eq!(node_id, NodeId::new(1));
+        assert_eq!(reassigned, 2);
+        assert_eq!(failed, 0);
     }
 
     #[test]
@@ -314,12 +313,11 @@ mod tests {
         let coord = setup_coordinator(FailoverPolicy::DrainOnly);
 
         let event = coord.initiate_failover(NodeId::new(1)).unwrap();
-        if let FailoverEvent::FailoverComplete { reassigned, failed, .. } = event {
-            assert_eq!(reassigned, 0);
-            assert_eq!(failed, 0);
-        } else {
-            panic!("Expected FailoverComplete event");
-        }
+        let FailoverEvent::FailoverComplete { reassigned, failed, .. } = event else {
+            unreachable!("Expected FailoverComplete event");
+        };
+        assert_eq!(reassigned, 0);
+        assert_eq!(failed, 0);
     }
 
     #[test]
@@ -356,12 +354,11 @@ mod tests {
 
         // Node 3 has no sandboxes.
         let event = coord.initiate_failover(NodeId::new(3)).unwrap();
-        if let FailoverEvent::FailoverComplete { reassigned, failed, .. } = event {
-            assert_eq!(reassigned, 0);
-            assert_eq!(failed, 0);
-        } else {
-            panic!("Expected FailoverComplete event");
-        }
+        let FailoverEvent::FailoverComplete { reassigned, failed, .. } = event else {
+            unreachable!("Expected FailoverComplete event");
+        };
+        assert_eq!(reassigned, 0);
+        assert_eq!(failed, 0);
     }
 
     #[test]
@@ -372,10 +369,9 @@ mod tests {
 
         // Only node is the failed node itself; no targets.
         let event = coord.initiate_failover(NodeId::new(1)).unwrap();
-        if let FailoverEvent::FailoverComplete { failed, .. } = event {
-            assert_eq!(failed, 1);
-        } else {
-            panic!("Expected FailoverComplete event");
-        }
+        let FailoverEvent::FailoverComplete { failed, .. } = event else {
+            unreachable!("Expected FailoverComplete event");
+        };
+        assert_eq!(failed, 1);
     }
 }

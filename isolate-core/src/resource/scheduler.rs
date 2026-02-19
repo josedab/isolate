@@ -541,11 +541,10 @@ mod tests {
         let r2 = sched.schedule("r2", make_request(512, "alice", Priority::Normal));
 
         // Spread should place on different nodes
-        if let (ScheduleResult::Placed { node_id: n1, .. }, ScheduleResult::Placed { node_id: n2, .. }) = (r1, r2) {
-            assert_ne!(n1, n2);
-        } else {
-            panic!("expected both placed");
-        }
+        let (ScheduleResult::Placed { node_id: n1, .. }, ScheduleResult::Placed { node_id: n2, .. }) = (r1, r2) else {
+            unreachable!("expected both placed");
+        };
+        assert_ne!(n1, n2);
     }
 
     #[test]

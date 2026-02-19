@@ -231,12 +231,11 @@ mod tests {
         opt.add_pattern(make_pattern("sb-1", 512, 100, 0.1));
         let recs = opt.right_size_recommendations();
         assert_eq!(recs.len(), 1);
-        if let SuggestedAction::ReduceMemory { current_mb, suggested_mb } = &recs[0].action {
-            assert_eq!(*current_mb, 512);
-            assert_eq!(*suggested_mb, 200); // 2x peak
-        } else {
-            panic!("Expected ReduceMemory action");
-        }
+        let SuggestedAction::ReduceMemory { current_mb, suggested_mb } = &recs[0].action else {
+            unreachable!("Expected ReduceMemory action");
+        };
+        assert_eq!(*current_mb, 512);
+        assert_eq!(*suggested_mb, 200);
     }
 
     #[test]

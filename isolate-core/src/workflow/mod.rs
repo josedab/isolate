@@ -944,11 +944,10 @@ mod tests {
     fn test_parallel_step() {
         let step = Step::parallel(vec!["branch1".to_string(), "branch2".to_string()]);
 
-        if let StepType::Parallel { branches } = &step.step_type {
-            assert_eq!(branches.len(), 2);
-        } else {
-            panic!("Expected parallel step");
-        }
+        let StepType::Parallel { branches } = &step.step_type else {
+            unreachable!("Expected parallel step");
+        };
+        assert_eq!(branches.len(), 2);
     }
 
     #[test]
@@ -961,11 +960,10 @@ mod tests {
             Choice { condition: Condition::Always, next: "default".to_string() },
         ]);
 
-        if let StepType::Choice { choices } = &step.step_type {
-            assert_eq!(choices.len(), 2);
-        } else {
-            panic!("Expected choice step");
-        }
+        let StepType::Choice { choices } = &step.step_type else {
+            unreachable!("Expected choice step");
+        };
+        assert_eq!(choices.len(), 2);
     }
 
     #[test]

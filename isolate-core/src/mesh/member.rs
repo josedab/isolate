@@ -487,15 +487,13 @@ mod tests {
         let gossip = Gossip::new(NodeId::new(0), Duration::from_millis(100));
 
         let ping = gossip.create_ping();
-        if let GossipMessage::Ping { seq, .. } = ping {
-            let ack = gossip.create_ack(seq);
-            if let GossipMessage::Ack { seq: ack_seq, .. } = ack {
-                assert_eq!(seq, ack_seq);
-            } else {
-                panic!("Expected Ack message");
-            }
-        } else {
-            panic!("Expected Ping message");
-        }
+        let GossipMessage::Ping { seq, .. } = ping else {
+            unreachable!("Expected Ping message");
+        };
+        let ack = gossip.create_ack(seq);
+        let GossipMessage::Ack { seq: ack_seq, .. } = ack else {
+            unreachable!("Expected Ack message");
+        };
+        assert_eq!(seq, ack_seq);
     }
 }
