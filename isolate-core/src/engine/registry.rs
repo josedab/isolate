@@ -171,7 +171,7 @@ impl ModuleRegistry {
 
         // Store on disk
         if self.config.max_disk_bytes > 0 {
-            let artifact_path = self.artifact_path(&hash.0);
+            let artifact_path = self.artifact_path(&hash.0)?;
             if let Some(parent) = artifact_path.parent() {
                 std::fs::create_dir_all(parent).ok();
             }
@@ -227,9 +227,8 @@ impl ModuleRegistry {
 
         // Check disk cache
         if self.config.max_disk_bytes > 0 {
-            let artifact_path = self.artifact_path(hash);
+            let artifact_path = self.artifact_path(hash)?;
             if artifact_path.exists() {
-                // Check TTL
                 if let Some(ttl) = self.config.entry_ttl {
                     if let Ok(metadata) = std::fs::metadata(&artifact_path) {
                         if let Ok(modified) = metadata.modified() {
@@ -282,7 +281,7 @@ impl ModuleRegistry {
             return true;
         }
         if self.config.max_disk_bytes > 0 {
-            return self.artifact_path(hash).exists();
+            return self.artifact_path(hash).map(|p| p.exists()).unwrap_or(false);
         }
         false
     }
@@ -291,7 +290,9 @@ impl ModuleRegistry {
     pub fn remove(&self, hash: &str) -> bool {
         let mem_removed = self.memory_cache.remove(hash).is_some();
         let disk_removed = if self.config.max_disk_bytes > 0 {
-            std::fs::remove_file(self.artifact_path(hash)).is_ok()
+            self.artifact_path(hash)
+                .map(|p| std::fs::remove_file(p).is_ok())
+                .unwrap_or(false)
         } else {
             false
         };
@@ -347,10 +348,21 @@ impl ModuleRegistry {
         hashes
     }
 
-    fn artifact_path(&self, hash: &str) -> PathBuf {
+    fn artifact_path(&self, hash: &str) -> Result<PathBuf> {
+        // Validate hash contains only safe characters (hex digits, underscores, hyphens)
+        if hash.is_empty()
+            || !hash
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() || c == '_' || c == '-')
+        {
+            return Err(Error::Execution(
+                "invalid hash format: must contain only hex digits, underscores, or hyphens"
+                    .to_string(),
+            ));
+        }
         // Use first 2 chars as subdirectory for filesystem scalability
         let subdir = if hash.len() >= 2 { &hash[..2] } else { "00" };
-        self.config.cache_dir.join(subdir).join(format!("{}.cwasm", hash))
+        Ok(self.config.cache_dir.join(subdir).join(format!("{}.cwasm", hash)))
     }
 
     fn evict_if_needed(&self) {
