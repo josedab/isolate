@@ -246,7 +246,7 @@ impl Default for GatewayConfig {
             listen_addr: "0.0.0.0:8080".to_string(),
             rate_limit: RateLimitConfig::default(),
             api_keys: HashMap::new(),
-            cors_origins: vec!["*".to_string()],
+            cors_origins: vec![],
             max_body_size: 50 * 1024 * 1024, // 50 MB
             request_timeout: Duration::from_secs(300),
         }
