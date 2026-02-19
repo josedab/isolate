@@ -80,7 +80,7 @@ pub fn load_project_config_from(start_dir: std::path::PathBuf) -> Option<Project
         let config_path = current_dir.join(".isolate.toml");
         if config_path.exists() {
             let content = std::fs::read_to_string(&config_path).ok()?;
-            return toml::from_str(&content).ok();
+            return parse_project_config(&content).ok();
         }
 
         if !current_dir.pop() {
