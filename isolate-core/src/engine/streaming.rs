@@ -128,8 +128,13 @@ impl RingWriter {
         let buf = self.inner.buffer.as_ptr() as *mut u8;
         for (i, &byte) in data[..to_write].iter().enumerate() {
             let pos = (head + i) % self.inner.capacity;
-            // SAFETY: We only write to positions between head and head+to_write,
-            // which don't overlap with the reader's region (tail..head).
+            // SAFETY: `pos` is always in bounds (0..capacity) due to the modulo.
+            // We only write to positions in the range [head, head+to_write), which
+            // is guaranteed not to overlap with the reader's region [tail, head)
+            // because `to_write <= available_write()` reserves one slot as a guard.
+            // The `as *mut u8` cast from `as_ptr()` is valid because we hold the
+            // only `&mut self` reference to the writer, and atomics on head/tail
+            // ensure the reader never accesses this region concurrently.
             unsafe {
                 *buf.add(pos) = byte;
             }
