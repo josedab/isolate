@@ -69,6 +69,7 @@ pub trait NetworkTransport: Send + Sync + Debug {
 /// In-memory transport for testing and single-process clusters.
 #[derive(Debug)]
 pub struct InMemoryTransport {
+    #[allow(dead_code)]
     local_id: NodeId,
     inbox: Vec<(NodeId, GossipMessage)>,
     outbox: Vec<(NodeId, GossipMessage)>,
@@ -152,6 +153,10 @@ pub enum ClusterManagerEvent {
     SandboxMigrated { sandbox_id: String, from: NodeId, to: NodeId },
     /// Failure detection triggered for a suspect node.
     SuspicionRaised(NodeId),
+    /// Network partition detected.
+    PartitionDetected { partition_a: Vec<NodeId>, partition_b: Vec<NodeId> },
+    /// Split-brain resolved by fencing minority partition.
+    SplitBrainResolved { fenced_nodes: Vec<NodeId> },
 }
 
 /// Coordinates distributed sandbox execution.
@@ -166,6 +171,7 @@ pub struct ClusterManager {
     config: MeshConfig,
     gossip: Gossip,
     hash_ring: HashRing,
+    #[allow(dead_code)]
     router: SandboxRouter,
     transport: Box<dyn NetworkTransport>,
     sandbox_placement: HashMap<String, NodeId>,
@@ -384,6 +390,81 @@ impl ClusterManager {
             self.events.push(ClusterManagerEvent::NodeFailed(dead_id));
         }
     }
+
+    /// Detect and resolve network partitions (split-brain).
+    ///
+    /// Uses a majority-based quorum: the partition with >50% of known nodes
+    /// continues operating; the minority partition is fenced (sandboxes paused).
+    pub fn detect_partition(&mut self) -> Option<PartitionResolution> {
+        let all = self.gossip.all_members();
+        let alive: Vec<NodeId> = all.iter()
+            .filter(|m| m.state == MemberState::Alive)
+            .map(|m| m.id())
+            .collect();
+        let suspect: Vec<NodeId> = all.iter()
+            .filter(|m| m.state == MemberState::Suspect)
+            .map(|m| m.id())
+            .collect();
+
+        // If we have suspects and the reachable set is < majority, we may be in minority
+        let total_known = all.len();
+        if total_known < 3 || suspect.is_empty() {
+            return None;
+        }
+
+        let reachable = alive.len();
+        let majority = total_known / 2 + 1;
+
+        if reachable < majority {
+            // We are in the minority partition — fence ourselves
+            let fenced = vec![self.local_id];
+            self.events.push(ClusterManagerEvent::PartitionDetected {
+                partition_a: alive.clone(),
+                partition_b: suspect.clone(),
+            });
+            self.events.push(ClusterManagerEvent::SplitBrainResolved {
+                fenced_nodes: fenced.clone(),
+            });
+            return Some(PartitionResolution {
+                in_majority: false,
+                reachable_nodes: alive,
+                unreachable_nodes: suspect,
+                fenced_nodes: fenced,
+            });
+        }
+
+        // We are in the majority — fence the unreachable nodes
+        if !suspect.is_empty() {
+            self.events.push(ClusterManagerEvent::PartitionDetected {
+                partition_a: alive.clone(),
+                partition_b: suspect.clone(),
+            });
+            self.events.push(ClusterManagerEvent::SplitBrainResolved {
+                fenced_nodes: suspect.clone(),
+            });
+            return Some(PartitionResolution {
+                in_majority: true,
+                reachable_nodes: alive,
+                unreachable_nodes: suspect.clone(),
+                fenced_nodes: suspect,
+            });
+        }
+
+        None
+    }
+}
+
+/// Result of a network partition resolution.
+#[derive(Debug, Clone)]
+pub struct PartitionResolution {
+    /// Whether this node is in the majority partition.
+    pub in_majority: bool,
+    /// Nodes reachable from this node.
+    pub reachable_nodes: Vec<NodeId>,
+    /// Nodes unreachable from this node.
+    pub unreachable_nodes: Vec<NodeId>,
+    /// Nodes that were fenced (sandboxes paused).
+    pub fenced_nodes: Vec<NodeId>,
 }
 
 // ---------------------------------------------------------------------------
