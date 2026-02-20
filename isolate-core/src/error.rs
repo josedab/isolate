@@ -1,6 +1,5 @@
 //! Error types for the Isolate runtime.
 
-#![allow(missing_docs)]
 use crate::capability::Capability;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -95,7 +94,10 @@ pub enum Error {
     /// optimize the WASM code. The default may be too low for compute-heavy
     /// workloads.
     #[error("CPU fuel exhausted (limit: {limit} units)")]
-    FuelExhausted { limit: u64 },
+    FuelExhausted {
+        /// The fuel limit that was exceeded.
+        limit: u64,
+    },
 
     /// Memory limit exceeded.
     ///
@@ -105,7 +107,12 @@ pub enum Error {
     /// **Recovery:** Increase `--memory-limit <size>` (e.g., `256M`, `1G`).
     /// Check for memory leaks in the WASM module.
     #[error("Memory limit exceeded (limit: {limit} bytes, requested: {requested} bytes)")]
-    MemoryLimitExceeded { limit: usize, requested: usize },
+    MemoryLimitExceeded {
+        /// The configured memory limit in bytes.
+        limit: usize,
+        /// The number of bytes the sandbox attempted to allocate.
+        requested: usize,
+    },
 
     /// Capability not granted.
     ///
@@ -147,7 +154,12 @@ pub enum Error {
     /// **Recovery:** Ensure operations are called in the correct order:
     /// create → run/call → terminate. Create a new sandbox if needed.
     #[error("Invalid sandbox state: expected {expected}, got {actual}")]
-    InvalidState { expected: String, actual: String },
+    InvalidState {
+        /// The expected sandbox state for this operation.
+        expected: String,
+        /// The actual sandbox state at the time of the call.
+        actual: String,
+    },
 
     /// Snapshot error.
     ///
@@ -178,6 +190,7 @@ pub enum Error {
     /// filesystem capabilities are granted for the required paths.
     #[error("I/O error: {source}")]
     Io {
+        /// The underlying I/O error.
         #[from]
         source: std::io::Error,
     },
@@ -190,7 +203,10 @@ pub enum Error {
     /// **Recovery:** Grant `--cap-fs-read <path>` or `--cap-fs-write <path>`
     /// for the required path.
     #[error("Filesystem access denied: {path}")]
-    FilesystemAccessDenied { path: PathBuf },
+    FilesystemAccessDenied {
+        /// The filesystem path that was denied.
+        path: PathBuf,
+    },
 
     /// Network access denied.
     ///
@@ -200,7 +216,10 @@ pub enum Error {
     /// **Recovery:** Grant `--cap-http <host-pattern>`. Use `*` for all hosts
     /// (not recommended for untrusted code).
     #[error("Network access denied: {host}")]
-    NetworkAccessDenied { host: String },
+    NetworkAccessDenied {
+        /// The host that was denied access.
+        host: String,
+    },
 
     /// Internal engine error.
     ///
@@ -240,7 +259,14 @@ pub enum Error {
     /// **Recovery:** WASI entry points should have signature `() -> ()` or
     /// `(i32, i32) -> i32`. Verify the module's exported function types.
     #[error("Invalid function signature for '{name}': expected {expected}, got {actual}")]
-    InvalidSignature { name: String, expected: String, actual: String },
+    InvalidSignature {
+        /// The function name with the mismatched signature.
+        name: String,
+        /// The expected function signature.
+        expected: String,
+        /// The actual function signature found in the module.
+        actual: String,
+    },
 
     /// Pool exhausted.
     ///
