@@ -211,6 +211,48 @@ Start the gRPC server for remote sandbox management:
 isolate-server --addr 0.0.0.0:50051
 ```
 
+## Docker
+
+### Quick Start with Docker Compose
+
+```bash
+# Start the server (builds image automatically)
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+The server will be available at `localhost:50051` (gRPC).
+
+### Production Docker Image
+
+Build and run the production image directly:
+
+```bash
+# Build
+docker build -t isolate-server .
+
+# Run
+docker run -d -p 50051:50051 \
+  -e RUST_LOG=info \
+  --name isolate-server \
+  isolate-server
+```
+
+### Development with Hot Reload
+
+Use the dev profile for automatic rebuilds on code changes:
+
+```bash
+docker compose --profile dev up isolate-server-dev
+```
+
+This mounts the source directory and uses `cargo-watch` for hot reloading.
+
 ## Experimental Features
 
 The following modules are included but considered **experimental** and not production-ready. Their APIs may change significantly in future releases:
