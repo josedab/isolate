@@ -2,260 +2,298 @@ syntax = "proto3";
 
 package isolate.v1;
 
-// The Isolate sandbox service.
+/// The Isolate sandbox service provides secure WebAssembly execution
+/// with capability-based security and resource controls.
 service IsolateService {
-  // Create a new sandbox.
+  /// Create a new sandbox from a WASM module with the given configuration.
+  /// The sandbox is created in a "ready" state and can be run multiple times.
   rpc CreateSandbox(CreateSandboxRequest) returns (CreateSandboxResponse);
 
-  // Run a sandbox.
+  /// Run an existing sandbox with optional input data.
+  /// The sandbox must be in a "ready" state. Returns captured output and resource usage.
   rpc RunSandbox(RunSandboxRequest) returns (RunSandboxResponse);
 
-  // Get sandbox status.
+  /// Get the current status and metadata of a sandbox.
   rpc GetSandbox(GetSandboxRequest) returns (GetSandboxResponse);
 
-  // Terminate a sandbox.
+  /// Terminate a sandbox and release its resources.
+  /// Returns final execution metrics collected over the sandbox's lifetime.
   rpc TerminateSandbox(TerminateSandboxRequest) returns (TerminateSandboxResponse);
 
-  // List all sandboxes.
+  /// List all sandboxes with optional state filtering and pagination.
   rpc ListSandboxes(ListSandboxesRequest) returns (ListSandboxesResponse);
 
-  // Stream sandbox output.
+  /// Stream real-time stdout/stderr output from a running sandbox.
+  /// The server sends output chunks as they are produced by the WASM module.
   rpc StreamOutput(StreamOutputRequest) returns (stream OutputChunk);
 
-  // Get metrics.
+  /// Retrieve server-level metrics in Prometheus or JSON format.
   rpc GetMetrics(GetMetricsRequest) returns (GetMetricsResponse);
 }
 
-// Request to create a sandbox.
+/// Request to create a new sandbox.
 message CreateSandboxRequest {
-  // WASM module bytes.
+  /// Raw WASM module bytes (binary format, not WAT text).
+  /// Must start with the WASM magic bytes `\0asm`.
   bytes module = 1;
 
-  // Sandbox configuration.
+  /// Sandbox configuration including resource limits and capabilities.
+  /// If omitted, default limits are applied with no capabilities granted.
   SandboxConfig config = 2;
 }
 
-// Response from creating a sandbox.
+/// Response returned after successfully creating a sandbox.
 message CreateSandboxResponse {
-  // Sandbox ID.
+  /// Unique identifier for the created sandbox. Use this ID in subsequent
+  /// RunSandbox, GetSandbox, and TerminateSandbox calls.
   string sandbox_id = 1;
 
-  // Module hash.
+  /// SHA-256 hash of the WASM module bytes, hex-encoded.
+  /// Can be used to verify module identity or for caching.
   string module_hash = 2;
 
-  // Creation time in milliseconds.
+  /// Time taken to create the sandbox, in milliseconds.
+  /// Includes module compilation and WASI setup.
   double creation_time_ms = 3;
 }
 
-// Request to run a sandbox.
+/// Request to run an existing sandbox.
 message RunSandboxRequest {
-  // Sandbox ID.
+  /// ID of the sandbox to run, as returned by CreateSandbox.
   string sandbox_id = 1;
 
-  // Optional input data.
+  /// Optional input data provided to the sandbox via stdin.
+  /// The sandbox must have the stdin capability granted to read this data.
   bytes input = 2;
 
-  // Entry point function (default: "_start").
+  /// Entry point function name to invoke. Defaults to "_start" for WASI
+  /// modules if left empty.
   string entry_point = 3;
 }
 
-// Response from running a sandbox.
+/// Response returned after a sandbox execution completes.
 message RunSandboxResponse {
-  // Exit code.
+  /// Process exit code returned by the WASM module.
+  /// 0 typically indicates success; non-zero indicates an error.
   int32 exit_code = 1;
 
-  // Captured stdout.
+  /// Captured stdout bytes. Only populated if the stdout capability was
+  /// granted. Empty otherwise.
   bytes stdout = 2;
 
-  // Captured stderr.
+  /// Captured stderr bytes. Only populated if the stderr capability was
+  /// granted. Empty otherwise.
   bytes stderr = 3;
 
-  // Execution duration in milliseconds.
+  /// Wall-clock execution duration in milliseconds.
   double duration_ms = 4;
 
-  // Resource usage.
+  /// Detailed resource consumption for this execution run.
   ResourceUsage resource_usage = 5;
 }
 
-// Request to get sandbox status.
+/// Request to query a sandbox's current status.
 message GetSandboxRequest {
-  // Sandbox ID.
+  /// ID of the sandbox to query.
   string sandbox_id = 1;
 }
 
-// Response with sandbox status.
+/// Response containing sandbox status information.
 message GetSandboxResponse {
-  // Sandbox info.
+  /// Full sandbox information including state, metadata, and metrics.
   SandboxInfo sandbox = 1;
 }
 
-// Request to terminate a sandbox.
+/// Request to terminate a sandbox.
 message TerminateSandboxRequest {
-  // Sandbox ID.
+  /// ID of the sandbox to terminate.
   string sandbox_id = 1;
 }
 
-// Response from terminating a sandbox.
+/// Response returned after a sandbox termination attempt.
 message TerminateSandboxResponse {
-  // Whether the sandbox was terminated.
+  /// True if the sandbox was successfully terminated.
+  /// False if the sandbox was already terminated or not found.
   bool terminated = 1;
 
-  // Final metrics.
+  /// Cumulative execution metrics collected over the sandbox's lifetime.
   SandboxMetrics metrics = 2;
 }
 
-// Request to list sandboxes.
+/// Request to list sandboxes with optional filtering.
 message ListSandboxesRequest {
-  // Optional state filter.
+  /// Optional filter by sandbox state (e.g., "ready", "running", "terminated").
+  /// If empty, all sandboxes are returned regardless of state.
   string state_filter = 1;
 
-  // Maximum number of results.
+  /// Maximum number of results to return. 0 means server default.
   int32 limit = 2;
 
-  // Pagination offset.
+  /// Offset for pagination. Use with `limit` to page through results.
   int32 offset = 3;
 }
 
-// Response with sandbox list.
+/// Response containing a paginated list of sandboxes.
 message ListSandboxesResponse {
-  // List of sandboxes.
+  /// List of sandbox information objects matching the query.
   repeated SandboxInfo sandboxes = 1;
 
-  // Total count.
+  /// Total number of sandboxes matching the filter (ignoring limit/offset).
   int32 total = 2;
 }
 
-// Request to stream sandbox output.
+/// Request to stream real-time output from a running sandbox.
 message StreamOutputRequest {
-  // Sandbox ID.
+  /// ID of the sandbox to stream output from.
   string sandbox_id = 1;
 
-  // Which stream(s) to follow.
+  /// Whether to include stdout in the stream.
   bool follow_stdout = 2;
+
+  /// Whether to include stderr in the stream.
   bool follow_stderr = 3;
 }
 
-// A chunk of output.
+/// A chunk of captured output from a sandbox execution.
 message OutputChunk {
-  // Stream type: "stdout" or "stderr".
+  /// Source stream identifier: "stdout" or "stderr".
   string stream = 1;
 
-  // Data.
+  /// Raw output bytes for this chunk.
   bytes data = 2;
 
-  // Timestamp.
+  /// Unix timestamp in nanoseconds when this chunk was captured.
   int64 timestamp = 3;
 }
 
-// Request to get metrics.
+/// Request to retrieve server metrics.
 message GetMetricsRequest {
-  // Format: "prometheus" or "json".
+  /// Desired output format: "prometheus" (default) or "json".
   string format = 1;
 }
 
-// Response with metrics.
+/// Response containing server metrics data.
 message GetMetricsResponse {
-  // Metrics data.
+  /// Serialized metrics in the requested format.
   string data = 1;
 }
 
-// Sandbox configuration.
+/// Configuration for a sandbox's resource limits and capabilities.
 message SandboxConfig {
-  // Memory limit in bytes.
+  /// Maximum memory the sandbox may allocate, in bytes.
+  /// Set to 0 for the server default (typically 256MB).
   uint64 memory_limit = 1;
 
-  // CPU fuel limit.
+  /// Maximum number of fuel units (instruction budget) the sandbox may consume.
+  /// Set to 0 for unlimited fuel. Each WASM instruction costs ~1 fuel unit.
   uint64 fuel_limit = 2;
 
-  // Wall time limit in seconds.
+  /// Maximum wall-clock execution time in seconds.
+  /// Set to 0 for the server default timeout.
   uint32 wall_time_limit_secs = 3;
 
-  // CPU time limit in seconds.
+  /// Maximum CPU time in seconds. May differ from wall time if the sandbox
+  /// blocks on I/O. Set to 0 for no CPU time limit.
   uint32 cpu_time_limit_secs = 4;
 
-  // Capabilities to grant.
+  /// List of capabilities to grant the sandbox. Sandboxes have no
+  /// capabilities by default (default-deny). Each capability enables a
+  /// specific class of operations (e.g., stdout, filesystem, network).
   repeated Capability capabilities = 5;
 
-  // Environment variables.
+  /// Environment variables to expose to the sandbox.
+  /// The sandbox must have the env capability for the corresponding keys.
   map<string, string> env = 6;
 
-  // Command-line arguments.
+  /// Command-line arguments passed to the WASM module's `_start` function
+  /// via WASI. The first argument is conventionally the program name.
   repeated string args = 7;
 }
 
-// A capability.
+/// A capability that can be granted to a sandbox.
 message Capability {
-  // Capability type.
+  /// Capability type identifier. Supported types:
+  /// "stdout", "stderr", "stdin", "fs_read", "fs_write", "temp_dir",
+  /// "http", "dns", "system_clock", "monotonic_clock", "random", "env".
   string type = 1;
 
-  // Capability value (path, host, etc.).
+  /// Type-specific value. For filesystem capabilities, this is the allowed
+  /// path prefix. For HTTP, this is the allowed host pattern. For env,
+  /// this is the variable name. Empty for capabilities that need no value.
   string value = 2;
 }
 
-// Resource limits.
+/// Resource limits configuration (standalone, not tied to a specific sandbox).
 message ResourceLimits {
+  /// Maximum memory in bytes.
   uint64 memory_limit = 1;
+
+  /// Maximum fuel units (instruction budget).
   uint64 fuel_limit = 2;
+
+  /// Maximum wall-clock time in seconds.
   uint32 wall_time_limit_secs = 3;
+
+  /// Maximum CPU time in seconds.
   uint32 cpu_time_limit_secs = 4;
 }
 
-// Resource usage.
+/// Resource consumption metrics for a single sandbox execution.
 message ResourceUsage {
-  // Peak memory usage in bytes.
+  /// Peak memory usage observed during execution, in bytes.
   uint64 peak_memory = 1;
 
-  // Fuel consumed.
+  /// Total fuel units consumed during execution.
   uint64 fuel_consumed = 2;
 
-  // CPU time in milliseconds.
+  /// CPU time consumed during execution, in milliseconds.
   double cpu_time_ms = 3;
 
-  // Wall time in milliseconds.
+  /// Wall-clock time elapsed during execution, in milliseconds.
   double wall_time_ms = 4;
 
-  // Bytes read.
+  /// Total bytes read from stdin and filesystem during execution.
   uint64 bytes_read = 5;
 
-  // Bytes written.
+  /// Total bytes written to stdout, stderr, and filesystem during execution.
   uint64 bytes_written = 6;
 }
 
-// Sandbox info.
+/// Metadata and status information for a sandbox.
 message SandboxInfo {
-  // Sandbox ID.
+  /// Unique sandbox identifier.
   string id = 1;
 
-  // Current state.
+  /// Current lifecycle state: "ready", "running", or "terminated".
   string state = 2;
 
-  // Module hash.
+  /// SHA-256 hash of the WASM module, hex-encoded.
   string module_hash = 3;
 
-  // Creation timestamp.
+  /// Unix timestamp (seconds since epoch) when the sandbox was created.
   int64 created_at = 4;
 
-  // Age in seconds.
+  /// Time elapsed since creation, in seconds.
   double age_secs = 5;
 
-  // Metrics.
+  /// Cumulative execution metrics for this sandbox.
   SandboxMetrics metrics = 6;
 }
 
-// Sandbox metrics.
+/// Cumulative execution metrics for a sandbox over its lifetime.
 message SandboxMetrics {
-  // Number of runs.
+  /// Total number of times the sandbox has been run.
   uint64 run_count = 1;
 
-  // Successful runs.
+  /// Number of runs that completed with exit code 0.
   uint64 success_count = 2;
 
-  // Failed runs.
+  /// Number of runs that completed with a non-zero exit code or error.
   uint64 failure_count = 3;
 
-  // Total run duration in milliseconds.
+  /// Sum of all run durations, in milliseconds.
   double total_run_duration_ms = 4;
 
-  // Last run duration in milliseconds.
+  /// Duration of the most recent run, in milliseconds.
   double last_run_duration_ms = 5;
 }
