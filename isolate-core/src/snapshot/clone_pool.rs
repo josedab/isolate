@@ -78,6 +78,7 @@ impl ClonePoolStats {
 }
 
 /// A cloneable entry in the pool.
+#[allow(dead_code)]
 struct CloneEntry {
     /// The snapshot ID.
     snapshot_id: SnapshotId,

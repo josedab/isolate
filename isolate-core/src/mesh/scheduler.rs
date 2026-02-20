@@ -601,6 +601,7 @@ fn generate_task_id() -> String {
 mod tests {
     use super::*;
 
+    #[allow(dead_code)]
     fn make_capacity(node_id: u64) -> (NodeId, NodeCapacity) {
         (NodeId::new(node_id), NodeCapacity::default())
     }

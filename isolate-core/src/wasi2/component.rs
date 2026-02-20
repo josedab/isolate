@@ -41,6 +41,7 @@ pub struct ComponentSandbox {
     /// Configuration.
     config: ComponentConfig,
     /// Memory limit for the store.
+    #[allow(dead_code)]
     memory_limit: usize,
 }
 

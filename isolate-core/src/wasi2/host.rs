@@ -133,6 +133,7 @@ impl IoLimits {
 }
 
 /// WASI clock ID constants.
+#[allow(dead_code)]
 pub mod clock {
     /// Real-time clock (wall clock time).
     pub const REALTIME: u32 = 0;

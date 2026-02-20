@@ -89,6 +89,7 @@ pub struct MeshCluster {
     /// Gossip protocol handler.
     gossip: Arc<Gossip>,
     /// Sandbox router.
+    #[allow(dead_code)]
     router: Arc<RwLock<SandboxRouter>>,
     /// Migration manager.
     migration_manager: Arc<RwLock<MigrationManager>>,

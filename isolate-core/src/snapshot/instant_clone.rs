@@ -45,6 +45,7 @@ impl std::fmt::Display for TemplateId {
 /// All references are resolved at template creation time so cloning
 /// never needs lazy resolution.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 enum ResolvedPage {
     Zero,
     Data(Arc<Vec<u8>>),

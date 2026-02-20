@@ -317,6 +317,7 @@ pub struct LiveMigration {
     /// Target node identifier.
     pub target_node: String,
     /// Configuration.
+    #[allow(dead_code)]
     config: LiveMigrationConfig,
     /// Current state.
     state: LiveMigrationState,

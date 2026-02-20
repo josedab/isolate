@@ -66,6 +66,7 @@ impl Default for StreamConfig {
 /// Manages cross-node output streams for sandbox executions.
 pub struct OutputStreamManager {
     config: StreamConfig,
+    #[allow(dead_code)]
     local_node: NodeId,
     /// Active streams indexed by execution ID.
     streams: HashMap<Uuid, StreamState>,
@@ -76,6 +77,7 @@ pub struct OutputStreamManager {
 /// State of an active output stream.
 #[derive(Debug, Clone)]
 struct StreamState {
+    #[allow(dead_code)]
     execution_id: Uuid,
     source_node: NodeId,
     stdout_buffer: Vec<u8>,
