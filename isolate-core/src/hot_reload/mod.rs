@@ -45,7 +45,7 @@ mod tests {
         let v1 = ModuleVersion::new("v1", b"wasm-v1-bytes");
         registry.register(v1.clone());
 
-        let mut router = VersionRouter::new();
+        let router = VersionRouter::new();
         router.set_route(VersionRoute::single(v1.id.clone()));
         assert_eq!(router.resolve().unwrap(), v1.id);
 
