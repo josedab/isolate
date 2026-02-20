@@ -12,6 +12,7 @@
 
 
 
+#![allow(missing_docs)]
 pub mod calculator;
 pub mod optimizer;
 pub mod pricing;

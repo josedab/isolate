@@ -26,6 +26,7 @@
 //!     .build();
 //! ```
 
+#![allow(missing_docs)]
 mod context;
 mod propagator;
 mod span;

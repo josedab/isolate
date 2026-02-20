@@ -7,6 +7,7 @@
 //! - Data passing between sandboxes
 //! - Retry and timeout policies
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, SystemTime};

@@ -5,6 +5,7 @@
 //! It does **not** actually deploy — it produces configurations that deployment
 //! tools can consume.
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;

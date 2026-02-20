@@ -4,6 +4,7 @@
 //! Measures Isolate's performance against baseline targets (Firecracker, gVisor,
 //! Wasmer, native processes) and produces CI-friendly reports in Markdown and JSON.
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 

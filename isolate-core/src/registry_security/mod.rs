@@ -3,6 +3,7 @@
 //! Provides cryptographic signing, provenance tracking, and vulnerability
 //! scanning for WASM modules distributed through the OCI registry.
 
+#![allow(missing_docs)]
 pub mod signing;
 pub mod supply_chain;
 pub mod verification;

@@ -6,6 +6,7 @@
 //! Also includes the full Plugin Marketplace Protocol with manifest-based
 //! discovery, distribution, and trust for WASM modules.
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
 

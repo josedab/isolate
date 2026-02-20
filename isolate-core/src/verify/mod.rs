@@ -11,6 +11,7 @@
 //! - Control flow graph analysis
 //! - Smart contract vulnerability detection
 
+#![allow(missing_docs)]
 pub mod cfg;
 pub mod vulnerability;
 

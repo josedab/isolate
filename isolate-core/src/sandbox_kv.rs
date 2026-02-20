@@ -16,6 +16,7 @@
 //! assert_eq!(ns.get("key").unwrap(), Some(b"value".to_vec()));
 //! ```
 
+#![allow(missing_docs)]
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};

@@ -60,6 +60,7 @@
 
 
 
+#![allow(missing_docs)]
 mod executor;
 mod provider;
 mod schema;

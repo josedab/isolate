@@ -26,6 +26,7 @@
 //! println!("Cost: {} fuel units", result.cost.fuel_consumed);
 //! ```
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
 

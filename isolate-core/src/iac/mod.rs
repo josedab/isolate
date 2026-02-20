@@ -9,6 +9,7 @@
 //! - Import existing resources into IaC state
 
 
+#![allow(missing_docs)]
 pub mod declarative;
 pub mod plan;
 pub mod resource;

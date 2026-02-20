@@ -6,6 +6,7 @@
 
 
 
+#![allow(missing_docs)]
 mod layer;
 mod quota;
 

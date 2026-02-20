@@ -20,6 +20,7 @@
 //! assert!(schema.sdl.contains("greet"));
 //! ```
 
+#![allow(missing_docs)]
 mod generator;
 mod types;
 

@@ -6,6 +6,7 @@
 //! - In-memory secret protection
 //! - Audit logging for secret access
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 

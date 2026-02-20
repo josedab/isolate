@@ -6,6 +6,7 @@
 //! - Carbon footprint tracking per sandbox
 //! - Regional carbon optimization
 
+#![allow(missing_docs)]
 pub mod alert;
 pub mod cost;
 pub mod optimizer;

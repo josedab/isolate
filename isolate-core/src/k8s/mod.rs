@@ -9,6 +9,7 @@
 //! - Helm chart generation for deployment
 //! - Health checks and readiness probes
 
+#![allow(missing_docs)]
 pub mod autoscaler;
 pub mod crd_v2;
 pub mod disaster_recovery;

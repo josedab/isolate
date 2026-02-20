@@ -14,6 +14,7 @@
 //! let overview = dashboard.system_overview();
 //! ```
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
 

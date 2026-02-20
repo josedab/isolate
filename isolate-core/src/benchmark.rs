@@ -28,6 +28,7 @@
 //! # }
 //! ```
 
+#![allow(missing_docs)]
 use crate::capability::Capability;
 use crate::config::SandboxConfig;
 use crate::error::Result;

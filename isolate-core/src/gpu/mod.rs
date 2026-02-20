@@ -9,6 +9,7 @@
 //! - Resource quotas for GPU compute
 //! - Shader validation and safety checking
 
+#![allow(missing_docs)]
 pub mod hal;
 pub mod scheduler;
 

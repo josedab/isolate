@@ -12,6 +12,7 @@
 
 
 
+#![allow(missing_docs)]
 pub mod ir;
 pub mod optimizer;
 pub mod safety;

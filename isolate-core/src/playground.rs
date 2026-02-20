@@ -23,6 +23,7 @@
 //! # }
 //! ```
 
+#![allow(missing_docs)]
 use crate::error::{Error, Result};
 use crate::profile::LanguageProfile;
 use crate::sandbox::Sandbox;

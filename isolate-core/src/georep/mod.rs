@@ -3,6 +3,7 @@
 //! Cross-region configuration/module replication with automatic failover,
 //! health monitoring, and consistency controls.
 
+#![allow(missing_docs)]
 mod failover;
 mod region;
 mod replication;

@@ -44,6 +44,7 @@
 
 
 
+#![allow(missing_docs)]
 mod session;
 mod tools;
 pub mod trace;

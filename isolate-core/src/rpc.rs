@@ -20,6 +20,7 @@
 //!     .with_payload(b"{\"a\": 1, \"b\": 2}".to_vec());
 //! ```
 
+#![allow(missing_docs)]
 use crate::sandbox::SandboxId;
 
 use dashmap::DashMap;

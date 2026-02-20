@@ -15,6 +15,7 @@
 
 
 
+#![allow(missing_docs)]
 use crate::module_registry::{content_hash, ModuleMetadata};
 
 use serde::{Deserialize, Serialize};

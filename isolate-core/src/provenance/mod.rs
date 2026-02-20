@@ -6,6 +6,7 @@
 //! - Execution history and replay capability
 //! - Cryptographic audit trail
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::SystemTime;

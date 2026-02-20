@@ -17,6 +17,7 @@
 
 
 
+#![allow(missing_docs)]
 use crate::dashboard::{
     AlertLevel, AlertThresholds, DashboardEvent, DashboardState,
 };

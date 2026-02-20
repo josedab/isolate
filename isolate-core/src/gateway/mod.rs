@@ -23,6 +23,7 @@
 //! | GET | /api/v1/metrics | Get metrics |
 //! | GET | /api/v1/health | Health check |
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
 

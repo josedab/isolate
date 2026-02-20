@@ -8,6 +8,7 @@
 //! - [`linker`] -- Module linking and composition: dependency graphs,
 //!   topological sorting, import/export resolution, and type checking.
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

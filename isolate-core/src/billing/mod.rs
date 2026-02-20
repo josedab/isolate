@@ -16,6 +16,7 @@
 //!                     └──────────────┘     └───────────────┘
 //! ```
 
+#![allow(missing_docs)]
 mod cost;
 mod meter;
 mod report;

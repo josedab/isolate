@@ -4,6 +4,7 @@
 //! session state for WASM sandbox debugging. It does NOT implement the
 //! transport layer (TCP/stdio) — just the protocol types and session logic.
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

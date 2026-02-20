@@ -13,6 +13,7 @@
 //! assert_eq!(overview.active_sandboxes, 0);
 //! ```
 
+#![allow(missing_docs)]
 use crate::resource::ResourceUsage;
 use crate::sandbox::{SandboxId, SandboxState};
 

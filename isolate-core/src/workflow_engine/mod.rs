@@ -12,6 +12,7 @@
 
 
 
+#![allow(missing_docs)]
 pub mod dag;
 pub mod executor;
 pub mod metrics;

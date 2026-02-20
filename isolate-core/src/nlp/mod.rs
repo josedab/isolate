@@ -5,6 +5,7 @@
 //! - "Block file writes except to /tmp"
 //! - AI-powered policy interpretation and enforcement
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 

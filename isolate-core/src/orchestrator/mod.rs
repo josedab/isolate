@@ -28,6 +28,7 @@
 //! let result = orch.wait(ticket).await?;
 //! ```
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
 

@@ -3,6 +3,7 @@
 //! This module provides structured types and generators for monitoring dashboards
 //! and alert rules. It references metric names from the [`crate::metrics`] module.
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;

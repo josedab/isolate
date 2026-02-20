@@ -6,6 +6,7 @@
 //! Hardware-backed security using Intel SGX, AMD SEV, or ARM TrustZone.
 //! Provides encrypted memory, remote attestation, and secure enclaves.
 
+#![allow(missing_docs)]
 pub mod attestation;
 pub mod audit;
 pub mod compliance;

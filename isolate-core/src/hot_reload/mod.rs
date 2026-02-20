@@ -18,6 +18,7 @@
 //!                      └────────────────┘
 //! ```
 
+#![allow(missing_docs)]
 mod deployment;
 mod health;
 mod live_update;

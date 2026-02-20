@@ -17,6 +17,7 @@
 //! }
 //! ```
 
+#![allow(missing_docs)]
 use crate::capability::Capability;
 use serde::{Deserialize, Serialize};
 

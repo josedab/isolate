@@ -17,6 +17,7 @@
 //! assert_eq!(entry.bytes, wasm);
 //! ```
 
+#![allow(missing_docs)]
 use crate::config::ModuleHash;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};

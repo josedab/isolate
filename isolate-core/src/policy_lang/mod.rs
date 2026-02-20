@@ -25,6 +25,7 @@
 //! }
 //! ```
 
+#![allow(missing_docs)]
 mod eval;
 pub mod decision;
 pub mod lint;

@@ -5,6 +5,7 @@
 //! and a top-level service that ties authentication and sandbox
 //! creation together.
 
+#![allow(missing_docs)]
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

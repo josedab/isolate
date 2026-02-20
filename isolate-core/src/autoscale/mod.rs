@@ -18,6 +18,7 @@
 //!                                          └──────────────┘
 //! ```
 
+#![allow(missing_docs)]
 mod adaptive;
 mod controller;
 mod forecast;

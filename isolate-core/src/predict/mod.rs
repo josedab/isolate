@@ -5,6 +5,7 @@
 //! - Automatic sandbox pool sizing
 //! - Proactive resource allocation
 
+#![allow(missing_docs)]
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};

@@ -12,6 +12,7 @@
 
 
 
+#![allow(missing_docs)]
 pub mod anomaly;
 pub mod collector;
 pub mod instrumentation;

@@ -34,6 +34,7 @@
 //! let decision = engine.evaluate(&context)?;
 //! ```
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
 

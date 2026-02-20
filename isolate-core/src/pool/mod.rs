@@ -10,6 +10,7 @@
 //! - **Fair Scheduling**: Prevent any tenant from monopolizing resources
 //! - **Usage Tracking**: Monitor resource usage per tenant
 
+#![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 

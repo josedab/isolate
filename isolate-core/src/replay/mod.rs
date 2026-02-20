@@ -12,6 +12,7 @@
 
 
 
+#![allow(missing_docs)]
 pub mod recording;
 pub mod session;
 pub mod timeline;

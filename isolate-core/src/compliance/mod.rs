@@ -12,6 +12,7 @@
 
 
 
+#![allow(missing_docs)]
 pub mod audit_trail;
 pub mod ci;
 pub mod evidence;

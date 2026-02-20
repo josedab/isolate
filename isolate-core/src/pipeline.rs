@@ -19,6 +19,7 @@
 //! let result = pipeline.execute(input).await?;
 //! ```
 
+#![allow(missing_docs)]
 use crate::config::SandboxConfig;
 use crate::error::{Error, Result};
 use crate::sandbox::Output;

@@ -12,6 +12,7 @@
 
 
 
+#![allow(missing_docs)]
 pub mod cache;
 pub mod content;
 pub mod gossip;

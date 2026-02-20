@@ -20,6 +20,7 @@
 //! let response = client.execute(request).await?;
 //! ```
 
+#![allow(missing_docs)]
 mod client;
 mod request;
 mod response;

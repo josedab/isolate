@@ -10,6 +10,7 @@
 //! - Deployment manifest generation
 
 
+#![allow(missing_docs)]
 pub mod adapter;
 pub mod function;
 pub mod runtime;

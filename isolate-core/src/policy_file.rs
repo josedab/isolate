@@ -64,6 +64,7 @@
 //! assert_eq!(policy.capabilities.stdout, Some(true));
 //! ```
 
+#![allow(missing_docs)]
 use crate::capability::Capability;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
