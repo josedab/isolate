@@ -14,12 +14,18 @@ categories = ["wasm", "web-programming"]
 [features]
 default = []
 
-# Optional module groups (compile only what you need)
-pool = []                # Warm sandbox pool with predictive autoscaling
-networking = ["dep:url"]          # HTTP client and network policy modules
-agent = []               # AI agent framework for tool-using sandboxes
-policy-engine = []       # Policy rules engine, audit logging, composition, policy language
-platform = [              # All platform sub-features (meta-feature)
+# ── Optional module groups (compile only what you need) ──────────────────────
+
+## Warm sandbox pool with predictive autoscaling for reusing pre-compiled modules.
+pool = []
+## HTTP client and network policy modules for outbound requests from sandboxes.
+networking = ["dep:url"]
+## AI agent framework for tool-using sandboxes with structured I/O.
+agent = []
+## Policy rules engine with audit logging, composition, and a policy language.
+policy-engine = []
+## All platform sub-features combined (admin, storage, workflow, marketplace, comm, hosting, infra).
+platform = [
     "dep:serde_yaml",
     "platform-admin",
     "platform-storage",
@@ -29,49 +35,79 @@ platform = [              # All platform sub-features (meta-feature)
     "platform-hosting",
     "platform-infra",
 ]
-platform-admin = ["dep:serde_yaml"]       # Admin, gateway, orchestrator
-platform-storage = ["dep:serde_yaml"]     # KV store, sandbox KV, VFS, secrets
-platform-workflow = ["dep:serde_yaml"]    # Workflows, workflow engine, pipelines
-platform-marketplace = ["dep:serde_yaml"] # Marketplace, plugins, provenance
-platform-comm = ["dep:serde_yaml"]        # IPC, RPC, GraphQL schema
-platform-hosting = ["dep:serde_yaml"]     # Serverless, playground, SaaS
-platform-infra = ["dep:serde_yaml"]       # Infrastructure as code
-observability = []       # Dashboard, tracing context, WASM analytics
-billing = []             # Billing and cloud cost tracking
-deployment = []          # Autoscale, deploy, hot reload, module/OCI registry
-federation = []          # Federation and geo-replication
+## Admin dashboard, API gateway, and multi-tenant orchestrator.
+platform-admin = ["dep:serde_yaml"]
+## Embedded key-value store, virtual filesystem, and secrets management.
+platform-storage = ["dep:serde_yaml"]
+## Workflow orchestration engine and multi-sandbox pipelines.
+platform-workflow = ["dep:serde_yaml"]
+## Module marketplace with plugin system and provenance tracking.
+platform-marketplace = ["dep:serde_yaml"]
+## Inter-sandbox IPC, RPC framework, and GraphQL schema generation.
+platform-comm = ["dep:serde_yaml"]
+## Serverless function adapters, web playground, and SaaS multi-tenancy.
+platform-hosting = ["dep:serde_yaml"]
+## Infrastructure as code provider support (Terraform, Pulumi).
+platform-infra = ["dep:serde_yaml"]
+## Observability dashboard, distributed tracing context, and WASM analytics.
+observability = []
+## Multi-tenant billing, metering, and cloud cost optimization.
+billing = []
+## Auto-scaling, deployment planner, hot reload, and module/OCI registries.
+deployment = []
+## Federated module registry with geo-replication and automatic failover.
+federation = []
 
-# Core experimental features
-snapshots = ["dep:async-trait"]  # Snapshot/restore functionality with copy-on-write memory
-wasi-preview2 = []       # WASI Preview2 (Component Model) support
-debug-support = []       # Live debugging with breakpoints and time-travel
-module-signing = []      # Cryptographic signing and verification of WASM modules
+# ── Experimental features ────────────────────────────────────────────────────
 
-# Advanced/optional features
-kubernetes = ["dep:serde_yaml"]  # Kubernetes operator and CRD support
-otel-telemetry = [       # OpenTelemetry distributed tracing
+## Copy-on-write snapshot/restore for sub-millisecond warm starts.
+snapshots = ["dep:async-trait"]
+## WASI Preview 2 (Component Model) support for next-gen WASM components.
+wasi-preview2 = []
+## Live debugging with breakpoints, stepping, and time-travel replay.
+debug-support = []
+## Cryptographic signing and verification of WASM modules.
+module-signing = []
+
+# ── Advanced/optional features ───────────────────────────────────────────────
+
+## Kubernetes operator with CRD support and Helm chart generation.
+kubernetes = ["dep:serde_yaml"]
+## OpenTelemetry distributed tracing and metrics export.
+otel-telemetry = [
     "dep:opentelemetry",
     "dep:opentelemetry_sdk",
     "dep:opentelemetry-otlp",
     "dep:tracing-opentelemetry",
 ]
-ai-detection = []        # AI-powered anomaly detection for sandbox behavior
-nlp-policies = []        # Natural language policy definition
-extras = []              # AI exec, carbon tracking, enclave, JS runtime, OS security, verification
+## AI-powered anomaly detection for sandbox behavior analysis.
+ai-detection = []
+## Natural language policy definition using NLP parsing.
+nlp-policies = []
+## AI execution sandbox, carbon tracking, enclave support, JS runtime, OS security, and verification.
+extras = []
 
-# Experimental features (not production ready)
-hotpatch = []            # Hot code patching (simulated, not production ready)
-distributed-mesh = []    # Distributed sandbox execution (network stubs)
-gpu-compute = []         # GPU acceleration (simulated)
-chaos-testing = []       # Chaos engineering and fault injection
+# ── Experimental features (not production ready) ────────────────────────────
 
-# Meta features
+## Hot code patching for live module updates (simulated, not production ready).
+hotpatch = []
+## Distributed sandbox mesh for multi-node execution (network stubs only).
+distributed-mesh = []
+## GPU acceleration for compute-intensive WASM workloads (simulated).
+gpu-compute = []
+## Chaos engineering and fault injection for resilience testing.
+chaos-testing = []
+
+# ── Meta features ────────────────────────────────────────────────────────────
+
+## Enable all experimental features (hotpatch, distributed-mesh, gpu-compute, chaos-testing).
 experimental = [
     "hotpatch",
     "distributed-mesh",
     "gpu-compute",
     "chaos-testing",
 ]
+## Enable every feature. Useful for generating complete documentation.
 full = [
     "pool",
     "networking",
