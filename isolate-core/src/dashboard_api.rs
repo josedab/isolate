@@ -183,6 +183,21 @@ impl DashboardRouter {
                 path: "/api/v1/alerts".to_string(),
                 description: "Current alert status".to_string(),
             },
+            Route {
+                method: HttpMethod::Get,
+                path: "/api/v1/history".to_string(),
+                description: "Execution history with durations and status".to_string(),
+            },
+            Route {
+                method: HttpMethod::Get,
+                path: "/api/v1/resources/heatmap".to_string(),
+                description: "Resource usage heatmap across sandboxes".to_string(),
+            },
+            Route {
+                method: HttpMethod::Get,
+                path: "/api/v1/ws/events".to_string(),
+                description: "WebSocket connection info for live streaming".to_string(),
+            },
         ]
     }
 
@@ -280,14 +295,201 @@ impl DashboardRouter {
             (HttpMethod::Get, "/api/v1/sandboxes") => self.handle_list_sandboxes(),
             (HttpMethod::Get, "/api/v1/events") => self.handle_events(None),
             (HttpMethod::Get, "/api/v1/resources") => self.handle_resources(),
+            (HttpMethod::Get, "/api/v1/resources/heatmap") => self.handle_resource_heatmap(),
+            (HttpMethod::Get, "/api/v1/history") => self.handle_execution_history(None),
             (HttpMethod::Get, "/api/v1/health") => self.handle_health(),
             (HttpMethod::Get, "/api/v1/alerts") => self.handle_alerts(),
+            (HttpMethod::Get, "/api/v1/ws/events") => self.handle_ws_info(),
             _ => {
                 serde_json::to_string(&ApiResponse::<()>::error(format!("Not found: {}", path)))
                     .unwrap_or_default()
             }
         }
     }
+
+    /// Handle GET /api/v1/history?limit=N — execution history.
+    pub fn handle_execution_history(&self, limit: Option<usize>) -> String {
+        let limit = limit.unwrap_or(100).min(1000);
+        let events = self.state.recent_events(limit);
+        let history: Vec<ExecutionHistoryEntry> = events
+            .iter()
+            .filter_map(|e| match e {
+                DashboardEvent::RunCompleted { sandbox_id, duration, success } => {
+                    Some(ExecutionHistoryEntry {
+                        sandbox_id: sandbox_id.to_string(),
+                        duration_ms: duration.as_millis() as u64,
+                        success: *success,
+                        timestamp: SystemTime::now()
+                            .duration_since(SystemTime::UNIX_EPOCH)
+                            .unwrap_or(Duration::ZERO)
+                            .as_secs(),
+                    })
+                }
+                _ => None,
+            })
+            .collect();
+
+        let resp = ExecutionHistoryResponse {
+            entries: history,
+            total: events.len(),
+        };
+        serde_json::to_string(&ApiResponse::success(resp)).unwrap_or_default()
+    }
+
+    /// Handle GET /api/v1/resources/heatmap — resource usage heatmap data.
+    pub fn handle_resource_heatmap(&self) -> String {
+        let sandboxes = self.state.list_sandboxes();
+        let cells: Vec<HeatmapCell> = sandboxes
+            .iter()
+            .map(|s| {
+                let (memory_pct, fuel_pct) = if let Some(ref usage) = s.resource_usage {
+                    let mem = (usage.peak_memory as f64 / (128.0 * 1024.0 * 1024.0) * 100.0).min(100.0);
+                    let fuel = (usage.fuel_consumed as f64 / 10_000_000.0 * 100.0).min(100.0);
+                    (mem, fuel)
+                } else {
+                    (0.0, 0.0)
+                };
+                HeatmapCell {
+                    sandbox_id: s.id.to_string(),
+                    memory_pct,
+                    fuel_pct,
+                    run_count: s.run_count,
+                    intensity: (memory_pct + fuel_pct) / 2.0,
+                }
+            })
+            .collect();
+
+        let resp = ResourceHeatmapResponse { cells };
+        serde_json::to_string(&ApiResponse::success(resp)).unwrap_or_default()
+    }
+
+    /// Handle GET /api/v1/ws/events — returns WebSocket connection info.
+    pub fn handle_ws_info(&self) -> String {
+        let info = WebSocketInfo {
+            endpoint: "/api/v1/ws/events".to_string(),
+            protocol: "isolate-dashboard-v1".to_string(),
+            supported_channels: vec![
+                "sandbox.created".to_string(),
+                "sandbox.completed".to_string(),
+                "sandbox.failed".to_string(),
+                "resource.threshold".to_string(),
+                "alert.triggered".to_string(),
+            ],
+        };
+        serde_json::to_string(&ApiResponse::success(info)).unwrap_or_default()
+    }
+
+    /// Generate a WebSocket event frame from a dashboard event.
+    pub fn event_to_ws_frame(event: &DashboardEvent) -> String {
+        let ws_event = WebSocketEvent {
+            event_type: match event {
+                DashboardEvent::SandboxCreated { .. } => "sandbox.created",
+                DashboardEvent::SandboxTerminated { .. } => "sandbox.terminated",
+                DashboardEvent::RunCompleted { .. } => "run.completed",
+                DashboardEvent::Alert { .. } => "alert.triggered",
+            }
+            .to_string(),
+            payload: serde_json::to_value(event).unwrap_or_default(),
+            timestamp: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or(Duration::ZERO)
+                .as_millis() as u64,
+        };
+        serde_json::to_string(&ws_event).unwrap_or_default()
+    }
+}
+
+/// WebSocket connection information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSocketInfo {
+    /// WebSocket endpoint path.
+    pub endpoint: String,
+    /// Sub-protocol identifier.
+    pub protocol: String,
+    /// Supported event channels.
+    pub supported_channels: Vec<String>,
+}
+
+/// A WebSocket event frame.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSocketEvent {
+    /// Event type identifier (e.g., "sandbox.created").
+    pub event_type: String,
+    /// Event payload.
+    pub payload: serde_json::Value,
+    /// Unix timestamp in milliseconds.
+    pub timestamp: u64,
+}
+
+/// Threshold-based alert configuration for the dashboard.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertConfig {
+    /// CPU usage threshold percentage.
+    pub cpu_threshold_pct: f64,
+    /// Memory usage threshold percentage.
+    pub memory_threshold_pct: f64,
+    /// Maximum execution duration before alerting.
+    pub max_execution_secs: u64,
+    /// Maximum error rate (0.0-1.0).
+    pub max_error_rate: f64,
+    /// Whether alerting is enabled.
+    pub enabled: bool,
+}
+
+impl Default for AlertConfig {
+    fn default() -> Self {
+        Self {
+            cpu_threshold_pct: 80.0,
+            memory_threshold_pct: 85.0,
+            max_execution_secs: 300,
+            max_error_rate: 0.1,
+            enabled: true,
+        }
+    }
+}
+
+/// Execution history entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionHistoryEntry {
+    /// Sandbox ID.
+    pub sandbox_id: String,
+    /// Duration in milliseconds.
+    pub duration_ms: u64,
+    /// Whether execution succeeded.
+    pub success: bool,
+    /// Unix timestamp.
+    pub timestamp: u64,
+}
+
+/// Response for execution history endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionHistoryResponse {
+    /// History entries.
+    pub entries: Vec<ExecutionHistoryEntry>,
+    /// Total events available.
+    pub total: usize,
+}
+
+/// A single cell in the resource heatmap.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HeatmapCell {
+    /// Sandbox ID.
+    pub sandbox_id: String,
+    /// Memory usage as percentage of a reference limit.
+    pub memory_pct: f64,
+    /// Fuel usage as percentage of a reference limit.
+    pub fuel_pct: f64,
+    /// Number of executions.
+    pub run_count: u64,
+    /// Combined intensity (0.0 - 100.0).
+    pub intensity: f64,
+}
+
+/// Response for resource heatmap endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceHeatmapResponse {
+    /// Heatmap cells, one per sandbox.
+    pub cells: Vec<HeatmapCell>,
 }
 
 #[cfg(test)]
@@ -431,5 +633,52 @@ mod tests {
         assert!(!resp.ok);
         assert!(resp.data.is_none());
         assert_eq!(resp.error.unwrap(), "bad request");
+    }
+
+    #[test]
+    fn test_execution_history_endpoint() {
+        let state = Arc::new(DashboardState::new(100));
+        let id = SandboxId::new();
+        state.register_sandbox(id, "hash".to_string());
+        state.record_run(&id, Duration::from_millis(50), ResourceUsage::default(), true);
+
+        let router = DashboardRouter::new(state);
+        let json = router.handle_execution_history(Some(50));
+        let resp: ApiResponse<ExecutionHistoryResponse> = serde_json::from_str(&json).unwrap();
+        assert!(resp.ok);
+        let data = resp.data.unwrap();
+        assert_eq!(data.entries.len(), 1);
+        assert!(data.entries[0].success);
+    }
+
+    #[test]
+    fn test_resource_heatmap_endpoint() {
+        let state = Arc::new(DashboardState::new(100));
+        let id = SandboxId::new();
+        state.register_sandbox(id, "hash".to_string());
+        state.record_run(&id, Duration::from_millis(10), ResourceUsage::default(), true);
+
+        let router = DashboardRouter::new(state);
+        let json = router.handle_resource_heatmap();
+        let resp: ApiResponse<ResourceHeatmapResponse> = serde_json::from_str(&json).unwrap();
+        assert!(resp.ok);
+        let data = resp.data.unwrap();
+        assert_eq!(data.cells.len(), 1);
+    }
+
+    #[test]
+    fn test_dispatch_new_routes() {
+        let state = Arc::new(DashboardState::new(100));
+        let id = SandboxId::new();
+        state.register_sandbox(id, "hash".to_string());
+        state.record_run(&id, Duration::from_millis(10), ResourceUsage::default(), true);
+
+        let router = DashboardRouter::new(state);
+
+        let json = router.dispatch(HttpMethod::Get, "/api/v1/history");
+        assert!(json.contains("entries"));
+
+        let json = router.dispatch(HttpMethod::Get, "/api/v1/resources/heatmap");
+        assert!(json.contains("cells"));
     }
 }
