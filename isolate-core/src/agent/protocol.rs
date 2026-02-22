@@ -539,6 +539,217 @@ impl BudgetEnforcer {
 }
 
 // ---------------------------------------------------------------------------
+// Protocol Adapters (LangChain, OpenAI, Anthropic)
+// ---------------------------------------------------------------------------
+
+/// Protocol adapter format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolFormat {
+    /// Native Isolate JSON-line protocol.
+    Native,
+    /// OpenAI function calling format.
+    OpenAi,
+    /// Anthropic tool-use format.
+    Anthropic,
+    /// LangChain tool format.
+    LangChain,
+}
+
+/// Converts between Isolate's native protocol and external LLM provider formats.
+#[derive(Debug, Clone)]
+pub struct ProtocolAdapter {
+    format: ProtocolFormat,
+}
+
+impl ProtocolAdapter {
+    /// Create a new adapter for the given format.
+    pub fn new(format: ProtocolFormat) -> Self {
+        Self { format }
+    }
+
+    /// Convert tool definitions to the target provider format.
+    pub fn export_tools(&self, tools: &[super::tools::ToolDefinition]) -> serde_json::Value {
+        match self.format {
+            ProtocolFormat::Native => serde_json::to_value(tools).unwrap_or_default(),
+            ProtocolFormat::OpenAi => self.to_openai_functions(tools),
+            ProtocolFormat::Anthropic => self.to_anthropic_tools(tools),
+            ProtocolFormat::LangChain => self.to_langchain_tools(tools),
+        }
+    }
+
+    /// Parse a tool call from the provider format into a ProtocolMessage.
+    pub fn parse_tool_call(&self, value: &serde_json::Value) -> Result<ProtocolMessage, String> {
+        match self.format {
+            ProtocolFormat::Native => serde_json::from_value(value.clone())
+                .map_err(|e| format!("Invalid native message: {}", e)),
+            ProtocolFormat::OpenAi => self.parse_openai_call(value),
+            ProtocolFormat::Anthropic => self.parse_anthropic_call(value),
+            ProtocolFormat::LangChain => self.parse_langchain_call(value),
+        }
+    }
+
+    /// Format a response for the target provider.
+    pub fn format_response(&self, msg: &ProtocolMessage) -> serde_json::Value {
+        match self.format {
+            ProtocolFormat::Native => serde_json::to_value(msg).unwrap_or_default(),
+            ProtocolFormat::OpenAi => self.to_openai_response(msg),
+            ProtocolFormat::Anthropic => self.to_anthropic_response(msg),
+            ProtocolFormat::LangChain => self.to_langchain_response(msg),
+        }
+    }
+
+    fn to_openai_functions(&self, tools: &[super::tools::ToolDefinition]) -> serde_json::Value {
+        let functions: Vec<serde_json::Value> = tools.iter().map(|t| {
+            let schema = t.generate_schema();
+            serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": schema,
+                }
+            })
+        }).collect();
+        serde_json::Value::Array(functions)
+    }
+
+    fn to_anthropic_tools(&self, tools: &[super::tools::ToolDefinition]) -> serde_json::Value {
+        let items: Vec<serde_json::Value> = tools.iter().map(|t| {
+            let schema = t.generate_schema();
+            serde_json::json!({
+                "name": t.name,
+                "description": t.description,
+                "input_schema": schema,
+            })
+        }).collect();
+        serde_json::Value::Array(items)
+    }
+
+    fn to_langchain_tools(&self, tools: &[super::tools::ToolDefinition]) -> serde_json::Value {
+        let items: Vec<serde_json::Value> = tools.iter().map(|t| {
+            let schema = t.generate_schema();
+            serde_json::json!({
+                "name": t.name,
+                "description": t.description,
+                "args_schema": schema,
+                "return_direct": false,
+            })
+        }).collect();
+        serde_json::Value::Array(items)
+    }
+
+    fn parse_openai_call(&self, value: &serde_json::Value) -> Result<ProtocolMessage, String> {
+        let name = value.get("function").and_then(|f| f.get("name"))
+            .or_else(|| value.get("name"))
+            .and_then(|v| v.as_str())
+            .ok_or("Missing function name in OpenAI call")?;
+        let arguments = value.get("function").and_then(|f| f.get("arguments"))
+            .or_else(|| value.get("arguments"))
+            .cloned()
+            .unwrap_or(serde_json::Value::Object(Default::default()));
+        let input = if let Some(s) = arguments.as_str() {
+            serde_json::from_str(s).unwrap_or(serde_json::Value::String(s.to_string()))
+        } else {
+            arguments
+        };
+        let call_id_str = value.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let call_id = Uuid::parse_str(call_id_str).unwrap_or_else(|_| Uuid::new_v4());
+        Ok(ProtocolMessage::AgentRequest {
+            tool_name: name.to_string(),
+            input,
+            call_id,
+            budget: ResourceBudget::default(),
+        })
+    }
+
+    fn parse_anthropic_call(&self, value: &serde_json::Value) -> Result<ProtocolMessage, String> {
+        let name = value.get("name").and_then(|v| v.as_str())
+            .ok_or("Missing tool name in Anthropic call")?;
+        let input = value.get("input").cloned()
+            .unwrap_or(serde_json::Value::Object(Default::default()));
+        let id_str = value.get("id").and_then(|v| v.as_str()).unwrap_or("");
+        let call_id = Uuid::parse_str(id_str).unwrap_or_else(|_| Uuid::new_v4());
+        Ok(ProtocolMessage::AgentRequest {
+            tool_name: name.to_string(),
+            input,
+            call_id,
+            budget: ResourceBudget::default(),
+        })
+    }
+
+    fn parse_langchain_call(&self, value: &serde_json::Value) -> Result<ProtocolMessage, String> {
+        let name = value.get("tool").or_else(|| value.get("name"))
+            .and_then(|v| v.as_str())
+            .ok_or("Missing tool name in LangChain call")?;
+        let input = value.get("tool_input").or_else(|| value.get("args"))
+            .cloned()
+            .unwrap_or(serde_json::Value::Object(Default::default()));
+        Ok(ProtocolMessage::AgentRequest {
+            tool_name: name.to_string(),
+            input,
+            call_id: Uuid::new_v4(),
+            budget: ResourceBudget::default(),
+        })
+    }
+
+    fn to_openai_response(&self, msg: &ProtocolMessage) -> serde_json::Value {
+        match msg {
+            ProtocolMessage::AgentResponse { output, .. } => {
+                serde_json::json!({
+                    "role": "tool",
+                    "content": serde_json::to_string(output).unwrap_or_default(),
+                })
+            }
+            ProtocolMessage::ErrorResponse { code, message, .. } => {
+                serde_json::json!({
+                    "role": "tool",
+                    "content": format!("Error [{}]: {}", code, message),
+                })
+            }
+            _ => serde_json::to_value(msg).unwrap_or_default(),
+        }
+    }
+
+    fn to_anthropic_response(&self, msg: &ProtocolMessage) -> serde_json::Value {
+        match msg {
+            ProtocolMessage::AgentResponse { output, .. } => {
+                serde_json::json!({
+                    "type": "tool_result",
+                    "content": output,
+                })
+            }
+            ProtocolMessage::ErrorResponse { code, message, .. } => {
+                serde_json::json!({
+                    "type": "tool_result",
+                    "is_error": true,
+                    "content": format!("[{}] {}", code, message),
+                })
+            }
+            _ => serde_json::to_value(msg).unwrap_or_default(),
+        }
+    }
+
+    fn to_langchain_response(&self, msg: &ProtocolMessage) -> serde_json::Value {
+        match msg {
+            ProtocolMessage::AgentResponse { output, status, .. } => {
+                serde_json::json!({
+                    "output": output,
+                    "status": status,
+                })
+            }
+            ProtocolMessage::ErrorResponse { code, message, .. } => {
+                serde_json::json!({
+                    "output": format!("[{}] {}", code, message),
+                    "status": "error",
+                })
+            }
+            _ => serde_json::to_value(msg).unwrap_or_default(),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -940,5 +1151,133 @@ mod tests {
             message: "expected string, got number".into(),
         };
         assert_eq!(e.to_string(), "$.name: expected string, got number");
+    }
+
+    // -- ProtocolAdapter tests ----------------------------------------------
+
+    #[test]
+    fn test_adapter_openai_export() {
+        use super::super::tools::ToolDefinition;
+        let adapter = ProtocolAdapter::new(ProtocolFormat::OpenAi);
+        let tools = vec![ToolDefinition::code_execute()];
+        let exported = adapter.export_tools(&tools);
+        let arr = exported.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["type"], "function");
+        assert_eq!(arr[0]["function"]["name"], "code_execute");
+    }
+
+    #[test]
+    fn test_adapter_anthropic_export() {
+        use super::super::tools::ToolDefinition;
+        let adapter = ProtocolAdapter::new(ProtocolFormat::Anthropic);
+        let tools = vec![ToolDefinition::file_read()];
+        let exported = adapter.export_tools(&tools);
+        let arr = exported.as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["name"], "file_read");
+        assert!(arr[0].get("input_schema").is_some());
+    }
+
+    #[test]
+    fn test_adapter_langchain_export() {
+        use super::super::tools::ToolDefinition;
+        let adapter = ProtocolAdapter::new(ProtocolFormat::LangChain);
+        let tools = vec![ToolDefinition::http_request()];
+        let exported = adapter.export_tools(&tools);
+        let arr = exported.as_array().unwrap();
+        assert_eq!(arr[0]["name"], "http_request");
+        assert_eq!(arr[0]["return_direct"], false);
+    }
+
+    #[test]
+    fn test_adapter_openai_parse_call() {
+        let adapter = ProtocolAdapter::new(ProtocolFormat::OpenAi);
+        let call = serde_json::json!({
+            "function": {
+                "name": "code_execute",
+                "arguments": "{\"code\": \"1+1\"}"
+            }
+        });
+        let msg = adapter.parse_tool_call(&call).unwrap();
+        match msg {
+            ProtocolMessage::AgentRequest { tool_name, input, .. } => {
+                assert_eq!(tool_name, "code_execute");
+                assert_eq!(input["code"], "1+1");
+            }
+            _ => panic!("Expected AgentRequest"),
+        }
+    }
+
+    #[test]
+    fn test_adapter_anthropic_parse_call() {
+        let adapter = ProtocolAdapter::new(ProtocolFormat::Anthropic);
+        let call = serde_json::json!({
+            "name": "file_read",
+            "input": {"path": "/tmp/test.txt"}
+        });
+        let msg = adapter.parse_tool_call(&call).unwrap();
+        match msg {
+            ProtocolMessage::AgentRequest { tool_name, input, .. } => {
+                assert_eq!(tool_name, "file_read");
+                assert_eq!(input["path"], "/tmp/test.txt");
+            }
+            _ => panic!("Expected AgentRequest"),
+        }
+    }
+
+    #[test]
+    fn test_adapter_langchain_parse_call() {
+        let adapter = ProtocolAdapter::new(ProtocolFormat::LangChain);
+        let call = serde_json::json!({
+            "tool": "http_request",
+            "tool_input": {"url": "https://example.com"}
+        });
+        let msg = adapter.parse_tool_call(&call).unwrap();
+        match msg {
+            ProtocolMessage::AgentRequest { tool_name, input, .. } => {
+                assert_eq!(tool_name, "http_request");
+                assert_eq!(input["url"], "https://example.com");
+            }
+            _ => panic!("Expected AgentRequest"),
+        }
+    }
+
+    #[test]
+    fn test_adapter_format_response_openai() {
+        let adapter = ProtocolAdapter::new(ProtocolFormat::OpenAi);
+        let msg = ProtocolMessage::AgentResponse {
+            output: serde_json::json!({"result": 42}),
+            status: "success".into(),
+            trace_id: Uuid::nil(),
+            resource_usage: ResourceUsageSummary::default(),
+        };
+        let resp = adapter.format_response(&msg);
+        assert_eq!(resp["role"], "tool");
+    }
+
+    #[test]
+    fn test_adapter_format_response_anthropic() {
+        let adapter = ProtocolAdapter::new(ProtocolFormat::Anthropic);
+        let msg = ProtocolMessage::AgentResponse {
+            output: serde_json::json!({"data": "hello"}),
+            status: "success".into(),
+            trace_id: Uuid::nil(),
+            resource_usage: ResourceUsageSummary::default(),
+        };
+        let resp = adapter.format_response(&msg);
+        assert_eq!(resp["type"], "tool_result");
+    }
+
+    #[test]
+    fn test_adapter_format_error_anthropic() {
+        let adapter = ProtocolAdapter::new(ProtocolFormat::Anthropic);
+        let msg = ProtocolMessage::ErrorResponse {
+            code: "TIMEOUT".into(),
+            message: "execution timed out".into(),
+            details: None,
+        };
+        let resp = adapter.format_response(&msg);
+        assert_eq!(resp["is_error"], true);
     }
 }
