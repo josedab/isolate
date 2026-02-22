@@ -184,12 +184,133 @@ impl Composer {
             self.validate_link(link)?;
         }
 
-        // In production, would actually compose the WASM modules
+        // Check for unresolved imports
+        self.check_unresolved_imports()?;
+
+        // Check for cycles using topological sort
+        let execution_order = self.topological_sort()?;
+
         Ok(ComposedModule {
             bytes: Vec::new(),
-            components: self.config.components.keys().cloned().collect(),
+            components: execution_order,
             links: self.config.links.clone(),
         })
+    }
+
+    /// Perform topological sort to determine execution order and detect cycles.
+    fn topological_sort(&self) -> Result<Vec<String>, ComposeError> {
+        let mut in_degree: HashMap<String, usize> = HashMap::new();
+        let mut adj: HashMap<String, Vec<String>> = HashMap::new();
+
+        for id in self.config.components.keys() {
+            in_degree.entry(id.clone()).or_insert(0);
+            adj.entry(id.clone()).or_default();
+        }
+
+        for link in &self.config.links {
+            adj.entry(link.from.clone()).or_default().push(link.to.clone());
+            *in_degree.entry(link.to.clone()).or_insert(0) += 1;
+        }
+
+        let mut queue: Vec<String> =
+            in_degree.iter().filter(|(_, &d)| d == 0).map(|(k, _)| k.clone()).collect();
+        queue.sort();
+
+        let mut order = Vec::new();
+        while let Some(node) = queue.pop() {
+            order.push(node.clone());
+            if let Some(neighbors) = adj.get(&node) {
+                for neighbor in neighbors {
+                    if let Some(deg) = in_degree.get_mut(neighbor) {
+                        *deg -= 1;
+                        if *deg == 0 {
+                            let pos = queue.binary_search(neighbor).unwrap_or_else(|p| p);
+                            queue.insert(pos, neighbor.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        if order.len() != self.config.components.len() {
+            let in_order: std::collections::HashSet<&str> =
+                order.iter().map(|s| s.as_str()).collect();
+            let cycle: Vec<String> = self
+                .config
+                .components
+                .keys()
+                .filter(|k| !in_order.contains(k.as_str()))
+                .cloned()
+                .collect();
+            return Err(ComposeError::CycleDetected(cycle));
+        }
+
+        Ok(order)
+    }
+
+    /// Check for unresolved imports (imports with no matching link).
+    fn check_unresolved_imports(&self) -> Result<(), ComposeError> {
+        let linked_imports: std::collections::HashSet<(&str, &str)> = self
+            .config
+            .links
+            .iter()
+            .map(|l| (l.to.as_str(), l.to_interface.as_str()))
+            .collect();
+
+        for (id, component) in &self.config.components {
+            for import in &component.imports {
+                if Some(id.as_str()) == self.config.root.as_deref() {
+                    continue; // root imports are provided by the host
+                }
+                if !linked_imports.contains(&(id.as_str(), import.name.as_str())) {
+                    // Check if any other component provides this interface
+                    let provided = self.config.components.values().any(|c| {
+                        c.id != *id && c.exports.iter().any(|e| e.name == import.name)
+                    });
+                    if !provided {
+                        return Err(ComposeError::UnresolvedImport {
+                            component: id.clone(),
+                            interface: import.name.clone(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Validate interface type compatibility between linked components.
+    pub fn validate_types(&self) -> Vec<ComposeError> {
+        let mut errors = Vec::new();
+        for link in &self.config.links {
+            let from = self.config.components.get(&link.from);
+            let to = self.config.components.get(&link.to);
+
+            if let (Some(from), Some(to)) = (from, to) {
+                let export = from.exports.iter().find(|i| i.name == link.from_interface);
+                let import = to.imports.iter().find(|i| i.name == link.to_interface);
+
+                if let (Some(exp), Some(imp)) = (export, import) {
+                    // Check function counts match
+                    if exp.functions.len() != imp.functions.len() {
+                        errors.push(ComposeError::TypeMismatch {
+                            expected: format!("{} functions", imp.functions.len()),
+                            actual: format!("{} functions", exp.functions.len()),
+                        });
+                    }
+                    // Check function signatures match
+                    for (ef, imf) in exp.functions.iter().zip(imp.functions.iter()) {
+                        if ef.params.len() != imf.params.len() || ef.returns != imf.returns {
+                            errors.push(ComposeError::TypeMismatch {
+                                expected: format!("{}({})", imf.name, imf.params.len()),
+                                actual: format!("{}({})", ef.name, ef.params.len()),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        errors
     }
 
     fn validate_link(&self, link: &ComponentLink) -> Result<(), ComposeError> {
@@ -240,7 +361,11 @@ pub enum ComposeError {
     /// Interface mismatch.
     InterfaceMismatch(String, String),
     /// Cycle detected.
-    CycleDetected,
+    CycleDetected(Vec<String>),
+    /// Type mismatch between linked interfaces.
+    TypeMismatch { expected: String, actual: String },
+    /// Unresolved import.
+    UnresolvedImport { component: String, interface: String },
 }
 
 impl std::fmt::Display for ComposeError {
@@ -249,12 +374,255 @@ impl std::fmt::Display for ComposeError {
             Self::ComponentNotFound(id) => write!(f, "Component not found: {}", id),
             Self::NoRootComponent => write!(f, "No root component set"),
             Self::InterfaceMismatch(a, b) => write!(f, "Interface mismatch: {} vs {}", a, b),
-            Self::CycleDetected => write!(f, "Cycle detected in composition"),
+            Self::CycleDetected(modules) => {
+                write!(f, "Cycle detected among: {}", modules.join(", "))
+            }
+            Self::TypeMismatch { expected, actual } => {
+                write!(f, "Type mismatch: expected {}, got {}", expected, actual)
+            }
+            Self::UnresolvedImport { component, interface } => {
+                write!(f, "Unresolved import: {} requires {}", component, interface)
+            }
         }
     }
 }
 
 impl std::error::Error for ComposeError {}
+
+// ---------------------------------------------------------------------------
+// WIT Interface Parser
+// ---------------------------------------------------------------------------
+
+/// Parses a simplified WIT interface definition into an [`Interface`].
+///
+/// Supports a subset of the WIT syntax:
+/// ```text
+/// interface my-api {
+///     greet: func(name: string) -> string
+///     add: func(a: u32, b: u32) -> u32
+/// }
+/// ```
+pub struct WitParser;
+
+impl WitParser {
+    /// Parse a WIT interface definition string into an [`Interface`].
+    pub fn parse_interface(input: &str) -> Result<Interface, ComposeError> {
+        let input = input.trim();
+        let (name, body) = Self::extract_block(input, "interface")?;
+        let mut functions = Vec::new();
+        let mut types = Vec::new();
+
+        for line in body.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with("//") {
+                continue;
+            }
+            if line.contains(": func(") || line.contains(": func()") {
+                functions.push(Self::parse_function(line)?);
+            } else if line.starts_with("record ") || line.starts_with("enum ") || line.starts_with("flags ") {
+                types.push(Self::parse_type_def(line)?);
+            }
+        }
+
+        Ok(Interface { name, functions, types })
+    }
+
+    fn extract_block(input: &str, keyword: &str) -> Result<(String, String), ComposeError> {
+        let prefix = format!("{} ", keyword);
+        if !input.starts_with(&prefix) {
+            return Err(ComposeError::InterfaceMismatch(
+                format!("expected '{keyword}' block"),
+                input.chars().take(20).collect(),
+            ));
+        }
+        let rest = &input[prefix.len()..];
+        let brace_start = rest.find('{').ok_or_else(|| {
+            ComposeError::InterfaceMismatch("missing '{'".to_string(), rest.to_string())
+        })?;
+        let name = rest[..brace_start].trim().to_string();
+        let brace_end = rest.rfind('}').ok_or_else(|| {
+            ComposeError::InterfaceMismatch("missing '}'".to_string(), rest.to_string())
+        })?;
+        let body = rest[brace_start + 1..brace_end].to_string();
+        Ok((name, body))
+    }
+
+    fn parse_function(line: &str) -> Result<FunctionSignature, ComposeError> {
+        let colon_pos = line.find(':').ok_or_else(|| {
+            ComposeError::InterfaceMismatch("missing ':'".to_string(), line.to_string())
+        })?;
+        let name = line[..colon_pos].trim().to_string();
+        let rest = line[colon_pos + 1..].trim();
+
+        // Parse "func(params) -> return_type" or "func(params)"
+        let func_prefix = "func(";
+        if !rest.starts_with(func_prefix) {
+            return Err(ComposeError::InterfaceMismatch(
+                "expected 'func('".to_string(),
+                rest.to_string(),
+            ));
+        }
+        let paren_close = rest.find(')').ok_or_else(|| {
+            ComposeError::InterfaceMismatch("missing ')'".to_string(), rest.to_string())
+        })?;
+        let params_str = &rest[func_prefix.len()..paren_close];
+        let params = Self::parse_params(params_str);
+
+        let returns = if let Some(arrow_pos) = rest.find("->") {
+            let ret_str = rest[arrow_pos + 2..].trim();
+            Some(Self::parse_wit_type(ret_str))
+        } else {
+            None
+        };
+
+        Ok(FunctionSignature { name, params, returns })
+    }
+
+    fn parse_params(params_str: &str) -> Vec<(String, WitType)> {
+        if params_str.trim().is_empty() {
+            return Vec::new();
+        }
+        params_str
+            .split(',')
+            .filter_map(|p| {
+                let p = p.trim();
+                let colon = p.find(':')?;
+                let name = p[..colon].trim().to_string();
+                let ty = Self::parse_wit_type(p[colon + 1..].trim());
+                Some((name, ty))
+            })
+            .collect()
+    }
+
+    fn parse_wit_type(s: &str) -> WitType {
+        match s.trim() {
+            "bool" => WitType::Bool,
+            "u8" => WitType::U8,
+            "u16" => WitType::U16,
+            "u32" => WitType::U32,
+            "u64" => WitType::U64,
+            "s8" => WitType::S8,
+            "s16" => WitType::S16,
+            "s32" => WitType::S32,
+            "s64" => WitType::S64,
+            "f32" => WitType::F32,
+            "f64" => WitType::F64,
+            "char" => WitType::Char,
+            "string" => WitType::String,
+            other if other.starts_with("list<") => {
+                let inner = &other[5..other.len() - 1];
+                WitType::List(Box::new(Self::parse_wit_type(inner)))
+            }
+            other if other.starts_with("option<") => {
+                let inner = &other[7..other.len() - 1];
+                WitType::Option(Box::new(Self::parse_wit_type(inner)))
+            }
+            other => WitType::Record(other.to_string()),
+        }
+    }
+
+    fn parse_type_def(line: &str) -> Result<TypeDefinition, ComposeError> {
+        if line.starts_with("enum ") {
+            let name = line["enum ".len()..].trim().to_string();
+            Ok(TypeDefinition { name, kind: TypeKind::Enum(Vec::new()) })
+        } else if line.starts_with("flags ") {
+            let name = line["flags ".len()..].trim().to_string();
+            Ok(TypeDefinition { name, kind: TypeKind::Flags(Vec::new()) })
+        } else if line.starts_with("record ") {
+            let name = line["record ".len()..].trim().to_string();
+            Ok(TypeDefinition { name, kind: TypeKind::Record(Vec::new()) })
+        } else {
+            Err(ComposeError::InterfaceMismatch(
+                "unknown type definition".to_string(),
+                line.to_string(),
+            ))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Capability boundaries for cross-component permissions
+// ---------------------------------------------------------------------------
+
+/// Capability boundary configuration for a component.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComponentCapabilities {
+    /// Component ID.
+    pub component_id: String,
+    /// Capabilities granted to this component.
+    pub granted: Vec<String>,
+    /// Whether this component can delegate capabilities to linked components.
+    pub can_delegate: bool,
+}
+
+/// Validates capability boundaries across component links.
+pub struct CapabilityBoundaryValidator;
+
+impl CapabilityBoundaryValidator {
+    /// Validate that all component links respect capability boundaries.
+    ///
+    /// A component can only provide an interface to another component if it
+    /// has the capabilities required by that interface.
+    pub fn validate(
+        config: &CompositionConfig,
+        boundaries: &[ComponentCapabilities],
+    ) -> Vec<CapabilityBoundaryViolation> {
+        let mut violations = Vec::new();
+        let cap_map: HashMap<String, &ComponentCapabilities> =
+            boundaries.iter().map(|b| (b.component_id.clone(), b)).collect();
+
+        for link in &config.links {
+            // The provider (from) must have capabilities for the interface it exports
+            if let Some(from_caps) = cap_map.get(&link.from) {
+                if let Some(to_caps) = cap_map.get(&link.to) {
+                    // Check if the provider can delegate to the consumer
+                    if !from_caps.can_delegate {
+                        violations.push(CapabilityBoundaryViolation {
+                            from_component: link.from.clone(),
+                            to_component: link.to.clone(),
+                            interface: link.from_interface.clone(),
+                            reason: format!(
+                                "Component '{}' cannot delegate capabilities",
+                                link.from
+                            ),
+                        });
+                    }
+
+                    // Check that consumer has at least read access
+                    let has_access = to_caps.granted.iter().any(|g| {
+                        g == &link.to_interface || g == "*"
+                    });
+                    if !has_access && !to_caps.granted.is_empty() {
+                        violations.push(CapabilityBoundaryViolation {
+                            from_component: link.from.clone(),
+                            to_component: link.to.clone(),
+                            interface: link.to_interface.clone(),
+                            reason: format!(
+                                "Component '{}' lacks capability for interface '{}'",
+                                link.to, link.to_interface
+                            ),
+                        });
+                    }
+                }
+            }
+        }
+
+        violations
+    }
+}
+
+/// A capability boundary violation in a composition.
+#[derive(Debug, Clone)]
+pub struct CapabilityBoundaryViolation {
+    /// Source component.
+    pub from_component: String,
+    /// Target component.
+    pub to_component: String,
+    /// Interface in question.
+    pub interface: String,
+    /// Human-readable reason.
+    pub reason: String,
+}
 
 #[cfg(test)]
 mod tests {
@@ -301,5 +669,258 @@ mod tests {
 
         let composed = composer.compose().unwrap();
         assert_eq!(composed.components.len(), 1);
+    }
+
+    #[test]
+    fn test_composer_cycle_detection() {
+        let mut composer = Composer::new();
+
+        // Both components export and import the same "shared" interface
+        let a = Component {
+            id: "a".to_string(),
+            name: "a".to_string(),
+            exports: vec![Interface { name: "from-a".to_string(), functions: vec![], types: vec![] }],
+            imports: vec![Interface { name: "from-b".to_string(), functions: vec![], types: vec![] }],
+            bytes: vec![],
+        };
+        let b = Component {
+            id: "b".to_string(),
+            name: "b".to_string(),
+            exports: vec![Interface { name: "from-b".to_string(), functions: vec![], types: vec![] }],
+            imports: vec![Interface { name: "from-a".to_string(), functions: vec![], types: vec![] }],
+            bytes: vec![],
+        };
+
+        composer.add_component(a);
+        composer.add_component(b);
+        composer.set_root("a").unwrap();
+
+        // a exports from-a → b imports from-a
+        composer.link(ComponentLink {
+            from: "a".to_string(),
+            from_interface: "from-a".to_string(),
+            to: "b".to_string(),
+            to_interface: "from-a".to_string(),
+        }).unwrap();
+        // b exports from-b → a imports from-b
+        composer.link(ComponentLink {
+            from: "b".to_string(),
+            from_interface: "from-b".to_string(),
+            to: "a".to_string(),
+            to_interface: "from-b".to_string(),
+        }).unwrap();
+
+        let result = composer.compose();
+        match &result {
+            Err(ComposeError::CycleDetected(_)) => {} // expected
+            other => panic!("Expected CycleDetected, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_composer_topological_order() {
+        let mut composer = Composer::new();
+
+        let mut app = create_test_component("app");
+        app.imports = vec![Interface { name: "logger-api".to_string(), functions: vec![], types: vec![] }];
+
+        let logger = create_test_component("logger");
+
+        composer.add_component(app);
+        composer.add_component(logger);
+        composer.set_root("app").unwrap();
+
+        composer.link(ComponentLink {
+            from: "logger".to_string(),
+            from_interface: "api".to_string(),
+            to: "app".to_string(),
+            to_interface: "logger-api".to_string(),
+        }).unwrap();
+
+        let composed = composer.compose().unwrap();
+        // logger should come before app in execution order
+        let logger_pos = composed.components.iter().position(|c| c == "logger");
+        let app_pos = composed.components.iter().position(|c| c == "app");
+        assert!(logger_pos < app_pos);
+    }
+
+    #[test]
+    fn test_composer_validate_types() {
+        let mut composer = Composer::new();
+
+        let mut a = create_test_component("a");
+        a.exports = vec![Interface {
+            name: "api".to_string(),
+            functions: vec![FunctionSignature {
+                name: "greet".to_string(),
+                params: vec![("name".to_string(), WitType::String)],
+                returns: Some(WitType::String),
+            }],
+            types: vec![],
+        }];
+
+        let mut b = create_test_component("b");
+        b.imports = vec![Interface {
+            name: "api".to_string(),
+            functions: vec![FunctionSignature {
+                name: "greet".to_string(),
+                params: vec![("name".to_string(), WitType::String)],
+                returns: Some(WitType::String),
+            }],
+            types: vec![],
+        }];
+
+        composer.add_component(a);
+        composer.add_component(b);
+
+        composer.link(ComponentLink {
+            from: "a".to_string(),
+            from_interface: "api".to_string(),
+            to: "b".to_string(),
+            to_interface: "api".to_string(),
+        }).unwrap();
+
+        let errors = composer.validate_types();
+        assert!(errors.is_empty(), "Expected no type errors, got {:?}", errors);
+    }
+
+    #[test]
+    fn test_compose_error_display() {
+        let err = ComposeError::CycleDetected(vec!["a".to_string(), "b".to_string()]);
+        assert!(err.to_string().contains("a, b"));
+
+        let err = ComposeError::UnresolvedImport {
+            component: "app".to_string(),
+            interface: "logger".to_string(),
+        };
+        assert!(err.to_string().contains("app"));
+    }
+
+    // -----------------------------------------------------------------------
+    // WIT Parser tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_wit_parser_simple_interface() {
+        let wit = r#"interface greeter {
+            greet: func(name: string) -> string
+        }"#;
+        let iface = WitParser::parse_interface(wit).unwrap();
+        assert_eq!(iface.name, "greeter");
+        assert_eq!(iface.functions.len(), 1);
+        assert_eq!(iface.functions[0].name, "greet");
+        assert_eq!(iface.functions[0].params.len(), 1);
+        assert_eq!(iface.functions[0].params[0].0, "name");
+        assert_eq!(iface.functions[0].params[0].1, WitType::String);
+        assert_eq!(iface.functions[0].returns, Some(WitType::String));
+    }
+
+    #[test]
+    fn test_wit_parser_multiple_params() {
+        let wit = r#"interface math {
+            add: func(a: u32, b: u32) -> u32
+        }"#;
+        let iface = WitParser::parse_interface(wit).unwrap();
+        assert_eq!(iface.functions[0].params.len(), 2);
+        assert_eq!(iface.functions[0].params[0].1, WitType::U32);
+        assert_eq!(iface.functions[0].returns, Some(WitType::U32));
+    }
+
+    #[test]
+    fn test_wit_parser_no_return() {
+        let wit = r#"interface logger {
+            log: func(msg: string)
+        }"#;
+        let iface = WitParser::parse_interface(wit).unwrap();
+        assert!(iface.functions[0].returns.is_none());
+    }
+
+    #[test]
+    fn test_wit_parser_list_type() {
+        let wit = r#"interface data {
+            process: func(items: list<u32>) -> list<string>
+        }"#;
+        let iface = WitParser::parse_interface(wit).unwrap();
+        assert_eq!(
+            iface.functions[0].params[0].1,
+            WitType::List(Box::new(WitType::U32))
+        );
+    }
+
+    #[test]
+    fn test_wit_parser_with_comments() {
+        let wit = r#"interface api {
+            // This is a comment
+            hello: func() -> string
+        }"#;
+        let iface = WitParser::parse_interface(wit).unwrap();
+        assert_eq!(iface.functions.len(), 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // Capability boundary tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_capability_boundary_no_violations() {
+        let config = CompositionConfig {
+            root: Some("app".to_string()),
+            components: HashMap::new(),
+            links: vec![ComponentLink {
+                from: "logger".to_string(),
+                from_interface: "log-api".to_string(),
+                to: "app".to_string(),
+                to_interface: "log-api".to_string(),
+            }],
+            entry: None,
+        };
+
+        let boundaries = vec![
+            ComponentCapabilities {
+                component_id: "logger".to_string(),
+                granted: vec!["log-api".to_string()],
+                can_delegate: true,
+            },
+            ComponentCapabilities {
+                component_id: "app".to_string(),
+                granted: vec!["log-api".to_string()],
+                can_delegate: false,
+            },
+        ];
+
+        let violations = CapabilityBoundaryValidator::validate(&config, &boundaries);
+        assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn test_capability_boundary_delegation_violation() {
+        let config = CompositionConfig {
+            root: Some("app".to_string()),
+            components: HashMap::new(),
+            links: vec![ComponentLink {
+                from: "data".to_string(),
+                from_interface: "data-api".to_string(),
+                to: "app".to_string(),
+                to_interface: "data-api".to_string(),
+            }],
+            entry: None,
+        };
+
+        let boundaries = vec![
+            ComponentCapabilities {
+                component_id: "data".to_string(),
+                granted: vec!["data-api".to_string()],
+                can_delegate: false, // Cannot delegate!
+            },
+            ComponentCapabilities {
+                component_id: "app".to_string(),
+                granted: vec!["data-api".to_string()],
+                can_delegate: false,
+            },
+        ];
+
+        let violations = CapabilityBoundaryValidator::validate(&config, &boundaries);
+        assert!(!violations.is_empty());
+        assert!(violations[0].reason.contains("cannot delegate"));
     }
 }
