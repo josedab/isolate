@@ -357,6 +357,75 @@ pub struct SessionSummary {
     pub created_at: DateTime<Utc>,
 }
 
+/// Serializable session snapshot for persistence.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionSnapshot {
+    /// Session ID.
+    pub id: Uuid,
+    /// Session configuration.
+    pub config: AgentConfig,
+    /// Execution history.
+    pub history: Vec<ExecutionRecord>,
+    /// Total fuel consumed.
+    pub total_fuel_consumed: u64,
+    /// Tool call count.
+    pub tool_call_count: usize,
+    /// Session creation time.
+    pub created_at: DateTime<Utc>,
+    /// Snapshot creation time.
+    pub snapshot_at: DateTime<Utc>,
+}
+
+impl AgentSession {
+    /// Create a persistent snapshot of this session.
+    pub fn snapshot(&self) -> SessionSnapshot {
+        SessionSnapshot {
+            id: self.id,
+            config: self.config.clone(),
+            history: self.history.clone(),
+            total_fuel_consumed: self.total_fuel_consumed,
+            tool_call_count: self.tool_call_count,
+            created_at: self.created_at,
+            snapshot_at: Utc::now(),
+        }
+    }
+
+    /// Restore a session from a snapshot.
+    pub fn from_snapshot(snapshot: SessionSnapshot) -> Self {
+        let engine = Arc::new(WasmEngine::new().expect("failed to create WASM engine"));
+        Self::from_snapshot_with_engine(snapshot, engine)
+    }
+
+    /// Restore a session from a snapshot with a shared engine.
+    pub fn from_snapshot_with_engine(snapshot: SessionSnapshot, engine: Arc<WasmEngine>) -> Self {
+        Self {
+            id: snapshot.id,
+            config: snapshot.config,
+            tools: ToolRegistry::new(),
+            engine,
+            history: snapshot.history,
+            total_fuel_consumed: snapshot.total_fuel_consumed,
+            tool_call_count: snapshot.tool_call_count,
+            traces: TraceStore::new(),
+            created_at: snapshot.created_at,
+        }
+    }
+
+    /// Serialize this session to JSON for persistence.
+    pub fn save(&self) -> Result<String> {
+        let snapshot = self.snapshot();
+        serde_json::to_string_pretty(&snapshot)
+            .map_err(|e| Error::Execution(format!("Failed to serialize session: {}", e)))
+    }
+
+    /// Restore a session from a JSON string.
+    pub fn load(json: &str) -> Result<Self> {
+        let snapshot: SessionSnapshot = serde_json::from_str(json)
+            .map_err(|e| Error::Execution(format!("Failed to deserialize session: {}", e)))?;
+        Ok(Self::from_snapshot(snapshot))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -395,5 +464,43 @@ mod tests {
         assert_eq!(summary.successful_executions, 0);
         assert_eq!(summary.failed_executions, 0);
         assert_eq!(summary.total_fuel_consumed, 0);
+    }
+
+    #[test]
+    fn test_session_snapshot_roundtrip() {
+        let config = AgentConfig::builder()
+            .memory_limit(64 * 1024 * 1024)
+            .max_tool_calls(10)
+            .fuel_budget(1_000_000)
+            .build();
+
+        let session = AgentSession::new(config);
+        let original_id = session.id();
+
+        let snapshot = session.snapshot();
+        assert_eq!(snapshot.id, original_id);
+        assert_eq!(snapshot.total_fuel_consumed, 0);
+
+        let restored = AgentSession::from_snapshot(snapshot);
+        assert_eq!(restored.id(), original_id);
+        assert_eq!(restored.total_fuel_consumed(), 0);
+        assert_eq!(restored.remaining_fuel(), Some(1_000_000));
+    }
+
+    #[test]
+    fn test_session_save_load() {
+        let config = AgentConfig::builder()
+            .memory_limit(128 * 1024 * 1024)
+            .max_tool_calls(50)
+            .build();
+
+        let session = AgentSession::new(config);
+        let original_id = session.id();
+
+        let json = session.save().unwrap();
+        assert!(json.contains(&original_id.to_string()));
+
+        let restored = AgentSession::load(&json).unwrap();
+        assert_eq!(restored.id(), original_id);
     }
 }

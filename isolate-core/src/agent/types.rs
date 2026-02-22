@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 /// Configuration for an agent session.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     /// Maximum heap memory per execution (bytes).
     pub memory_limit: usize,

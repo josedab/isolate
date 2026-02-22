@@ -1,5 +1,6 @@
 //! Tool definitions and registry for AI agent workflows.
 
+use super::protocol::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -16,6 +17,9 @@ pub struct ToolDefinition {
     pub timeout_secs: Option<u64>,
     /// Maximum memory in bytes for this tool.
     pub memory_limit: Option<usize>,
+    /// JSON Schema for validating input (optional, auto-generated if not set).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_schema: Option<JsonSchema>,
 }
 
 impl ToolDefinition {
@@ -27,6 +31,7 @@ impl ToolDefinition {
             parameters: Vec::new(),
             timeout_secs: None,
             memory_limit: None,
+            input_schema: None,
         }
     }
 
@@ -46,6 +51,42 @@ impl ToolDefinition {
     pub fn with_memory_limit(mut self, bytes: usize) -> Self {
         self.memory_limit = Some(bytes);
         self
+    }
+
+    /// Set a JSON Schema for input validation.
+    pub fn with_input_schema(mut self, schema: JsonSchema) -> Self {
+        self.input_schema = Some(schema);
+        self
+    }
+
+    /// Generate a JSON Schema from the parameter list.
+    pub fn generate_schema(&self) -> JsonSchema {
+        if let Some(ref schema) = self.input_schema {
+            return schema.clone();
+        }
+        let mut builder = JsonSchema::object()
+            .description(self.description.clone());
+        for param in &self.parameters {
+            let param_schema = match param.param_type {
+                ToolParameterType::String => JsonSchema::string(),
+                ToolParameterType::Integer => JsonSchema::integer(),
+                ToolParameterType::Number => JsonSchema::number(),
+                ToolParameterType::Boolean => JsonSchema::boolean(),
+                ToolParameterType::Object => JsonSchema::object().build(),
+                ToolParameterType::Array => JsonSchema::array(JsonSchema::string()),
+            };
+            if param.required {
+                builder = builder.required_property(&param.name, param_schema);
+            } else {
+                builder = builder.property(&param.name, param_schema);
+            }
+        }
+        builder.build()
+    }
+
+    /// Validate input JSON against this tool's schema.
+    pub fn validate_input(&self, input: &serde_json::Value) -> Vec<super::protocol::ValidationError> {
+        self.generate_schema().validate(input)
     }
 
     /// Pre-built tool definition for code execution.
@@ -279,5 +320,53 @@ mod tests {
         let json = registry.to_json();
         assert!(json.is_array());
         assert_eq!(json.as_array().unwrap().len(), 4);
+    }
+
+    #[test]
+    fn test_tool_generate_schema() {
+        let tool = ToolDefinition::code_execute();
+        let schema = tool.generate_schema();
+        assert_eq!(schema.schema_type, super::super::protocol::JsonSchemaType::Object);
+        assert!(schema.required.contains(&"code".to_string()));
+        assert!(!schema.required.contains(&"input".to_string()));
+    }
+
+    #[test]
+    fn test_tool_validate_input_valid() {
+        let tool = ToolDefinition::code_execute();
+        let input = serde_json::json!({"code": "print('hello')"});
+        assert!(tool.validate_input(&input).is_empty());
+    }
+
+    #[test]
+    fn test_tool_validate_input_missing_required() {
+        let tool = ToolDefinition::code_execute();
+        let input = serde_json::json!({"input": {}});
+        let errors = tool.validate_input(&input);
+        assert!(!errors.is_empty());
+    }
+
+    #[test]
+    fn test_tool_validate_input_wrong_type() {
+        let tool = ToolDefinition::file_read();
+        let input = serde_json::json!({"path": 42});
+        let errors = tool.validate_input(&input);
+        assert!(!errors.is_empty());
+    }
+
+    #[test]
+    fn test_tool_with_custom_schema() {
+        use super::super::protocol::JsonSchema;
+        let schema = JsonSchema::object()
+            .required_property("query", JsonSchema::string())
+            .build();
+        let tool = ToolDefinition::new("search", "Search the web")
+            .with_input_schema(schema);
+
+        let valid = serde_json::json!({"query": "rust wasm"});
+        assert!(tool.validate_input(&valid).is_empty());
+
+        let invalid = serde_json::json!({"query": 123});
+        assert!(!tool.validate_input(&invalid).is_empty());
     }
 }

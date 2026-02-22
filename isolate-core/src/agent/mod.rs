@@ -53,7 +53,7 @@ pub mod function_calling;
 pub mod guardrails;
 pub mod protocol;
 
-pub use session::{AgentSession, ExecutionRecord};
+pub use session::{AgentSession, ExecutionRecord, SessionSnapshot};
 pub use tools::{ToolDefinition, ToolParameter, ToolParameterType, ToolRegistry};
 pub use trace::{
     ExecutionTrace, ResourceBudget, SpanKind, SpanStatus, TraceBuilder, TraceSpan, TraceStats,
@@ -68,8 +68,8 @@ pub use function_calling::{
     ToolCallResult, ToolSpec,
 };
 pub use protocol::{
-    BudgetEnforcer, BudgetViolation, JsonSchema, JsonSchemaType, ProtocolMessage,
-    ProtocolValidator, ValidationError,
+    BudgetEnforcer, BudgetViolation, JsonSchema, JsonSchemaType, ProtocolAdapter,
+    ProtocolFormat, ProtocolMessage, ProtocolValidator, ValidationError,
 };
 pub use guardrails::{
     ChainDepthTracker, ContentFilter, GuardrailConfig, ProviderConfig, ProviderType,
