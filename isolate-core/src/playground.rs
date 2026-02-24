@@ -265,9 +265,95 @@ impl PlaygroundExecutor {
     }
 }
 
+/// Pre-loaded playground examples for quick experimentation.
+#[derive(Debug, Clone)]
+pub struct PlaygroundExample {
+    /// Example identifier.
+    pub id: String,
+    /// Human-readable title.
+    pub title: String,
+    /// Description of what the example does.
+    pub description: String,
+    /// Language the example is written in.
+    pub language: String,
+    /// Pre-compiled WASM bytes (if available).
+    pub wasm_bytes: Option<Vec<u8>>,
+    /// Source code (for display).
+    pub source_code: String,
+}
+
+impl PlaygroundExample {
+    /// Get all built-in examples.
+    pub fn builtin_examples() -> Vec<PlaygroundExample> {
+        vec![
+            PlaygroundExample {
+                id: "hello-world".to_string(),
+                title: "Hello World".to_string(),
+                description: "Prints 'Hello from WASM!' to stdout".to_string(),
+                language: "C".to_string(),
+                wasm_bytes: None,
+                source_code: r#"#include <stdio.h>
+int main() {
+    printf("Hello from WASM!\n");
+    return 0;
+}"#.to_string(),
+            },
+            PlaygroundExample {
+                id: "fibonacci".to_string(),
+                title: "Fibonacci".to_string(),
+                description: "Computes Fibonacci numbers iteratively".to_string(),
+                language: "Rust".to_string(),
+                wasm_bytes: None,
+                source_code: r#"fn fib(n: u64) -> u64 {
+    let (mut a, mut b) = (0u64, 1u64);
+    for _ in 0..n {
+        let tmp = a + b;
+        a = b;
+        b = tmp;
+    }
+    a
+}
+
+fn main() {
+    println!("fib(10) = {}", fib(10));
+}"#.to_string(),
+            },
+            PlaygroundExample {
+                id: "env-reader".to_string(),
+                title: "Environment Variables".to_string(),
+                description: "Reads and prints environment variables".to_string(),
+                language: "Rust".to_string(),
+                wasm_bytes: None,
+                source_code: r#"fn main() {
+    for (key, value) in std::env::vars() {
+        println!("{key}={value}");
+    }
+}"#.to_string(),
+            },
+            PlaygroundExample {
+                id: "json-processor".to_string(),
+                title: "JSON Processing".to_string(),
+                description: "Reads JSON from stdin and processes it".to_string(),
+                language: "Rust".to_string(),
+                wasm_bytes: None,
+                source_code: r#"use std::io::Read;
+fn main() {
+    let mut input = String::new();
+    std::io::stdin().read_to_string(&mut input).unwrap();
+    println!("Received {} bytes of input", input.len());
+}"#.to_string(),
+            },
+        ]
+    }
+
+    /// Find an example by ID.
+    pub fn find(id: &str) -> Option<PlaygroundExample> {
+        Self::builtin_examples().into_iter().find(|e| e.id == id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::*;
     const HELLO_WASM: &[u8] = include_bytes!("../tests/fixtures/hello.wasm");
     const EXIT_42_WASM: &[u8] = include_bytes!("../tests/fixtures/exit_42.wasm");
@@ -408,5 +494,19 @@ mod tests {
             assert_eq!(resp.status, ExecutionStatus::Success);
         }
         assert_eq!(results.len(), 4);
+    }
+
+    #[test]
+    fn test_builtin_examples() {
+        let examples = PlaygroundExample::builtin_examples();
+        assert!(examples.len() >= 4);
+        assert!(examples.iter().any(|e| e.id == "hello-world"));
+        assert!(examples.iter().any(|e| e.id == "fibonacci"));
+    }
+
+    #[test]
+    fn test_find_example() {
+        assert!(PlaygroundExample::find("hello-world").is_some());
+        assert!(PlaygroundExample::find("nonexistent").is_none());
     }
 }
