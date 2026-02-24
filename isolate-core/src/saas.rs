@@ -423,6 +423,79 @@ pub struct AuthContext {
     pub tenant: Tenant,
 }
 
+impl AuthContext {
+    /// Check if this auth context has a specific scope.
+    pub fn has_scope(&self, scope: &ApiScope) -> bool {
+        self.api_key.scopes.contains(&ApiScope::Admin) || self.api_key.scopes.contains(scope)
+    }
+
+    /// Require a specific scope, returning an error if missing.
+    pub fn require_scope(&self, scope: &ApiScope) -> Result<()> {
+        if self.has_scope(scope) {
+            Ok(())
+        } else {
+            Err(Error::InvalidConfig(format!(
+                "API key lacks required scope: {:?}",
+                scope
+            )))
+        }
+    }
+
+    /// Get the rate limit for this auth context (per minute).
+    pub fn rate_limit(&self) -> u32 {
+        self.api_key.rate_limit
+    }
+
+    /// Get the tenant's plan.
+    pub fn plan(&self) -> &Plan {
+        &self.tenant.plan
+    }
+}
+
+/// A billing event emitted when a sandbox execution completes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BillingEvent {
+    /// Tenant that was billed.
+    pub tenant_id: String,
+    /// Sandbox identifier.
+    pub sandbox_id: String,
+    /// When the event occurred.
+    pub timestamp: DateTime<Utc>,
+    /// Fuel consumed.
+    pub fuel_consumed: u64,
+    /// Memory used (bytes).
+    pub memory_bytes: u64,
+    /// Execution duration in milliseconds.
+    pub duration_ms: u64,
+    /// Estimated cost (abstract units).
+    pub estimated_cost: f64,
+}
+
+impl BillingEvent {
+    /// Create a new billing event from execution metrics.
+    pub fn from_execution(
+        tenant_id: &str,
+        sandbox_id: &str,
+        fuel: u64,
+        memory: u64,
+        duration_ms: u64,
+    ) -> Self {
+        // Usage-based pricing: $0.001 per 1M fuel + $0.01 per GB-second
+        let fuel_cost = fuel as f64 / 1_000_000.0 * 0.001;
+        let gb_seconds = (memory as f64 / (1024.0 * 1024.0 * 1024.0)) * (duration_ms as f64 / 1000.0);
+        let memory_cost = gb_seconds * 0.01;
+        Self {
+            tenant_id: tenant_id.to_string(),
+            sandbox_id: sandbox_id.to_string(),
+            timestamp: Utc::now(),
+            fuel_consumed: fuel,
+            memory_bytes: memory,
+            duration_ms,
+            estimated_cost: fuel_cost + memory_cost,
+        }
+    }
+}
+
 /// Opaque sandbox identifier returned by [`SaasService::create_sandbox_for_tenant`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SandboxId(pub String);
@@ -478,11 +551,7 @@ impl SaasService {
         auth: &AuthContext,
         _config: &str,
     ) -> Result<SandboxId> {
-        if !auth.api_key.scopes.contains(&ApiScope::SandboxCreate) {
-            return Err(Error::InvalidConfig(
-                "API key lacks sandbox:create scope".into(),
-            ));
-        }
+        auth.require_scope(&ApiScope::SandboxCreate)?;
 
         self.usage.check_limits(&auth.tenant.tenant_id)?;
 
@@ -498,6 +567,59 @@ impl SaasService {
         });
 
         Ok(sandbox_id)
+    }
+
+    /// Record a sandbox execution for billing and usage tracking.
+    pub fn record_execution(
+        &self,
+        auth: &AuthContext,
+        sandbox_id: &SandboxId,
+        fuel: u64,
+        memory: u64,
+        duration_ms: u64,
+    ) -> BillingEvent {
+        let event = BillingEvent::from_execution(
+            &auth.tenant.tenant_id,
+            &sandbox_id.0,
+            fuel,
+            memory,
+            duration_ms,
+        );
+
+        self.usage.record(UsageRecord {
+            tenant_id: auth.tenant.tenant_id.clone(),
+            timestamp: Utc::now(),
+            sandbox_count: 0,
+            fuel_consumed: fuel,
+            memory_bytes: memory,
+            api_calls: 1,
+        });
+
+        event
+    }
+
+    /// Pre-execution check: validate that the tenant has the required scope
+    /// and is within their billing/usage limits.
+    pub fn authorize_execution(&self, auth: &AuthContext) -> Result<()> {
+        auth.require_scope(&ApiScope::SandboxRun)?;
+        self.usage.check_limits(&auth.tenant.tenant_id)?;
+        Ok(())
+    }
+
+    /// Full execution lifecycle: authorize → execute → bill.
+    ///
+    /// Returns the billing event on success, or an error if authorization
+    /// or limit checks fail.
+    pub fn execute_with_billing(
+        &self,
+        auth: &AuthContext,
+        sandbox_id: &SandboxId,
+        fuel: u64,
+        memory: u64,
+        duration_ms: u64,
+    ) -> Result<BillingEvent> {
+        self.authorize_execution(auth)?;
+        Ok(self.record_execution(auth, sandbox_id, fuel, memory, duration_ms))
     }
 }
 
@@ -773,5 +895,123 @@ mod tests {
         let l = TenantLimits::for_plan(&Plan::Enterprise);
         assert_eq!(l.max_sandboxes, 500);
         assert_eq!(l.max_api_keys, 100);
+    }
+
+    // -- AuthContext ---------------------------------------------------------
+
+    #[test]
+    fn test_auth_context_scope_check() {
+        let svc = SaasService::new();
+        let t = svc.tenants.create("Scope", Plan::Pro);
+        let (_, plain) = svc.api_keys.generate(
+            &t.tenant_id,
+            "k",
+            vec![ApiScope::SandboxCreate, ApiScope::SandboxRead],
+        );
+        let ctx = svc.authenticate(&plain).unwrap();
+        assert!(ctx.has_scope(&ApiScope::SandboxCreate));
+        assert!(ctx.has_scope(&ApiScope::SandboxRead));
+        assert!(!ctx.has_scope(&ApiScope::SandboxRun));
+    }
+
+    #[test]
+    fn test_auth_context_admin_scope_grants_all() {
+        let svc = SaasService::new();
+        let t = svc.tenants.create("Admin", Plan::Enterprise);
+        let (_, plain) = svc.api_keys.generate(&t.tenant_id, "k", vec![ApiScope::Admin]);
+        let ctx = svc.authenticate(&plain).unwrap();
+        assert!(ctx.has_scope(&ApiScope::SandboxCreate));
+        assert!(ctx.has_scope(&ApiScope::SandboxRun));
+        assert!(ctx.has_scope(&ApiScope::SandboxRead));
+    }
+
+    #[test]
+    fn test_auth_context_require_scope() {
+        let svc = SaasService::new();
+        let t = svc.tenants.create("Req", Plan::Pro);
+        let (_, plain) = svc.api_keys.generate(&t.tenant_id, "k", vec![ApiScope::SandboxRead]);
+        let ctx = svc.authenticate(&plain).unwrap();
+        assert!(ctx.require_scope(&ApiScope::SandboxRead).is_ok());
+        assert!(ctx.require_scope(&ApiScope::SandboxCreate).is_err());
+    }
+
+    // -- BillingEvent -------------------------------------------------------
+
+    #[test]
+    fn test_billing_event_cost_calculation() {
+        let event = BillingEvent::from_execution("t1", "s1", 1_000_000, 1024 * 1024 * 1024, 1000);
+        assert!(event.estimated_cost > 0.0);
+        assert_eq!(event.fuel_consumed, 1_000_000);
+    }
+
+    #[test]
+    fn test_record_execution() {
+        let svc = SaasService::new();
+        let t = svc.tenants.create("Exec", Plan::Pro);
+        let (_, plain) = svc.api_keys.generate(
+            &t.tenant_id,
+            "k",
+            vec![ApiScope::SandboxCreate],
+        );
+        let ctx = svc.authenticate(&plain).unwrap();
+        let sandbox_id = svc.create_sandbox_for_tenant(&ctx, "{}").unwrap();
+
+        let event = svc.record_execution(&ctx, &sandbox_id, 50000, 1024 * 1024, 100);
+        assert_eq!(event.tenant_id, t.tenant_id);
+        assert_eq!(event.fuel_consumed, 50000);
+        assert!(event.estimated_cost >= 0.0);
+
+        let usage = svc.usage.get_current_period(&t.tenant_id);
+        assert_eq!(usage.total_fuel, 50000);
+    }
+
+    #[test]
+    fn test_authorize_execution_success() {
+        let svc = SaasService::new();
+        let t = svc.tenants.create("AuthExec", Plan::Pro);
+        let (_, plain) = svc.api_keys.generate(
+            &t.tenant_id,
+            "k",
+            vec![ApiScope::SandboxRun],
+        );
+        let ctx = svc.authenticate(&plain).unwrap();
+        assert!(svc.authorize_execution(&ctx).is_ok());
+    }
+
+    #[test]
+    fn test_authorize_execution_missing_scope() {
+        let svc = SaasService::new();
+        let t = svc.tenants.create("NoScope", Plan::Pro);
+        let (_, plain) = svc.api_keys.generate(
+            &t.tenant_id,
+            "k",
+            vec![ApiScope::SandboxRead], // missing SandboxRun
+        );
+        let ctx = svc.authenticate(&plain).unwrap();
+        assert!(svc.authorize_execution(&ctx).is_err());
+    }
+
+    #[test]
+    fn test_execute_with_billing_full_lifecycle() {
+        let svc = SaasService::new();
+        let t = svc.tenants.create("Billing", Plan::Pro);
+        let (_, plain) = svc.api_keys.generate(
+            &t.tenant_id,
+            "k",
+            vec![ApiScope::SandboxCreate, ApiScope::SandboxRun],
+        );
+        let ctx = svc.authenticate(&plain).unwrap();
+        let sandbox_id = svc.create_sandbox_for_tenant(&ctx, "{}").unwrap();
+
+        let result = svc.execute_with_billing(&ctx, &sandbox_id, 100_000, 64 * 1024 * 1024, 500);
+        assert!(result.is_ok());
+        let event = result.unwrap();
+        assert_eq!(event.fuel_consumed, 100_000);
+        assert!(event.estimated_cost > 0.0);
+
+        // Verify usage was tracked
+        let usage = svc.usage.get_current_period(&t.tenant_id);
+        assert_eq!(usage.total_fuel, 100_000);
+        assert_eq!(usage.total_api_calls, 2); // create + execute
     }
 }
