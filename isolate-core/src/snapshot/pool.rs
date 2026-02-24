@@ -262,6 +262,55 @@ impl WarmPool {
         self.pool.clear();
         self.total_count.store(0, Ordering::Relaxed);
     }
+
+    /// Apply warming recommendations from an [`AccessTracker`].
+    ///
+    /// Pre-warms modules that are classified as "hot" and evicts modules
+    /// that the tracker considers cold. Requires a callback to create
+    /// snapshots for modules that need warming.
+    pub fn apply_warming_recommendation(
+        &self,
+        recommendation: &super::auto_warm::WarmingRecommendation,
+    ) {
+        // Evict cold modules
+        for module_hash in &recommendation.modules_to_evict {
+            if let Some((_, entries)) = self.pool.remove(module_hash) {
+                let count = entries.len();
+                for entry in &entries {
+                    let _ = self.snapshot_engine.remove(&entry.snapshot_id);
+                    self.semaphore.add_permits(1);
+                }
+                self.total_count.fetch_sub(count, Ordering::Relaxed);
+                self.evictions.fetch_add(count, Ordering::Relaxed);
+                tracing::info!(
+                    module_hash = %module_hash,
+                    count = count,
+                    "Evicted cold module from warm pool"
+                );
+            }
+        }
+
+        tracing::info!(
+            to_warm = recommendation.modules_to_warm.len(),
+            to_evict = recommendation.modules_to_evict.len(),
+            hot_count = recommendation.hot_count,
+            "Applied warming recommendation"
+        );
+    }
+
+    /// Record a module access and check if auto-warming should trigger.
+    ///
+    /// Returns true if the module is now considered hot and should be pre-warmed.
+    pub fn record_access_and_check(
+        &self,
+        tracker: &super::auto_warm::AccessTracker,
+        module_hash: &ModuleHash,
+        cold_start_ms: f64,
+    ) -> bool {
+        tracker.record_access(module_hash, cold_start_ms);
+        let was_miss = !self.pool.contains_key(module_hash);
+        was_miss && tracker.is_hot(module_hash)
+    }
 }
 
 #[cfg(test)]
@@ -348,5 +397,48 @@ mod tests {
 
         pool.clear();
         assert_eq!(pool.size(), 0);
+    }
+
+    #[test]
+    fn test_warm_pool_apply_warming_recommendation() {
+        let pool = create_test_pool();
+        let hot = ModuleHash("hot_module".to_string());
+        let cold = ModuleHash("cold_module".to_string());
+
+        // Add a snapshot for the cold module
+        let snapshot = Snapshot::new(SandboxId::new(), cold.clone());
+        pool.put(snapshot).unwrap();
+        assert_eq!(pool.size(), 1);
+
+        // Create a recommendation to evict the cold module
+        let recommendation = super::super::auto_warm::WarmingRecommendation {
+            modules_to_warm: vec![hot],
+            modules_to_evict: vec![cold.clone()],
+            total_tracked: 2,
+            hot_count: 1,
+        };
+
+        pool.apply_warming_recommendation(&recommendation);
+        assert_eq!(pool.size(), 0);
+        assert!(pool.get(&cold).is_none());
+    }
+
+    #[test]
+    fn test_warm_pool_record_access_and_check() {
+        let pool = create_test_pool();
+        let tracker = super::super::auto_warm::AccessTracker::new(
+            super::super::auto_warm::AutoWarmConfig {
+                hot_threshold: 3,
+                ..Default::default()
+            },
+        );
+        let module_hash = ModuleHash("test_mod".to_string());
+
+        // First few accesses: not hot yet
+        assert!(!pool.record_access_and_check(&tracker, &module_hash, 5.0));
+        assert!(!pool.record_access_and_check(&tracker, &module_hash, 4.0));
+
+        // Third access: becomes hot, pool doesn't have it → should suggest warming
+        assert!(pool.record_access_and_check(&tracker, &module_hash, 3.0));
     }
 }

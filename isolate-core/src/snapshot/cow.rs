@@ -73,6 +73,8 @@ pub struct CowMemoryStore {
     bytes_saved: AtomicU64,
     /// Maximum in-memory pages before spilling to disk.
     max_memory_pages: usize,
+    /// Memory-mapped file backing for large snapshots.
+    mmap_enabled: bool,
 }
 
 impl CowMemoryStore {
@@ -89,7 +91,45 @@ impl CowMemoryStore {
             total_pages: AtomicUsize::new(0),
             bytes_saved: AtomicU64::new(0),
             max_memory_pages,
+            mmap_enabled: true,
         })
+    }
+
+    /// Enable or disable mmap-based page backing.
+    pub fn set_mmap_enabled(&mut self, enabled: bool) {
+        self.mmap_enabled = enabled;
+    }
+
+    /// Create a memory-mapped file for bulk page storage and return the path.
+    pub fn create_mmap_region(&self, memory: &[u8]) -> Result<PathBuf> {
+        let region_id = uuid::Uuid::new_v4();
+        let path = self.storage_path.join(format!("mmap_{}.region", region_id));
+        let mut file = File::create(&path)?;
+        file.write_all(memory)?;
+        file.sync_all()?;
+        Ok(path)
+    }
+
+    /// Load a bulk memory region from an mmap-backed file.
+    pub fn load_mmap_region(&self, path: &std::path::Path) -> Result<Vec<u8>> {
+        let mut file = File::open(path).map_err(|e| {
+            Error::Snapshot(format!("Failed to open mmap region {}: {}", path.display(), e))
+        })?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        Ok(data)
+    }
+
+    /// Bulk-store all pages from a memory region, returning page hashes.
+    pub fn store_memory_region(&self, memory: &[u8]) -> Vec<(usize, PageHash)> {
+        let mut results = Vec::new();
+        for (page_idx, chunk) in memory.chunks(self.page_size).enumerate() {
+            if !chunk.iter().all(|&b| b == 0) {
+                let hash = self.store_page(chunk);
+                results.push((page_idx, hash));
+            }
+        }
+        results
     }
 
     /// Store a page and return its hash.
