@@ -35,7 +35,11 @@ pub use decision::{
     DecisionTree, PolicyCompiler, PolicyDecision, PolicyEffect, PolicyRequest, PolicySet,
     PolicyStatement, PolicyStore,
 };
-pub use eval::{PolicyEvaluator, ResolvedPolicy};
+pub use eval::{
+    check_hipaa_compliance, check_soc2_compliance, ComplianceFinding, ComplianceReport,
+    ConflictStrategy, FindingSeverity, PolicyComposer, PolicyEvaluator, ResolvedPolicy,
+    VersionedPolicy,
+};
 pub use lint::{LintFinding, LintResult, LintSeverity, PolicyLinter, PolicyTest, run_policy_tests};
 pub use parser::{
     CapabilityBlock, NetworkBlock, ParseError, PolicyDocument, PolicyParser, ResourceBlock,

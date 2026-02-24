@@ -165,6 +165,289 @@ fn parse_duration(s: &str) -> Option<Duration> {
     Some(Duration::from_millis(num * multiplier))
 }
 
+/// Versioned policy for tracking changes over time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VersionedPolicy {
+    /// Policy name.
+    pub name: String,
+    /// Semantic version.
+    pub version: String,
+    /// The resolved policy.
+    pub policy: ResolvedPolicy,
+    /// Parent version (for inheritance).
+    pub parent: Option<String>,
+    /// Creation timestamp (ISO 8601).
+    pub created_at: String,
+    /// Description of changes.
+    pub changelog: Option<String>,
+}
+
+/// Composes multiple policies with inheritance and conflict resolution.
+pub struct PolicyComposer {
+    /// Conflict resolution strategy.
+    strategy: ConflictStrategy,
+}
+
+/// Strategy for resolving conflicts when composing policies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictStrategy {
+    /// Use the most restrictive value.
+    MostRestrictive,
+    /// Use the least restrictive value.
+    LeastRestrictive,
+    /// Later policies override earlier ones.
+    LastWins,
+}
+
+impl PolicyComposer {
+    /// Create a new composer with the given conflict strategy.
+    pub fn new(strategy: ConflictStrategy) -> Self {
+        Self { strategy }
+    }
+
+    /// Compose multiple resolved policies into one.
+    pub fn compose(&self, policies: &[ResolvedPolicy]) -> ResolvedPolicy {
+        if policies.is_empty() {
+            return ResolvedPolicy::default();
+        }
+        if policies.len() == 1 {
+            return policies[0].clone();
+        }
+
+        let mut result = policies[0].clone();
+        for policy in &policies[1..] {
+            self.merge(&mut result, policy);
+        }
+        result
+    }
+
+    /// Apply a child policy on top of a parent (inheritance).
+    pub fn inherit(parent: &ResolvedPolicy, child: &ResolvedPolicy) -> ResolvedPolicy {
+        let mut result = parent.clone();
+        result.name = child.name.clone();
+
+        // Child overrides parent for all explicitly set fields
+        if child.memory_limit_bytes != ResolvedPolicy::default().memory_limit_bytes {
+            result.memory_limit_bytes = child.memory_limit_bytes;
+        }
+        if child.fuel.is_some() {
+            result.fuel = child.fuel;
+        }
+        if child.timeout.is_some() {
+            result.timeout = child.timeout;
+        }
+        if child.max_io_bytes.is_some() {
+            result.max_io_bytes = child.max_io_bytes;
+        }
+        if child.allow_stdout {
+            result.allow_stdout = true;
+        }
+        if child.allow_stderr {
+            result.allow_stderr = true;
+        }
+        if child.allow_stdin {
+            result.allow_stdin = true;
+        }
+        if !child.fs_read_paths.is_empty() {
+            result.fs_read_paths = child.fs_read_paths.clone();
+        }
+        if !child.fs_write_paths.is_empty() {
+            result.fs_write_paths = child.fs_write_paths.clone();
+        }
+        if !child.allow_http_hosts.is_empty() {
+            result.allow_http_hosts = child.allow_http_hosts.clone();
+        }
+        if !child.network_deny_all {
+            result.network_deny_all = false;
+        }
+
+        result
+    }
+
+    fn merge(&self, base: &mut ResolvedPolicy, other: &ResolvedPolicy) {
+        match self.strategy {
+            ConflictStrategy::MostRestrictive => {
+                base.memory_limit_bytes = base.memory_limit_bytes.min(other.memory_limit_bytes);
+                base.fuel = match (base.fuel, other.fuel) {
+                    (Some(a), Some(b)) => Some(a.min(b)),
+                    (Some(a), None) => Some(a),
+                    (None, Some(b)) => Some(b),
+                    (None, None) => None,
+                };
+                base.timeout = match (base.timeout, other.timeout) {
+                    (Some(a), Some(b)) => Some(a.min(b)),
+                    (Some(a), None) => Some(a),
+                    (None, Some(b)) => Some(b),
+                    (None, None) => None,
+                };
+                // Most restrictive = deny wins
+                base.allow_stdout = base.allow_stdout && other.allow_stdout;
+                base.allow_stderr = base.allow_stderr && other.allow_stderr;
+                base.allow_stdin = base.allow_stdin && other.allow_stdin;
+                base.network_deny_all = base.network_deny_all || other.network_deny_all;
+            }
+            ConflictStrategy::LeastRestrictive => {
+                base.memory_limit_bytes = base.memory_limit_bytes.max(other.memory_limit_bytes);
+                base.fuel = match (base.fuel, other.fuel) {
+                    (Some(a), Some(b)) => Some(a.max(b)),
+                    _ => None, // No limit = least restrictive
+                };
+                base.allow_stdout = base.allow_stdout || other.allow_stdout;
+                base.allow_stderr = base.allow_stderr || other.allow_stderr;
+                base.allow_stdin = base.allow_stdin || other.allow_stdin;
+                base.network_deny_all = base.network_deny_all && other.network_deny_all;
+            }
+            ConflictStrategy::LastWins => {
+                *base = other.clone();
+            }
+        }
+    }
+}
+
+/// Compliance report for a resolved policy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComplianceReport {
+    /// Policy name.
+    pub policy_name: String,
+    /// Compliance framework (e.g., "SOC2", "HIPAA").
+    pub framework: String,
+    /// Whether the policy is compliant.
+    pub compliant: bool,
+    /// Compliance findings.
+    pub findings: Vec<ComplianceFinding>,
+}
+
+/// A single compliance finding.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComplianceFinding {
+    /// Finding severity.
+    pub severity: FindingSeverity,
+    /// Rule that was checked.
+    pub rule: String,
+    /// Description of the finding.
+    pub message: String,
+}
+
+/// Severity of a compliance finding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FindingSeverity {
+    /// Informational.
+    Info,
+    /// Warning (should fix).
+    Warning,
+    /// Error (must fix for compliance).
+    Error,
+}
+
+/// Check a resolved policy against SOC2 requirements.
+pub fn check_soc2_compliance(policy: &ResolvedPolicy) -> ComplianceReport {
+    let mut findings = Vec::new();
+
+    // SOC2 requires memory limits
+    if policy.memory_limit_bytes > 4 * 1024 * 1024 * 1024 {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Warning,
+            rule: "CC6.1".to_string(),
+            message: "Memory limit exceeds 4GB; consider restricting for multi-tenant isolation".to_string(),
+        });
+    }
+
+    // SOC2 requires execution timeouts
+    if policy.timeout.is_none() {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Error,
+            rule: "CC7.2".to_string(),
+            message: "No execution timeout set; required for denial-of-service protection".to_string(),
+        });
+    }
+
+    // SOC2 requires network restrictions
+    if !policy.network_deny_all && policy.allow_http_hosts.iter().any(|h| h == "*") {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Error,
+            rule: "CC6.6".to_string(),
+            message: "Unrestricted outbound HTTP access; must use allowlist".to_string(),
+        });
+    }
+
+    // SOC2 audit logging requirement
+    if policy.fuel.is_none() {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Warning,
+            rule: "CC7.3".to_string(),
+            message: "No fuel limit set; resource usage cannot be bounded".to_string(),
+        });
+    }
+
+    let compliant = !findings.iter().any(|f| f.severity == FindingSeverity::Error);
+
+    ComplianceReport {
+        policy_name: policy.name.clone(),
+        framework: "SOC2".to_string(),
+        compliant,
+        findings,
+    }
+}
+
+/// Check a resolved policy against HIPAA security requirements.
+pub fn check_hipaa_compliance(policy: &ResolvedPolicy) -> ComplianceReport {
+    let mut findings = Vec::new();
+
+    // HIPAA §164.312(a)(1) - Access control: enforce least privilege
+    if !policy.network_deny_all && policy.allow_http_hosts.iter().any(|h| h == "*") {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Error,
+            rule: "164.312(a)(1)".to_string(),
+            message: "Unrestricted outbound network violates minimum necessary access".to_string(),
+        });
+    }
+
+    // HIPAA §164.312(a)(2)(iv) - Encryption and decryption
+    if policy.allow_stdout && !policy.network_deny_all {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Warning,
+            rule: "164.312(a)(2)(iv)".to_string(),
+            message: "Stdout with network access may leak PHI; consider output filtering".to_string(),
+        });
+    }
+
+    // HIPAA §164.312(b) - Audit controls
+    if policy.timeout.is_none() {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Error,
+            rule: "164.312(b)".to_string(),
+            message: "No execution timeout; required for audit trail completeness".to_string(),
+        });
+    }
+
+    // HIPAA §164.312(c)(1) - Integrity: resource limits required
+    if policy.fuel.is_none() && policy.max_io_bytes.is_none() {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Warning,
+            rule: "164.312(c)(1)".to_string(),
+            message: "No fuel or I/O limit; data integrity cannot be bounded".to_string(),
+        });
+    }
+
+    // HIPAA §164.312(e)(1) - Transmission security
+    if !policy.fs_write_paths.is_empty() && policy.fs_write_paths.iter().any(|p| p == "/" || p == "/tmp") {
+        findings.push(ComplianceFinding {
+            severity: FindingSeverity::Warning,
+            rule: "164.312(e)(1)".to_string(),
+            message: "Broad filesystem write access; restrict to dedicated data paths".to_string(),
+        });
+    }
+
+    let compliant = !findings.iter().any(|f| f.severity == FindingSeverity::Error);
+
+    ComplianceReport {
+        policy_name: policy.name.clone(),
+        framework: "HIPAA".to_string(),
+        compliant,
+        findings,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,5 +546,131 @@ mod tests {
         let evaluator = PolicyEvaluator::new();
         let result = evaluator.resolve(&doc.policies[0]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_policy_composer_most_restrictive() {
+        let p1 = ResolvedPolicy {
+            name: "a".to_string(),
+            memory_limit_bytes: 256 * 1024 * 1024,
+            allow_stdout: true,
+            allow_stderr: true,
+            ..Default::default()
+        };
+        let p2 = ResolvedPolicy {
+            name: "b".to_string(),
+            memory_limit_bytes: 128 * 1024 * 1024,
+            allow_stdout: true,
+            allow_stderr: false,
+            ..Default::default()
+        };
+
+        let composer = PolicyComposer::new(ConflictStrategy::MostRestrictive);
+        let result = composer.compose(&[p1, p2]);
+        assert_eq!(result.memory_limit_bytes, 128 * 1024 * 1024);
+        assert!(result.allow_stdout);
+        assert!(!result.allow_stderr);
+    }
+
+    #[test]
+    fn test_policy_composer_last_wins() {
+        let p1 = ResolvedPolicy {
+            name: "a".to_string(),
+            memory_limit_bytes: 256 * 1024 * 1024,
+            ..Default::default()
+        };
+        let p2 = ResolvedPolicy {
+            name: "b".to_string(),
+            memory_limit_bytes: 512 * 1024 * 1024,
+            ..Default::default()
+        };
+
+        let composer = PolicyComposer::new(ConflictStrategy::LastWins);
+        let result = composer.compose(&[p1, p2]);
+        assert_eq!(result.name, "b");
+        assert_eq!(result.memory_limit_bytes, 512 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_policy_inheritance() {
+        let parent = ResolvedPolicy {
+            name: "parent".to_string(),
+            memory_limit_bytes: 256 * 1024 * 1024,
+            allow_stdout: true,
+            allow_stderr: true,
+            fuel: Some(1_000_000),
+            ..Default::default()
+        };
+        let child = ResolvedPolicy {
+            name: "child".to_string(),
+            fuel: Some(500_000),
+            allow_stdin: true,
+            ..Default::default()
+        };
+
+        let result = PolicyComposer::inherit(&parent, &child);
+        assert_eq!(result.name, "child");
+        assert_eq!(result.memory_limit_bytes, 256 * 1024 * 1024); // from parent
+        assert!(result.allow_stdout); // from parent
+        assert_eq!(result.fuel, Some(500_000)); // overridden by child
+        assert!(result.allow_stdin); // from child
+    }
+
+    #[test]
+    fn test_soc2_compliance_pass() {
+        let policy = ResolvedPolicy {
+            name: "secure".to_string(),
+            memory_limit_bytes: 128 * 1024 * 1024,
+            fuel: Some(1_000_000),
+            timeout: Some(Duration::from_secs(30)),
+            network_deny_all: true,
+            ..Default::default()
+        };
+        let report = check_soc2_compliance(&policy);
+        assert!(report.compliant);
+        assert!(report.findings.iter().all(|f| f.severity != FindingSeverity::Error));
+    }
+
+    #[test]
+    fn test_soc2_compliance_fail() {
+        let policy = ResolvedPolicy {
+            name: "insecure".to_string(),
+            timeout: None,
+            network_deny_all: false,
+            allow_http_hosts: vec!["*".to_string()],
+            ..Default::default()
+        };
+        let report = check_soc2_compliance(&policy);
+        assert!(!report.compliant);
+        assert!(report.findings.iter().any(|f| f.severity == FindingSeverity::Error));
+    }
+
+    #[test]
+    fn test_hipaa_compliance_pass() {
+        let policy = ResolvedPolicy {
+            name: "hipaa-safe".to_string(),
+            memory_limit_bytes: 128 * 1024 * 1024,
+            fuel: Some(1_000_000),
+            timeout: Some(Duration::from_secs(30)),
+            network_deny_all: true,
+            ..Default::default()
+        };
+        let report = check_hipaa_compliance(&policy);
+        assert!(report.compliant);
+        assert_eq!(report.framework, "HIPAA");
+    }
+
+    #[test]
+    fn test_hipaa_compliance_fail() {
+        let policy = ResolvedPolicy {
+            name: "hipaa-bad".to_string(),
+            timeout: None,
+            network_deny_all: false,
+            allow_http_hosts: vec!["*".to_string()],
+            ..Default::default()
+        };
+        let report = check_hipaa_compliance(&policy);
+        assert!(!report.compliant);
+        assert!(report.findings.iter().any(|f| f.rule.contains("164.312")));
     }
 }
