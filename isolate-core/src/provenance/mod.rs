@@ -576,6 +576,176 @@ fn hostname() -> String {
     std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string())
 }
 
+// ---------------------------------------------------------------------------
+// SLSA Provenance Attestation
+// ---------------------------------------------------------------------------
+
+/// SLSA provenance attestation (v1.0 compatible).
+///
+/// Generates attestations following the SLSA framework for software
+/// supply chain security.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlsaProvenance {
+    /// Attestation type (always "https://slsa.dev/provenance/v1").
+    #[serde(rename = "_type")]
+    pub attestation_type: String,
+    /// Subject: the artifact being attested.
+    pub subject: Vec<SlsaSubject>,
+    /// Predicate type.
+    pub predicate_type: String,
+    /// Predicate: the provenance metadata.
+    pub predicate: SlsaPredicate,
+}
+
+/// SLSA subject (the artifact).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlsaSubject {
+    /// Artifact name.
+    pub name: String,
+    /// Content digests.
+    pub digest: HashMap<String, String>,
+}
+
+/// SLSA predicate with build metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlsaPredicate {
+    /// Build definition.
+    pub build_definition: SlsaBuildDefinition,
+    /// Run details.
+    pub run_details: SlsaRunDetails,
+}
+
+/// SLSA build definition.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlsaBuildDefinition {
+    /// Build type (e.g., "https://isolate.dev/SandboxExecution/v1").
+    pub build_type: String,
+    /// External parameters (inputs).
+    pub external_parameters: serde_json::Value,
+    /// Internal parameters (config).
+    pub internal_parameters: serde_json::Value,
+    /// Resolved dependencies.
+    pub resolved_dependencies: Vec<SlsaDependency>,
+}
+
+/// SLSA resolved dependency.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlsaDependency {
+    /// URI of the dependency.
+    pub uri: String,
+    /// Content digest.
+    pub digest: HashMap<String, String>,
+}
+
+/// SLSA run details.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlsaRunDetails {
+    /// Builder information.
+    pub builder: SlsaBuilder,
+    /// Build metadata.
+    pub metadata: SlsaBuildMetadata,
+}
+
+/// SLSA builder identity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlsaBuilder {
+    /// Builder ID (e.g., "https://isolate.dev/builder/v1").
+    pub id: String,
+    /// Builder version.
+    pub version: Option<String>,
+}
+
+/// SLSA build metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlsaBuildMetadata {
+    /// Invocation ID.
+    pub invocation_id: String,
+    /// Start time (ISO 8601).
+    pub started_on: String,
+    /// Finish time (ISO 8601).
+    pub finished_on: Option<String>,
+}
+
+impl SlsaProvenance {
+    /// Generate SLSA provenance from a ProvenanceRecord.
+    pub fn from_record(record: &ProvenanceRecord) -> Self {
+        let subject = vec![SlsaSubject {
+            name: format!("sandbox:{}", record.sandbox_id),
+            digest: {
+                let mut d = HashMap::new();
+                d.insert("sha256".to_string(), record.module_hash.clone());
+                d
+            },
+        }];
+
+        let dependencies: Vec<SlsaDependency> = record
+            .inputs
+            .iter()
+            .map(|input| SlsaDependency {
+                uri: format!("isolate://{}:{}", input.data_type_str(), input.id),
+                digest: {
+                    let mut d = HashMap::new();
+                    d.insert("sha256".to_string(), input.hash.clone());
+                    d
+                },
+            })
+            .collect();
+
+        let predicate = SlsaPredicate {
+            build_definition: SlsaBuildDefinition {
+                build_type: "https://isolate.dev/SandboxExecution/v1".to_string(),
+                external_parameters: serde_json::json!({
+                    "sandbox_id": record.sandbox_id,
+                    "module_hash": record.module_hash,
+                }),
+                internal_parameters: serde_json::json!({
+                    "memory_limit": record.config_snapshot.memory_limit,
+                    "timeout_ms": record.config_snapshot.timeout_ms,
+                }),
+                resolved_dependencies: dependencies,
+            },
+            run_details: SlsaRunDetails {
+                builder: SlsaBuilder {
+                    id: format!("https://isolate.dev/builder/v1@{}", hostname()),
+                    version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                },
+                metadata: SlsaBuildMetadata {
+                    invocation_id: record.execution_id.clone(),
+                    started_on: format!("{:?}", record.execution.started_at),
+                    finished_on: record.execution.ended_at.map(|t| format!("{:?}", t)),
+                },
+            },
+        };
+
+        Self {
+            attestation_type: "https://in-toto.io/Statement/v1".to_string(),
+            subject,
+            predicate_type: "https://slsa.dev/provenance/v1".to_string(),
+            predicate,
+        }
+    }
+
+    /// Serialize to JSON.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_default()
+    }
+}
+
+impl DataReference {
+    fn data_type_str(&self) -> &str {
+        match &self.data_type {
+            DataType::Stdin => "stdin",
+            DataType::Stdout => "stdout",
+            DataType::Stderr => "stderr",
+            DataType::File => "file",
+            DataType::Network => "network",
+            DataType::Environment => "env",
+            DataType::Arguments => "args",
+            DataType::Custom(s) => s,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -734,5 +904,31 @@ mod tests {
 
         let chain = tracker.export_chain(&id);
         assert_eq!(chain.len(), 1);
+    }
+
+    #[test]
+    fn test_slsa_provenance_generation() {
+        let record = ProvenanceBuilder::new("test-sandbox")
+            .module_hash("sha256:abc123def456")
+            .input(DataReference {
+                id: "input-1".to_string(),
+                data_type: DataType::Stdin,
+                hash: "sha256:inputhash".to_string(),
+                size: 256,
+                location: "stdin".to_string(),
+                timestamp: SystemTime::now(),
+            })
+            .build(Some(0), 1000);
+
+        let slsa = SlsaProvenance::from_record(&record);
+        assert_eq!(slsa.attestation_type, "https://in-toto.io/Statement/v1");
+        assert_eq!(slsa.predicate_type, "https://slsa.dev/provenance/v1");
+        assert_eq!(slsa.subject.len(), 1);
+        assert!(slsa.subject[0].digest.contains_key("sha256"));
+        assert_eq!(slsa.predicate.build_definition.resolved_dependencies.len(), 1);
+
+        let json = slsa.to_json();
+        assert!(json.contains("slsa.dev/provenance"));
+        assert!(json.contains("sha256:abc123def456"));
     }
 }
