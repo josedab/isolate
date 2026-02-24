@@ -150,7 +150,11 @@ impl CapabilityBridge {
                 RequiredCapability::NetworkOutbound | RequiredCapability::HttpClient => {
                     Capability::http_client(vec!["*".to_string()])
                 }
-                RequiredCapability::NetworkInbound => continue,
+                RequiredCapability::NetworkInbound => {
+                    // NetworkInbound requires server socket capability, log a warning
+                    tracing::warn!("WASI Preview 2 NetworkInbound requested but not yet mappable to Isolate capability; skipping");
+                    continue;
+                }
                 RequiredCapability::EnvironmentVars => Capability::env_all(),
                 RequiredCapability::Clock => Capability::system_clock(),
                 RequiredCapability::Random => Capability::secure_random(),
@@ -165,6 +169,52 @@ impl CapabilityBridge {
 impl Default for CapabilityBridge {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Extension trait that wires [`CapabilityBridge`] into the main
+/// [`CapabilityEnforcer`](crate::capability::CapabilityEnforcer).
+///
+/// This bridges the WASI Preview 2 capability requirements into the main
+/// Isolate capability enforcement pipeline.
+impl CapabilityBridge {
+    /// Validate that a [`CapabilityEnforcer`] grants sufficient capabilities
+    /// for the given WASI Preview 2 interfaces.
+    ///
+    /// Returns a [`ValidationResult`] indicating which capabilities are
+    /// satisfied, missing, or unused.
+    pub fn validate_enforcer(
+        &self,
+        enforcer: &crate::capability::CapabilityEnforcer,
+        interface_names: &[&str],
+    ) -> ValidationResult {
+        let granted: Vec<Capability> = enforcer.granted().iter().cloned().collect();
+        self.validate(&granted, interface_names)
+    }
+
+    /// Check that the enforcer has all capabilities needed by the given
+    /// interfaces. Returns `Ok(())` if satisfied, or an error listing
+    /// the missing capabilities.
+    pub fn enforce_wasi2_interfaces(
+        &self,
+        enforcer: &crate::capability::CapabilityEnforcer,
+        interface_names: &[&str],
+    ) -> crate::error::Result<()> {
+        let result = self.validate_enforcer(enforcer, interface_names);
+        if result.is_satisfied() {
+            Ok(())
+        } else {
+            let missing_str = result
+                .missing
+                .iter()
+                .map(|c| c.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(crate::error::Error::InvalidConfig(format!(
+                "WASI Preview 2 capability check failed: missing [{}]",
+                missing_str
+            )))
+        }
     }
 }
 
@@ -280,5 +330,61 @@ mod tests {
         let bridge = CapabilityBridge::default();
         let caps = bridge.to_required(&Capability::stdout());
         assert_eq!(caps, vec![RequiredCapability::Stdout]);
+    }
+
+    #[test]
+    fn test_validate_enforcer_satisfied() {
+        use crate::capability::{CapabilityEnforcer, CapabilitySet};
+        use uuid::Uuid;
+
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::stdout());
+        caps.grant(Capability::stderr());
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        let bridge = CapabilityBridge::new();
+        let result = bridge.validate_enforcer(&enforcer, &["wasi:cli/stdout", "wasi:cli/stderr"]);
+        assert!(result.is_satisfied());
+    }
+
+    #[test]
+    fn test_validate_enforcer_missing() {
+        use crate::capability::{CapabilityEnforcer, CapabilitySet};
+        use uuid::Uuid;
+
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::stdout());
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        let bridge = CapabilityBridge::new();
+        let result = bridge.validate_enforcer(&enforcer, &["wasi:cli/stdout", "wasi:filesystem/read"]);
+        assert!(!result.is_satisfied());
+        assert!(result.missing.contains(&RequiredCapability::FilesystemRead));
+    }
+
+    #[test]
+    fn test_enforce_wasi2_interfaces_ok() {
+        use crate::capability::{CapabilityEnforcer, CapabilitySet};
+        use uuid::Uuid;
+
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::stdout());
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        let bridge = CapabilityBridge::new();
+        assert!(bridge.enforce_wasi2_interfaces(&enforcer, &["wasi:cli/stdout"]).is_ok());
+    }
+
+    #[test]
+    fn test_enforce_wasi2_interfaces_err() {
+        use crate::capability::{CapabilityEnforcer, CapabilitySet};
+        use uuid::Uuid;
+
+        let caps = CapabilitySet::new();
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        let bridge = CapabilityBridge::new();
+        let result = bridge.enforce_wasi2_interfaces(&enforcer, &["wasi:filesystem/read"]);
+        assert!(result.is_err());
     }
 }
