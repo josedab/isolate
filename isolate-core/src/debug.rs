@@ -426,6 +426,163 @@ impl Default for DebugSession {
 }
 
 // ---------------------------------------------------------------------------
+// Transport Configuration
+// ---------------------------------------------------------------------------
+
+/// Debug transport configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DebugTransportConfig {
+    /// TCP socket transport.
+    Tcp {
+        /// Host to bind/connect to.
+        host: String,
+        /// Port number.
+        port: u16,
+    },
+    /// Standard I/O transport (stdin/stdout).
+    Stdio,
+    /// Unix domain socket transport.
+    #[cfg(unix)]
+    UnixSocket {
+        /// Path to the socket.
+        path: String,
+    },
+}
+
+impl Default for DebugTransportConfig {
+    fn default() -> Self {
+        Self::Tcp { host: "127.0.0.1".to_string(), port: 4711 }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Execution Recording for Deterministic Replay
+// ---------------------------------------------------------------------------
+
+/// Direction of an I/O event.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum IoDirection {
+    /// Data going into the sandbox (stdin, filesystem reads).
+    Input,
+    /// Data coming out of the sandbox (stdout, stderr).
+    Output,
+}
+
+/// A recorded I/O event for deterministic replay.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordedIoEvent {
+    /// Sequence number.
+    pub seq: u64,
+    /// Direction of the I/O.
+    pub direction: IoDirection,
+    /// Raw data bytes.
+    pub data: Vec<u8>,
+    /// Microseconds since execution start.
+    pub timestamp_us: u64,
+}
+
+/// Records execution I/O for time-travel debugging.
+pub struct ExecutionRecorder {
+    events: Vec<RecordedIoEvent>,
+    max_events: usize,
+}
+
+impl ExecutionRecorder {
+    /// Create a new recorder with the given capacity.
+    pub fn new(max_events: usize) -> Self {
+        Self { events: Vec::new(), max_events }
+    }
+
+    /// Record an I/O event.
+    pub fn record(&mut self, event: RecordedIoEvent) {
+        if self.events.len() >= self.max_events {
+            self.events.remove(0);
+        }
+        self.events.push(event);
+    }
+
+    /// Get all recorded events.
+    pub fn events(&self) -> &[RecordedIoEvent] {
+        &self.events
+    }
+
+    /// Get the total duration in microseconds.
+    pub fn duration_us(&self) -> u64 {
+        if self.events.len() < 2 {
+            return 0;
+        }
+        self.events.last().unwrap().timestamp_us - self.events.first().unwrap().timestamp_us
+    }
+
+    /// Clear all recorded events.
+    pub fn clear(&mut self) {
+        self.events.clear();
+    }
+
+    /// Serialize the recording for storage.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self.events).unwrap_or_default()
+    }
+
+    /// Load a recording from JSON.
+    pub fn from_json(json: &str) -> Option<Self> {
+        let events: Vec<RecordedIoEvent> = serde_json::from_str(json).ok()?;
+        let len = events.len();
+        Some(Self { events, max_events: len.max(1000) })
+    }
+}
+
+/// Cursor for replaying recorded execution events.
+pub struct ReplayCursor {
+    events: Vec<RecordedIoEvent>,
+    position: usize,
+}
+
+impl ReplayCursor {
+    /// Create a new replay cursor.
+    pub fn new(events: Vec<RecordedIoEvent>) -> Self {
+        Self { events, position: 0 }
+    }
+
+    /// Check if there are more events.
+    pub fn has_next(&self) -> bool {
+        self.position < self.events.len()
+    }
+
+    /// Get the next event and advance.
+    pub fn next(&mut self) -> Option<&RecordedIoEvent> {
+        if self.position < self.events.len() {
+            let event = &self.events[self.position];
+            self.position += 1;
+            Some(event)
+        } else {
+            None
+        }
+    }
+
+    /// Seek to a specific position.
+    pub fn seek_to(&mut self, position: usize) {
+        self.position = position.min(self.events.len());
+    }
+
+    /// Get the current position.
+    pub fn position(&self) -> usize {
+        self.position
+    }
+
+    /// Get the total number of events.
+    pub fn len(&self) -> usize {
+        self.events.len()
+    }
+
+    /// Check if the recording is empty.
+    pub fn is_empty(&self) -> bool {
+        self.events.is_empty()
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -879,5 +1036,78 @@ mod tests {
             unreachable!("expected Evaluate body");
         };
         assert_eq!(body.result, "x + y");
+    }
+
+    #[test]
+    fn test_debug_transport_config() {
+        let tcp = DebugTransportConfig::Tcp { host: "127.0.0.1".into(), port: 4711 };
+        match tcp {
+            DebugTransportConfig::Tcp { host, port } => {
+                assert_eq!(host, "127.0.0.1");
+                assert_eq!(port, 4711);
+            }
+            _ => panic!("Expected Tcp"),
+        }
+
+        let stdio = DebugTransportConfig::Stdio;
+        assert!(matches!(stdio, DebugTransportConfig::Stdio));
+    }
+
+    #[test]
+    fn test_execution_recorder() {
+        let mut recorder = ExecutionRecorder::new(100);
+        recorder.record(RecordedIoEvent {
+            seq: 0,
+            direction: IoDirection::Input,
+            data: b"hello".to_vec(),
+            timestamp_us: 1000,
+        });
+        recorder.record(RecordedIoEvent {
+            seq: 1,
+            direction: IoDirection::Output,
+            data: b"world".to_vec(),
+            timestamp_us: 2000,
+        });
+        assert_eq!(recorder.events().len(), 2);
+        assert_eq!(recorder.duration_us(), 1000);
+    }
+
+    #[test]
+    fn test_execution_recorder_capacity() {
+        let mut recorder = ExecutionRecorder::new(2);
+        for i in 0..5 {
+            recorder.record(RecordedIoEvent {
+                seq: i,
+                direction: IoDirection::Input,
+                data: vec![i as u8],
+                timestamp_us: i as u64 * 100,
+            });
+        }
+        assert_eq!(recorder.events().len(), 2);
+    }
+
+    #[test]
+    fn test_replay_cursor() {
+        let mut recorder = ExecutionRecorder::new(100);
+        for i in 0..3 {
+            recorder.record(RecordedIoEvent {
+                seq: i,
+                direction: IoDirection::Output,
+                data: vec![i as u8],
+                timestamp_us: i as u64 * 1000,
+            });
+        }
+
+        let mut cursor = ReplayCursor::new(recorder.events().to_vec());
+        assert!(cursor.has_next());
+        let e = cursor.next().unwrap();
+        assert_eq!(e.seq, 0);
+
+        let e = cursor.next().unwrap();
+        assert_eq!(e.seq, 1);
+
+        cursor.seek_to(0);
+        let e = cursor.next().unwrap();
+        assert_eq!(e.seq, 0);
     }
 }
