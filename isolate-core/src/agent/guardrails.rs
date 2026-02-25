@@ -948,4 +948,93 @@ mod tests {
         let config = GuardrailConfig::builder().max_tool_call_depth(2).build();
         assert_eq!(config.max_tool_call_depth, 2);
     }
+
+    #[test]
+    fn test_chain_depth_tracker_drop_decrements() {
+        let tracker = ChainDepthTracker::new(5);
+        {
+            let _g1 = tracker.enter().unwrap();
+            let _g2 = tracker.enter().unwrap();
+            assert_eq!(tracker.depth(), 2);
+        }
+        // Both guards dropped
+        assert_eq!(tracker.depth(), 0);
+    }
+
+    #[test]
+    fn test_chain_depth_tracker_max_one() {
+        let tracker = ChainDepthTracker::new(1);
+        let _g1 = tracker.enter().unwrap();
+        assert!(tracker.enter().is_err());
+        assert_eq!(tracker.depth(), 1);
+    }
+
+    #[test]
+    fn test_content_filter_aws_key_detection() {
+        let config = GuardrailConfig::default();
+        let filter = ContentFilter::new(&config);
+        let result = filter.check_output("access key: AKIAIOSFODNN7EXAMPLE");
+        assert!(!result.allowed);
+        assert!(result.violations.iter().any(|v| v.kind == ViolationKind::PotentialSecretLeak));
+    }
+
+    #[test]
+    fn test_content_filter_rsa_key_detection() {
+        let config = GuardrailConfig::default();
+        let filter = ContentFilter::new(&config);
+        let result = filter.check_output("-----BEGIN RSA PRIVATE KEY-----\nbase64data");
+        assert!(!result.allowed);
+    }
+
+    #[test]
+    fn test_content_filter_template_injection_with_import() {
+        let config = GuardrailConfig::default();
+        let filter = ContentFilter::new(&config);
+        let result = filter.check_output("{{ __import__('os').system('rm -rf') }}");
+        assert!(!result.allowed);
+        assert!(result.violations.iter().any(|v| v.kind == ViolationKind::InjectionAttempt));
+    }
+
+    #[test]
+    fn test_content_filter_template_without_suspicious_content() {
+        let config = GuardrailConfig::default();
+        let filter = ContentFilter::new(&config);
+        // {{ without import/exec/__ should be allowed
+        let result = filter.check_output("Hello {{ name }}!");
+        assert!(result.allowed);
+    }
+
+    #[test]
+    fn test_content_filter_multiple_violations() {
+        let config = GuardrailConfig::builder()
+            .max_output_bytes(10)
+            .block_pattern("SECRET".to_string())
+            .build();
+        let filter = ContentFilter::new(&config);
+        let result = filter.check_output("This has SECRET and is very long text exceeding limit");
+        assert!(!result.allowed);
+        // Should have both OutputTooLarge and BlockedPattern
+        assert!(result.violations.iter().any(|v| v.kind == ViolationKind::OutputTooLarge));
+        assert!(result.violations.iter().any(|v| v.kind == ViolationKind::BlockedPattern));
+    }
+
+    #[test]
+    fn test_rate_limiter_record_cost_cumulative() {
+        let config = GuardrailConfig::builder()
+            .max_calls_per_minute(100)
+            .max_total_cost(5.0)
+            .build();
+        let limiter = SessionRateLimiter::new(&config);
+
+        limiter.record_cost(2.0);
+        limiter.record_cost(2.0);
+        let stats = limiter.stats();
+        assert!((stats.total_cost - 4.0).abs() < f64::EPSILON);
+
+        // Still under budget
+        assert!(matches!(limiter.try_acquire(), RateLimitResult::Allowed { .. }));
+
+        limiter.record_cost(2.0); // Now over budget
+        assert!(matches!(limiter.try_acquire(), RateLimitResult::BudgetExceeded { .. }));
+    }
 }

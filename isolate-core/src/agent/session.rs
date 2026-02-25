@@ -503,4 +503,71 @@ mod tests {
         let restored = AgentSession::load(&json).unwrap();
         assert_eq!(restored.id(), original_id);
     }
+
+    #[test]
+    fn test_session_load_invalid_json() {
+        let result = AgentSession::load("not valid json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_session_tool_limit_reached() {
+        let config = AgentConfig::builder()
+            .max_tool_calls(0) // Immediately at limit
+            .build();
+
+        let session = AgentSession::new(config);
+        assert!(session.is_tool_limit_reached());
+    }
+
+    #[test]
+    fn test_session_fuel_budget_none() {
+        let mut config = AgentConfig::default();
+        config.fuel_budget = None;
+        let session = AgentSession::new(config);
+        assert_eq!(session.remaining_fuel(), None);
+    }
+
+    #[test]
+    fn test_session_shared_engine() {
+        let engine = Arc::new(WasmEngine::new().expect("engine creation"));
+        let config = AgentConfig::default();
+
+        let s1 = AgentSession::with_engine(config.clone(), engine.clone());
+        let s2 = AgentSession::with_engine(config, engine);
+
+        // Different sessions, different IDs
+        assert_ne!(s1.id(), s2.id());
+    }
+
+    #[test]
+    fn test_session_register_multiple_tools() {
+        let mut session = AgentSession::new(AgentConfig::default());
+        session.register_tool(ToolDefinition::code_execute());
+        session.register_tool(ToolDefinition::file_read());
+        session.register_tool(ToolDefinition::file_write());
+
+        assert_eq!(session.tools().len(), 3);
+        assert!(session.tools().has("code_execute"));
+        assert!(session.tools().has("file_read"));
+        assert!(session.tools().has("file_write"));
+    }
+
+    #[test]
+    fn test_session_history_initially_empty() {
+        let session = AgentSession::new(AgentConfig::default());
+        assert!(session.history().is_empty());
+    }
+
+    #[test]
+    fn test_session_config_accessible() {
+        let config = AgentConfig::builder()
+            .memory_limit(256 * 1024 * 1024)
+            .execution_timeout(Duration::from_secs(60))
+            .build();
+
+        let session = AgentSession::new(config);
+        assert_eq!(session.config().memory_limit, 256 * 1024 * 1024);
+        assert_eq!(session.config().execution_timeout, Duration::from_secs(60));
+    }
 }
