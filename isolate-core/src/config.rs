@@ -672,4 +672,107 @@ mod tests {
         let module2 = WasmModule::from_bytes(MINIMAL_WASM.to_vec()).unwrap();
         assert_eq!(module1.hash(), module2.hash());
     }
+
+    #[test]
+    fn test_config_builder_all_resource_limits() {
+        let config = SandboxConfig::builder()
+            .module(MINIMAL_WASM)
+            .unwrap()
+            .memory_limit(32 * 1024 * 1024)
+            .fuel(500_000)
+            .wall_time_limit(Duration::from_secs(5))
+            .io_read_limit(1024)
+            .io_write_limit(2048)
+            .preemption_interval(Duration::from_millis(5))
+            .build()
+            .unwrap();
+
+        assert_eq!(config.resources.memory.heap_max, 32 * 1024 * 1024);
+        assert_eq!(config.resources.cpu.fuel, Some(500_000));
+        assert_eq!(config.resources.time.wall_time, Some(Duration::from_secs(5)));
+        assert_eq!(config.resources.io.read_bytes, Some(1024));
+        assert_eq!(config.resources.io.write_bytes, Some(2048));
+    }
+
+    #[test]
+    fn test_config_builder_multiple_envs() {
+        let config = SandboxConfig::builder()
+            .module(MINIMAL_WASM)
+            .unwrap()
+            .env("A", "1")
+            .env("B", "2")
+            .envs(vec![("C".to_string(), "3".to_string())])
+            .build()
+            .unwrap();
+
+        assert_eq!(config.env.get("A"), Some(&"1".to_string()));
+        assert_eq!(config.env.get("B"), Some(&"2".to_string()));
+        assert_eq!(config.env.get("C"), Some(&"3".to_string()));
+    }
+
+    #[test]
+    fn test_config_builder_multiple_args() {
+        let config = SandboxConfig::builder()
+            .module(MINIMAL_WASM)
+            .unwrap()
+            .arg("arg1".to_string())
+            .arg("arg2".to_string())
+            .build()
+            .unwrap();
+
+        assert_eq!(config.args, vec!["arg1", "arg2"]);
+    }
+
+    #[test]
+    fn test_config_builder_args_replace() {
+        let config = SandboxConfig::builder()
+            .module(MINIMAL_WASM)
+            .unwrap()
+            .arg("old".to_string())
+            .args(vec!["new1".to_string(), "new2".to_string()])
+            .build()
+            .unwrap();
+
+        assert_eq!(config.args, vec!["new1", "new2"]);
+    }
+
+    #[test]
+    fn test_config_builder_duplicate_capabilities() {
+        let config = SandboxConfig::builder()
+            .module(MINIMAL_WASM)
+            .unwrap()
+            .capability(Capability::stdout())
+            .capability(Capability::stdout()) // duplicate
+            .capability(Capability::stderr())
+            .build()
+            .unwrap();
+
+        assert!(config.capabilities.has(&Capability::stdout()));
+        assert!(config.capabilities.has(&Capability::stderr()));
+    }
+
+    #[test]
+    fn test_config_builder_entry_point() {
+        let config = SandboxConfig::builder()
+            .module(MINIMAL_WASM)
+            .unwrap()
+            .entry_point("custom_main")
+            .build()
+            .unwrap();
+
+        assert_eq!(config.entry_point, "custom_main");
+    }
+
+    #[test]
+    fn test_wasm_module_too_short() {
+        let short = vec![0x00, 0x61, 0x73];
+        let result = WasmModule::from_bytes(short);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_wasm_module_empty() {
+        let result = WasmModule::from_bytes(vec![]);
+        assert!(result.is_err());
+    }
 }
