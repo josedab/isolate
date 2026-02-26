@@ -882,4 +882,60 @@ mod tests {
         let exec_result = result.unwrap_or_else(|e| unreachable!("Expected Ok, got Err: {:?}", e));
         assert_eq!(exec_result.exit_code, 0, "Expected exit code 0");
     }
+
+    #[test]
+    fn test_engine_with_custom_config() {
+        let config = WasmEngineConfig {
+            enable_fuel: false,
+            enable_epoch_interruption: false,
+            max_cached_modules: 5,
+        };
+        let engine = WasmEngine::with_config(config).unwrap();
+        assert_eq!(engine.cached_module_count(), 0);
+    }
+
+    #[test]
+    fn test_engine_compile_invalid_wasm() {
+        let result = WasmModule::from_bytes(vec![0xFF, 0xFF, 0xFF, 0xFF]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_engine_cache_eviction() {
+        let config = WasmEngineConfig {
+            max_cached_modules: 2,
+            ..Default::default()
+        };
+        let engine = WasmEngine::with_config(config).unwrap();
+
+        // Create 3 different valid WASM modules by varying a custom section
+        let make_wasm = |byte: u8| -> Vec<u8> {
+            let mut wasm = MINIMAL_WASM.to_vec();
+            // Append a custom section (id=0) with a unique byte
+            wasm.extend_from_slice(&[0x00, 0x02, 0x01, byte]);
+            wasm
+        };
+
+        let m1 = WasmModule::from_bytes(make_wasm(0x01)).unwrap();
+        let m2 = WasmModule::from_bytes(make_wasm(0x02)).unwrap();
+        let m3 = WasmModule::from_bytes(make_wasm(0x03)).unwrap();
+
+        engine.compile(&m1).unwrap();
+        engine.compile(&m2).unwrap();
+        assert_eq!(engine.cached_module_count(), 2);
+
+        // This should evict the oldest entry
+        engine.compile(&m3).unwrap();
+        assert!(engine.cached_module_count() <= 2);
+    }
+
+    #[test]
+    fn test_compiled_module_has_export() {
+        let engine = WasmEngine::new().unwrap();
+        let wasm_module = WasmModule::from_bytes(RUNNABLE_WASM.to_vec()).unwrap();
+        let compiled = engine.compile(&wasm_module).unwrap();
+
+        assert!(compiled.has_export("_start"));
+        assert!(!compiled.has_export("nonexistent_function"));
+    }
 }
