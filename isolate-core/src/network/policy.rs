@@ -645,4 +645,109 @@ mod tests {
         assert!(policy.allows_tcp("example.com", 443));
         assert!(policy.allows_tcp("example.com", 80));
     }
+
+    #[test]
+    fn test_ipv6_cidr_matching() {
+        let ip: IpAddr = "2001:db8::1".parse().unwrap();
+        assert!(ip_matches_cidr(&ip, "2001:db8::", 32));
+        assert!(!ip_matches_cidr(&ip, "2001:db9::", 32));
+    }
+
+    #[test]
+    fn test_ipv4_v6_mismatch() {
+        let ipv4: IpAddr = "10.0.0.1".parse().unwrap();
+        assert!(!ip_matches_cidr(&ipv4, "::1", 128));
+    }
+
+    #[test]
+    fn test_cidr_invalid_addr() {
+        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+        assert!(!ip_matches_cidr(&ip, "not_an_ip", 8));
+    }
+
+    #[test]
+    fn test_port_range_condition() {
+        let cond = PolicyCondition::PortRange { start: 8000, end: 9000 };
+        assert!(cond.matches_port(8000));
+        assert!(cond.matches_port(8500));
+        assert!(cond.matches_port(9000));
+        assert!(!cond.matches_port(7999));
+        assert!(!cond.matches_port(9001));
+    }
+
+    #[test]
+    fn test_port_condition_exact() {
+        let cond = PolicyCondition::Port { port: 443 };
+        assert!(cond.matches_port(443));
+        assert!(!cond.matches_port(80));
+    }
+
+    #[test]
+    fn test_any_condition_matches_all() {
+        let cond = PolicyCondition::Any;
+        assert!(cond.matches_host("anything.com"));
+        assert!(cond.matches_port(0));
+        assert!(cond.matches_port(65535));
+        assert!(cond.matches_ip(&"127.0.0.1".parse().unwrap()));
+    }
+
+    #[test]
+    fn test_http_host_condition_no_match_for_port() {
+        let cond = PolicyCondition::HttpHost { pattern: "example.com".to_string() };
+        assert!(!cond.matches_port(443));
+        assert!(!cond.matches_ip(&"10.0.0.1".parse().unwrap()));
+    }
+
+    #[test]
+    fn test_audit_log_overflow() {
+        let log = PolicyAuditLog::new(2);
+
+        for i in 0..5 {
+            log.record(PolicyDecision {
+                operation: "http".to_string(),
+                target: format!("host-{}", i),
+                action: PolicyAction::Allow,
+                matched_rule: None,
+                timestamp: chrono::Utc::now(),
+            });
+        }
+
+        // Should only keep max_entries
+        assert_eq!(log.decisions().len(), 2);
+    }
+
+    #[test]
+    fn test_audit_log_clear() {
+        let log = PolicyAuditLog::new(10);
+        log.record(PolicyDecision {
+            operation: "test".to_string(),
+            target: "host".to_string(),
+            action: PolicyAction::Deny,
+            matched_rule: None,
+            timestamp: chrono::Utc::now(),
+        });
+        assert_eq!(log.deny_count(), 1);
+
+        log.clear();
+        assert_eq!(log.decisions().len(), 0);
+        assert_eq!(log.deny_count(), 0);
+    }
+
+    #[test]
+    fn test_parse_cidr_no_prefix() {
+        let (addr, prefix) = parse_cidr("10.0.0.1");
+        assert_eq!(addr, "10.0.0.1");
+        assert_eq!(prefix, 32);
+    }
+
+    #[test]
+    fn test_policy_rule_priority_ordering() {
+        let policy = NetworkPolicy::builder()
+            .deny_http("evil.com")     // priority 1
+            .allow_http("*.com")       // priority 2 (evaluated first)
+            .build();
+
+        // Higher priority rule (allow *.com) is evaluated first
+        assert!(policy.allows_http_host("evil.com"));
+    }
 }
