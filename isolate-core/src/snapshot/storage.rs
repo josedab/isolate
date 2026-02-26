@@ -562,4 +562,72 @@ mod tests {
         assert_eq!(result.deleted, 0);
         assert_eq!(result.remaining, 3);
     }
+
+    #[tokio::test]
+    async fn test_memory_store_load_nonexistent() {
+        let store = MemoryStore::new();
+        let fake_id = SnapshotId::new();
+        let result = store.load(fake_id).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_memory_store_delete_nonexistent() {
+        let store = MemoryStore::new();
+        let fake_id = SnapshotId::new();
+        // Deleting a nonexistent snapshot is a no-op (consistent with FilesystemStore)
+        let result = store.delete(fake_id).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_memory_store_exists_returns_false() {
+        let store = MemoryStore::new();
+        let fake_id = SnapshotId::new();
+        assert!(!store.exists(fake_id).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_memory_store_stats() {
+        let store = MemoryStore::new();
+
+        let stats = store.stats().await.unwrap();
+        assert_eq!(stats.total_snapshots, 0);
+        assert_eq!(stats.total_size_bytes, 0);
+
+        store.store(&make_test_snapshot("m1")).await.unwrap();
+        store.store(&make_test_snapshot("m2")).await.unwrap();
+
+        let stats = store.stats().await.unwrap();
+        assert_eq!(stats.total_snapshots, 2);
+        assert!(stats.total_size_bytes > 0);
+    }
+
+    #[tokio::test]
+    async fn test_memory_store_list_labels() {
+        let store = MemoryStore::new();
+        store.store(&make_test_snapshot("labeled")).await.unwrap();
+
+        let entries = store.list().await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(!entries[0].module_hash.0.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_gc_empty_store() {
+        let store = MemoryStore::new();
+        let gc = SnapshotGarbageCollector::new();
+        let result = gc.collect(&store).await.unwrap();
+        assert_eq!(result.deleted, 0);
+        assert_eq!(result.remaining, 0);
+        assert_eq!(result.freed_bytes, 0);
+    }
+
+    #[tokio::test]
+    async fn test_filesystem_store_list_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = FilesystemStore::new(dir.path()).unwrap();
+        let entries = store.list().await.unwrap();
+        assert!(entries.is_empty());
+    }
 }
