@@ -627,4 +627,96 @@ sandboxes:
         let err = ConfigError::UndefinedVariable("FOO".into());
         assert!(err.to_string().contains("${FOO}"));
     }
+
+    #[test]
+    fn test_parse_size_zero() {
+        assert_eq!(parse_size("0B").unwrap(), 0);
+        assert_eq!(parse_size("0").unwrap(), 0);
+        assert_eq!(parse_size("0MB").unwrap(), 0);
+    }
+
+    #[test]
+    fn test_parse_size_with_whitespace() {
+        assert_eq!(parse_size("  128MB  ").unwrap(), 128 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_parse_duration_invalid() {
+        assert!(parse_duration("notanumber").is_err());
+    }
+
+    #[test]
+    fn test_parse_duration_zero() {
+        assert_eq!(parse_duration("0s").unwrap(), std::time::Duration::from_secs(0));
+        assert_eq!(parse_duration("0ms").unwrap(), std::time::Duration::from_millis(0));
+    }
+
+    #[test]
+    fn test_parse_duration_plain_number() {
+        // Plain number treated as seconds
+        assert_eq!(parse_duration("60").unwrap(), std::time::Duration::from_secs(60));
+    }
+
+    #[test]
+    fn test_nested_variable_substitution() {
+        let yaml = r#"
+variables:
+  BASE_PATH: /opt
+  MODULE_DIR: "${BASE_PATH}/modules"
+sandboxes:
+  app:
+    module: test.wasm
+    env:
+      PATH: "${BASE_PATH}/bin"
+"#;
+        let loader = ConfigLoader::new();
+        let file = loader.load_yaml(yaml).unwrap();
+        let app = &file.sandboxes["app"];
+        assert_eq!(app.env.get("PATH").unwrap(), "/opt/bin");
+    }
+
+    #[test]
+    fn test_config_error_all_variants_display() {
+        let errors = vec![
+            ConfigError::TemplateNotFound("base".into()),
+            ConfigError::CircularInheritance("a -> b -> a".into()),
+            ConfigError::InvalidResource("xyz".into()),
+            ConfigError::Io("permission denied".into()),
+        ];
+        for err in &errors {
+            assert!(!err.to_string().is_empty());
+        }
+    }
+
+    #[test]
+    fn test_merge_spec_selective() {
+        let mut base = SandboxSpec {
+            module: Some("base.wasm".into()),
+            entry_point: Some("_start".into()),
+            capabilities: vec!["stdout".into()],
+            env: [("A".to_string(), "1".to_string())].into_iter().collect(),
+            ..Default::default()
+        };
+        let over = SandboxSpec {
+            module: Some("override.wasm".into()),
+            capabilities: vec!["stderr".into()],
+            env: [("B".to_string(), "2".to_string())].into_iter().collect(),
+            ..Default::default()
+        };
+        merge_spec(&mut base, &over);
+
+        assert_eq!(base.module.as_deref(), Some("override.wasm"));
+        assert_eq!(base.entry_point.as_deref(), Some("_start")); // Not overridden
+        assert!(base.capabilities.contains(&"stdout".to_string()));
+        assert!(base.capabilities.contains(&"stderr".to_string()));
+        assert_eq!(base.env.get("A"), Some(&"1".to_string()));
+        assert_eq!(base.env.get("B"), Some(&"2".to_string()));
+    }
+
+    #[test]
+    fn test_invalid_yaml_syntax() {
+        let loader = ConfigLoader::new();
+        let result = loader.load_yaml("not: valid: yaml: [[[");
+        assert!(result.is_err());
+    }
 }
