@@ -329,4 +329,73 @@ mod tests {
         let result = Sandbox::create(config);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_module_hash_deterministic() {
+        let wasm = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+        let c1 = SandboxConfig::new(wasm);
+        let c2 = SandboxConfig::new(wasm);
+        assert_eq!(c1.module_hash, c2.module_hash);
+        assert!(!c1.module_hash.is_empty());
+    }
+
+    #[test]
+    fn test_module_hash_differs_for_different_bytes() {
+        let c1 = SandboxConfig::new(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+        let c2 = SandboxConfig::new(&[0x00, 0x61, 0x73, 0x6d, 0x02, 0x00, 0x00, 0x00]);
+        assert_ne!(c1.module_hash, c2.module_hash);
+    }
+
+    #[test]
+    fn test_config_builder_chaining() {
+        let config = SandboxConfig::new(&[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])
+            .memory_limit(32 * 1024 * 1024)
+            .fuel(500_000)
+            .allow_stdout(false)
+            .allow_stderr(false)
+            .entry_point("_main")
+            .env("A", "1")
+            .arg("--flag");
+
+        assert_eq!(config.memory_limit, 32 * 1024 * 1024);
+        assert_eq!(config.fuel, Some(500_000));
+        assert!(!config.allow_stdout);
+        assert!(!config.allow_stderr);
+        assert_eq!(config.entry_point, "_main");
+        assert_eq!(config.env.get("A"), Some(&"1".to_string()));
+        assert_eq!(config.args, vec!["--flag"]);
+    }
+
+    #[test]
+    fn test_output_non_utf8_handling() {
+        let output = Output {
+            exit_code: 1,
+            stdout: vec![0xFF, 0xFE, 0xFD],
+            stderr: vec![0x80, 0x81],
+            duration: Duration::from_secs(1),
+            fuel_consumed: 0,
+        };
+
+        assert!(!output.success());
+        // from_utf8_lossy should produce replacement characters, not panic
+        let stdout_str = output.stdout_str();
+        assert!(!stdout_str.is_empty());
+        let stderr_str = output.stderr_str();
+        assert!(!stderr_str.is_empty());
+    }
+
+    #[test]
+    fn test_output_empty() {
+        let output = Output {
+            exit_code: 0,
+            stdout: vec![],
+            stderr: vec![],
+            duration: Duration::ZERO,
+            fuel_consumed: 0,
+        };
+
+        assert!(output.success());
+        assert_eq!(output.stdout_str(), "");
+        assert_eq!(output.stderr_str(), "");
+    }
 }

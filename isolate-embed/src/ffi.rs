@@ -293,4 +293,61 @@ mod tests {
             isolate_output_free(ptr::null_mut());
         }
     }
+
+    #[test]
+    fn test_zero_length_wasm_returns_null() {
+        unsafe {
+            let non_null = [0u8; 1];
+            assert!(isolate_config_new(non_null.as_ptr(), 0).is_null());
+        }
+    }
+
+    #[test]
+    fn test_config_set_env() {
+        unsafe {
+            let config = isolate_config_new(MINIMAL_WASM.as_ptr(), MINIMAL_WASM.len());
+            assert!(!config.is_null());
+
+            let key = CString::new("MY_KEY").unwrap();
+            let val = CString::new("my_value").unwrap();
+            isolate_config_set_env(config, key.as_ptr(), val.as_ptr());
+
+            // Null key/value should be safe no-ops
+            isolate_config_set_env(config, ptr::null(), val.as_ptr());
+            isolate_config_set_env(config, key.as_ptr(), ptr::null());
+            isolate_config_set_env(ptr::null_mut(), key.as_ptr(), val.as_ptr());
+
+            isolate_config_free(config);
+        }
+    }
+
+    #[test]
+    fn test_null_output_accessors() {
+        unsafe {
+            assert_eq!(isolate_output_stdout_len(ptr::null()), 0);
+            assert_eq!(isolate_output_duration_ms(ptr::null()), 0);
+            assert_eq!(isolate_output_fuel_consumed(ptr::null()), 0);
+            assert!(isolate_output_stderr(ptr::null_mut()).is_null());
+        }
+    }
+
+    #[test]
+    fn test_sandbox_create_with_invalid_wasm() {
+        unsafe {
+            let bad_wasm: &[u8] = &[0xFF, 0xFF, 0xFF, 0xFF];
+            let config = isolate_config_new(bad_wasm.as_ptr(), bad_wasm.len());
+            assert!(!config.is_null());
+            let sandbox = isolate_sandbox_create(config);
+            assert!(sandbox.is_null());
+            isolate_config_free(config);
+        }
+    }
+
+    #[test]
+    fn test_config_set_memory_limit_null_safe() {
+        unsafe {
+            isolate_config_set_memory_limit(ptr::null_mut(), 1024);
+            isolate_config_set_fuel(ptr::null_mut(), 1000);
+        }
+    }
 }
