@@ -402,4 +402,82 @@ mod tests {
         assert!(text.contains("isolate_sandboxes_created_total"));
         assert!(text.contains("isolate_sandbox_runs_total"));
     }
+
+    #[test]
+    fn test_sandbox_metrics_mixed_outcomes() {
+        let id = SandboxId::new();
+        let mut metrics = SandboxMetrics::new(id);
+
+        metrics.record_run_complete(Duration::from_millis(50), true);
+        metrics.record_run_complete(Duration::from_millis(150), false);
+        metrics.record_run_complete(Duration::from_millis(100), true);
+
+        assert_eq!(metrics.run_count, 3);
+        assert_eq!(metrics.success_count, 2);
+        assert_eq!(metrics.failure_count, 1);
+        assert_eq!(metrics.last_run_duration, Some(Duration::from_millis(100)));
+        assert_eq!(metrics.total_run_duration, Duration::from_millis(300));
+    }
+
+    #[test]
+    fn test_sandbox_metrics_zero_runs() {
+        let id = SandboxId::new();
+        let metrics = SandboxMetrics::new(id);
+
+        assert_eq!(metrics.run_count, 0);
+        assert_eq!(metrics.success_rate(), 0.0);
+        assert_eq!(metrics.average_run_duration(), None);
+        assert!(metrics.last_run_duration.is_none());
+    }
+
+    #[test]
+    fn test_timing_stats_empty() {
+        let stats = TimingStats::new();
+
+        assert_eq!(stats.count(), 0);
+        assert_eq!(stats.min(), None);
+        assert_eq!(stats.max(), None);
+        assert_eq!(stats.average(), None);
+        assert_eq!(stats.percentile(50.0), None);
+    }
+
+    #[test]
+    fn test_timing_stats_percentile() {
+        let stats = TimingStats::new();
+
+        for i in 1..=100 {
+            stats.record(Duration::from_millis(i));
+        }
+
+        let p50 = stats.percentile(50.0).unwrap();
+        assert!(p50 >= Duration::from_millis(45) && p50 <= Duration::from_millis(55));
+
+        let p99 = stats.percentile(99.0).unwrap();
+        assert!(p99 >= Duration::from_millis(95));
+    }
+
+    #[test]
+    fn test_timing_stats_single_sample() {
+        let stats = TimingStats::new();
+        stats.record(Duration::from_millis(42));
+
+        assert_eq!(stats.count(), 1);
+        assert_eq!(stats.min(), Some(Duration::from_millis(42)));
+        assert_eq!(stats.max(), Some(Duration::from_millis(42)));
+        assert_eq!(stats.average(), Some(Duration::from_millis(42)));
+        assert_eq!(stats.percentile(0.0), Some(Duration::from_millis(42)));
+        assert_eq!(stats.percentile(100.0), Some(Duration::from_millis(42)));
+    }
+
+    #[test]
+    fn test_metrics_capability_denial_tracking() {
+        let registry = MetricsRegistry::new();
+
+        registry.record_capability_check("fs:write", false);
+        registry.record_capability_check("fs:write", false);
+        registry.record_capability_check("fs:read", true);
+
+        let text = registry.gather_text();
+        assert!(text.contains("isolate_capability_denials_total"));
+    }
 }
