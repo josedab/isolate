@@ -58,7 +58,11 @@ impl CapabilityEnforcer {
     }
 
     /// Check if reading a path is allowed.
+    ///
+    /// Rejects paths containing `..` components to prevent directory traversal.
     pub fn check_fs_read(&self, path: &Path) -> Result<()> {
+        Self::validate_path(path)?;
+
         // Check if any filesystem capability allows reading this path
         let allowed = self.granted.has_any(|cap| match cap {
             Capability::Filesystem(fs) => fs.allows_read(path),
@@ -80,7 +84,11 @@ impl CapabilityEnforcer {
     }
 
     /// Check if writing to a path is allowed.
+    ///
+    /// Rejects paths containing `..` components to prevent directory traversal.
     pub fn check_fs_write(&self, path: &Path) -> Result<()> {
+        Self::validate_path(path)?;
+
         let allowed = self.granted.has_any(|cap| match cap {
             Capability::Filesystem(fs) => fs.allows_write(path),
             _ => false,
@@ -308,6 +316,16 @@ impl CapabilityEnforcer {
 
         preopens
     }
+
+    /// Reject paths containing traversal components (`..`).
+    fn validate_path(path: &Path) -> Result<()> {
+        for component in path.components() {
+            if matches!(component, std::path::Component::ParentDir) {
+                return Err(Error::FilesystemAccessDenied { path: path.to_path_buf() });
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -388,5 +406,26 @@ mod tests {
         let events = enforcer.audit_log().events();
         assert_eq!(events.len(), 3); // 1 grant + 1 used + 1 denied
         assert_eq!(enforcer.audit_log().denied_count(), 1);
+    }
+
+    #[test]
+    fn test_path_traversal_rejected_read() {
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::filesystem_read("/data"));
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        assert!(enforcer.check_fs_read(Path::new("/data/../etc/passwd")).is_err());
+        assert!(enforcer.check_fs_read(Path::new("/data/subdir/../../etc")).is_err());
+        assert!(enforcer.check_fs_read(Path::new("/data/safe/file.txt")).is_ok());
+    }
+
+    #[test]
+    fn test_path_traversal_rejected_write() {
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::filesystem_write("/tmp"));
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        assert!(enforcer.check_fs_write(Path::new("/tmp/../root/.ssh")).is_err());
+        assert!(enforcer.check_fs_write(Path::new("/tmp/ok.txt")).is_ok());
     }
 }

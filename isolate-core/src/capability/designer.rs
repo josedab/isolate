@@ -628,6 +628,11 @@ fn capability_to_rust(cap: &Capability) -> String {
                     addrs.iter().map(|a| format!("\"{}\".parse().unwrap()", a)).collect();
                 format!("Capability::tcp_connect(vec![{}])", addr_strs.join(", "))
             }
+            crate::capability::types::NetworkCapability::DnsResolveRestricted(resolvers) => {
+                let r: Vec<String> =
+                    resolvers.iter().map(|a| format!("\"{}\".parse().unwrap()", a)).collect();
+                format!("Capability::dns_resolve_restricted(vec![{}])", r.join(", "))
+            }
         },
         Capability::Time(t) => match t {
             crate::capability::types::TimeCapability::SystemClock => {

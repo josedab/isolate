@@ -100,6 +100,11 @@ impl Capability {
         Self::Network(NetworkCapability::DnsResolve)
     }
 
+    /// Create a DNS resolution capability restricted to specific resolvers.
+    pub fn dns_resolve_restricted(resolvers: Vec<std::net::IpAddr>) -> Self {
+        Self::Network(NetworkCapability::DnsResolveRestricted(resolvers))
+    }
+
     /// Create a system clock access capability.
     pub fn system_clock() -> Self {
         Self::Time(TimeCapability::SystemClock)
@@ -217,6 +222,8 @@ pub enum NetworkCapability {
     TcpListen(u16),
     /// DNS resolution.
     DnsResolve,
+    /// DNS resolution restricted to specific resolver addresses.
+    DnsResolveRestricted(Vec<std::net::IpAddr>),
 }
 
 impl NetworkCapability {
@@ -230,6 +237,10 @@ impl NetworkCapability {
             }
             Self::TcpListen(port) => format!("net:tcp:listen:{}", port),
             Self::DnsResolve => "net:dns".to_string(),
+            Self::DnsResolveRestricted(resolvers) => {
+                let addrs: Vec<_> = resolvers.iter().map(|a| a.to_string()).collect();
+                format!("net:dns:{}", addrs.join(","))
+            }
         }
     }
 
