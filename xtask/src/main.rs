@@ -24,6 +24,7 @@ fn main() -> ExitCode {
         "fmt" => run_fmt(false),
         "fmt-check" => run_fmt(true),
         "lint" => run_lint(),
+        "clippy-fix" => run_clippy_fix(),
         "pre-commit" => run_pre_commit(),
         "doctor" => run_doctor(),
         "docs" => run_docs(),
@@ -38,6 +39,7 @@ fn main() -> ExitCode {
             let version = args.get(1).map(|s| s.as_str());
             run_bump(version)
         }
+        "error-catalog" => run_error_catalog(),
         "help" | "--help" | "-h" => {
             print_help();
             Ok(())
@@ -70,6 +72,8 @@ COMMANDS:
     fmt            Format all code
     fmt-check      Check formatting without modifying files
     lint           Run clippy with -D warnings (default members)
+    clippy-fix     Auto-fix clippy warnings where possible
+    error-catalog  Generate docs/ERROR_CODES.md from error.rs
     pre-commit     Full pre-push validation (fmt + lint + test)
     doctor         Verify development environment is set up correctly
     docs           Generate documentation (default members)
@@ -125,6 +129,20 @@ fn run_fmt(check_only: bool) -> Result<(), ()> {
 fn run_lint() -> Result<(), ()> {
     println!("📎 Running clippy...");
     cargo(&["clippy", "--all-targets", "--", "-D", "warnings"])
+}
+
+fn run_clippy_fix() -> Result<(), ()> {
+    println!("🔧 Auto-fixing clippy warnings...");
+    cargo(&[
+        "clippy",
+        "--all-targets",
+        "--fix",
+        "--allow-dirty",
+        "--allow-staged",
+        "--",
+        "-D",
+        "warnings",
+    ])
 }
 
 fn run_pre_commit() -> Result<(), ()> {
@@ -277,8 +295,7 @@ cargo xtask lint
 echo "Pre-commit checks passed!"
 "#;
 
-    fs::write(&hook_path, hook_script)
-        .map_err(|e| eprintln!("Failed to write hook: {e}"))?;
+    fs::write(&hook_path, hook_script).map_err(|e| eprintln!("Failed to write hook: {e}"))?;
     fs::set_permissions(&hook_path, fs::Permissions::from_mode(0o755))
         .map_err(|e| eprintln!("Failed to set hook permissions: {e}"))?;
 
@@ -316,8 +333,7 @@ fn run_new_module(name: Option<&str>, feature: Option<&str>) -> Result<(), ()> {
     println!("📦 Scaffolding module '{name}'...");
 
     // Create module directory
-    fs::create_dir_all(&mod_dir)
-        .map_err(|e| eprintln!("Failed to create directory: {e}"))?;
+    fs::create_dir_all(&mod_dir).map_err(|e| eprintln!("Failed to create directory: {e}"))?;
 
     // Write mod.rs
     let mod_rs = format!(
@@ -390,11 +406,10 @@ fn run_bump(version: Option<&str>) -> Result<(), ()> {
     // Validate version format (basic semver: MAJOR.MINOR.PATCH with optional pre-release)
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() < 3
-        || parts.iter().take(3).any(|p| {
-            p.split('-')
-                .next()
-                .map_or(true, |n| n.parse::<u32>().is_err())
-        })
+        || parts
+            .iter()
+            .take(3)
+            .any(|p| p.split('-').next().map_or(true, |n| n.parse::<u32>().is_err()))
     {
         eprintln!("Error: invalid version '{version}'. Expected semver format (e.g., 0.2.0)");
         return Err(());
@@ -453,6 +468,89 @@ fn run_bump(version: Option<&str>) -> Result<(), ()> {
     println!("  1. Update CHANGELOG.md");
     println!("  2. Commit: git commit -am \"chore: bump version to {version}\"");
     println!("  3. Tag: git tag v{version}");
+    Ok(())
+}
+
+fn run_error_catalog() -> Result<(), ()> {
+    use std::fs;
+    use std::io::{BufRead, BufReader};
+
+    println!("📋 Generating error catalog...");
+
+    let error_rs = "isolate-core/src/error.rs";
+    let content = fs::read(error_rs).map_err(|e| eprintln!("Failed to read {error_rs}: {e}"))?;
+    let reader = BufReader::new(&content[..]);
+
+    let mut catalog = String::from(
+        "# Error Code Reference\n\n\
+         Auto-generated from `isolate-core/src/error.rs` by `cargo xtask error-catalog`.\n\n\
+         | Variant | Message | Category |\n\
+         |---------|---------|----------|\n",
+    );
+
+    let mut current_variant;
+    let mut current_msg = String::new();
+
+    for line in reader.lines() {
+        let line = line.map_err(|e| eprintln!("Read error: {e}"))?;
+        let trimmed = line.trim();
+
+        // Parse #[error("...")] attributes
+        if trimmed.starts_with("#[error(") {
+            if let Some(start) = trimmed.find('"') {
+                if let Some(end) = trimmed.rfind('"') {
+                    if end > start {
+                        current_msg = trimmed[start + 1..end].to_string();
+                    }
+                }
+            }
+        }
+
+        // Parse variant names (lines like "VariantName { ... }" or "VariantName(Type)")
+        if !current_msg.is_empty()
+            && !trimmed.is_empty()
+            && !trimmed.starts_with('#')
+            && !trimmed.starts_with("//")
+            && trimmed.chars().next().is_some_and(|c| c.is_uppercase())
+        {
+            current_variant = trimmed
+                .split(|c: char| c == '(' || c == '{' || c == ',')
+                .next()
+                .unwrap_or(trimmed)
+                .trim()
+                .to_string();
+
+            let category = if current_msg.contains("timeout") || current_msg.contains("Timeout") {
+                "Timeout"
+            } else if current_msg.contains("fuel")
+                || current_msg.contains("memory")
+                || current_msg.contains("Memory")
+            {
+                "Resource"
+            } else if current_msg.contains("capability")
+                || current_msg.contains("denied")
+                || current_msg.contains("Denied")
+            {
+                "Security"
+            } else if current_msg.contains("config")
+                || current_msg.contains("invalid")
+                || current_msg.contains("Invalid")
+            {
+                "Config"
+            } else {
+                "Runtime"
+            };
+
+            catalog
+                .push_str(&format!("| `{}` | {} | {} |\n", current_variant, current_msg, category));
+            current_msg.clear();
+        }
+    }
+
+    let out_path = "docs/ERROR_CODES.md";
+    fs::write(out_path, &catalog).map_err(|e| eprintln!("Failed to write {out_path}: {e}"))?;
+
+    println!("✅ Generated {out_path}");
     Ok(())
 }
 
