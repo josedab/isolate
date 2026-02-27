@@ -479,49 +479,20 @@ impl Sandbox {
             input_data,
         )?;
 
-        // Set up epoch-based timeout if wall time limit is configured
-        // We tick epochs every EPOCH_TICK_INTERVAL and calculate the deadline accordingly
+        // Set up epoch-based timeout if wall time limit is configured.
+        // The global epoch ticker increments every 10ms; we just set the deadline.
         const EPOCH_TICK_INTERVAL: Duration = Duration::from_millis(10);
-        let epoch_ticker_handle = if let Some(timeout) = self.config.resources.time.wall_time {
-            // Calculate how many epochs until timeout
+        if let Some(timeout) = self.config.resources.time.wall_time {
             let epochs_until_timeout =
                 (timeout.as_millis() / EPOCH_TICK_INTERVAL.as_millis()).max(1) as u64;
             instance.set_epoch_deadline(epochs_until_timeout);
-
-            // Spawn a background task to increment epochs
-            let engine = self.engine.clone();
-            let cancel_token = tokio_util::sync::CancellationToken::new();
-            let token_clone = cancel_token.clone();
-
-            let handle = tokio::spawn(async move {
-                let mut interval = tokio::time::interval(EPOCH_TICK_INTERVAL);
-                loop {
-                    tokio::select! {
-                        _ = token_clone.cancelled() => {
-                            break;
-                        }
-                        _ = interval.tick() => {
-                            engine.increment_epoch();
-                        }
-                    }
-                }
-            });
-
-            Some((handle, cancel_token))
-        } else {
-            None
-        };
+            self.engine.ensure_epoch_ticker();
+        }
 
         // Run the WASM instance
         let result = tokio::task::spawn_blocking(move || instance.run())
             .await
             .map_err(|e| Error::Execution(e.to_string()))?;
-
-        // Stop the epoch ticker if it was started
-        if let Some((handle, cancel_token)) = epoch_ticker_handle {
-            cancel_token.cancel();
-            let _ = handle.await;
-        }
 
         let duration = start.elapsed();
         self.state = SandboxState::Terminated;
@@ -538,8 +509,8 @@ impl Sandbox {
                 // Record execution and bandwidth for rate limiting
                 if let Some(ref limiter) = self.rate_limiter {
                     limiter.record_execution();
-                    let total_bytes = exec_result.stdout.len() as u64
-                        + exec_result.stderr.len() as u64;
+                    let total_bytes =
+                        exec_result.stdout.len() as u64 + exec_result.stderr.len() as u64;
                     let _ = limiter.record_bandwidth(total_bytes);
                 }
 
@@ -633,11 +604,9 @@ impl Sandbox {
             )?);
         }
 
-        let instance = instance_guard.as_mut().ok_or_else(|| {
-            Error::InvalidState {
-                expected: "instance initialized".to_string(),
-                actual: "instance is None after initialization".to_string(),
-            }
+        let instance = instance_guard.as_mut().ok_or_else(|| Error::InvalidState {
+            expected: "instance initialized".to_string(),
+            actual: "instance is None after initialization".to_string(),
         })?;
         let result = instance.call(function, args);
 
@@ -779,27 +748,12 @@ impl Sandbox {
         )?;
 
         const EPOCH_TICK_INTERVAL: Duration = Duration::from_millis(10);
-        let epoch_ticker_handle = if let Some(timeout) = self.config.resources.time.wall_time {
+        if let Some(timeout) = self.config.resources.time.wall_time {
             let epochs_until_timeout =
                 (timeout.as_millis() / EPOCH_TICK_INTERVAL.as_millis()).max(1) as u64;
             instance.set_epoch_deadline(epochs_until_timeout);
-
-            let engine = self.engine.clone();
-            let cancel_token = tokio_util::sync::CancellationToken::new();
-            let token_clone = cancel_token.clone();
-            let handle = tokio::spawn(async move {
-                let mut interval = tokio::time::interval(EPOCH_TICK_INTERVAL);
-                loop {
-                    tokio::select! {
-                        _ = token_clone.cancelled() => break,
-                        _ = interval.tick() => engine.increment_epoch(),
-                    }
-                }
-            });
-            Some((handle, cancel_token))
-        } else {
-            None
-        };
+            self.engine.ensure_epoch_ticker();
+        }
 
         let meter = self.meter.clone();
         let mut metrics = self.metrics.clone();
@@ -811,12 +765,6 @@ impl Sandbox {
             metrics.record_run_start();
 
             let result = instance.run();
-
-            if let Some((handle, cancel_token)) = epoch_ticker_handle {
-                cancel_token.cancel();
-                // Best-effort wait; the handle will be dropped anyway
-                drop(handle);
-            }
 
             let duration = start.elapsed();
 

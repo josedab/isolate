@@ -11,6 +11,7 @@ use super::capture::{
 };
 use super::host::HostState;
 use dashmap::DashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use wasmtime::{Engine, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, Val};
@@ -58,11 +59,11 @@ impl CompiledModule {
     }
 }
 
-/// A cached module entry with a last-accessed timestamp for LRU eviction.
+/// A cached module entry with a sequence counter for LRU eviction.
 #[derive(Clone)]
 struct CachedEntry {
     module: Module,
-    last_accessed: Instant,
+    access_seq: u64,
 }
 
 /// The WASM execution engine.
@@ -71,6 +72,10 @@ pub struct WasmEngine {
     engine: Engine,
     module_cache: Arc<DashMap<ModuleHash, CachedEntry>>,
     config: WasmEngineConfig,
+    /// Whether the global epoch ticker has been started.
+    epoch_ticker_started: Arc<AtomicBool>,
+    /// Monotonic counter for LRU eviction ordering.
+    access_counter: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl WasmEngine {
@@ -101,7 +106,13 @@ impl WasmEngine {
 
         let engine = Engine::new(&engine_config).map_err(|e| Error::Engine(e.to_string()))?;
 
-        Ok(Self { engine, module_cache: Arc::new(DashMap::new()), config })
+        Ok(Self {
+            engine,
+            module_cache: Arc::new(DashMap::new()),
+            config,
+            epoch_ticker_started: Arc::new(AtomicBool::new(false)),
+            access_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        })
     }
 
     /// Compile a WASM module.
@@ -110,7 +121,7 @@ impl WasmEngine {
 
         // Check cache first
         if let Some(mut cached) = self.module_cache.get_mut(&hash) {
-            cached.last_accessed = Instant::now();
+            cached.access_seq = self.access_counter.fetch_add(1, Ordering::Relaxed);
             tracing::debug!(module_hash = %hash, "module cache hit");
             return Ok(CompiledModule { module: cached.module.clone(), hash });
         }
@@ -121,12 +132,12 @@ impl WasmEngine {
         let module = Module::new(&self.engine, wasm_module.bytes())
             .map_err(|e| Error::Compilation(e.to_string()))?;
 
-        // Evict oldest entry when cache is full
+        // Evict LRU entry when cache is full
         if self.module_cache.len() >= self.config.max_cached_modules {
             if let Some(oldest_key) = self
                 .module_cache
                 .iter()
-                .min_by_key(|entry| entry.value().last_accessed)
+                .min_by_key(|entry| entry.value().access_seq)
                 .map(|entry| entry.key().clone())
             {
                 tracing::debug!(evicted_hash = %oldest_key, "module cache full — evicting LRU entry");
@@ -134,10 +145,9 @@ impl WasmEngine {
             }
         }
 
-        self.module_cache.insert(
-            hash.clone(),
-            CachedEntry { module: module.clone(), last_accessed: Instant::now() },
-        );
+        let seq = self.access_counter.fetch_add(1, Ordering::Relaxed);
+        self.module_cache
+            .insert(hash.clone(), CachedEntry { module: module.clone(), access_seq: seq });
 
         Ok(CompiledModule { module, hash })
     }
@@ -191,6 +201,28 @@ impl WasmEngine {
     /// Increment the epoch (for interruption).
     pub fn increment_epoch(&self) {
         self.engine.increment_epoch();
+    }
+
+    /// Ensure the global epoch ticker is running.
+    ///
+    /// Starts a single background tokio task that increments the engine epoch
+    /// every 10ms. This replaces per-sandbox ticker tasks and scales to thousands
+    /// of concurrent sandboxes with constant overhead.
+    pub fn ensure_epoch_ticker(&self) {
+        if !self.config.enable_epoch_interruption {
+            return;
+        }
+        if self.epoch_ticker_started.swap(true, Ordering::SeqCst) {
+            return; // Already started
+        }
+        let engine = self.engine.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(10));
+            loop {
+                interval.tick().await;
+                engine.increment_epoch();
+            }
+        });
     }
 
     /// Clear the module cache.
@@ -902,10 +934,7 @@ mod tests {
 
     #[test]
     fn test_engine_cache_eviction() {
-        let config = WasmEngineConfig {
-            max_cached_modules: 2,
-            ..Default::default()
-        };
+        let config = WasmEngineConfig { max_cached_modules: 2, ..Default::default() };
         let engine = WasmEngine::with_config(config).unwrap();
 
         // Create 3 different valid WASM modules by varying a custom section
