@@ -1,6 +1,7 @@
 //! Error types for the Isolate runtime.
 
 use crate::capability::Capability;
+use serde::ser::{SerializeStruct, Serializer};
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -20,7 +21,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// assert!(timeout_err.is_timeout());
 /// assert!(timeout_err.is_resource_limit());
 ///
-/// let fuel_err = Error::FuelExhausted { limit: 1_000_000 };
+/// let fuel_err = Error::FuelExhausted { limit: 1_000_000, consumed: 1_000_001 };
 /// assert!(fuel_err.is_resource_limit());
 /// assert!(!fuel_err.is_timeout());
 ///
@@ -93,10 +94,12 @@ pub enum Error {
     /// **Recovery:** Increase the fuel limit with `--fuel <amount>` or
     /// optimize the WASM code. The default may be too low for compute-heavy
     /// workloads.
-    #[error("CPU fuel exhausted (limit: {limit} units)")]
+    #[error("CPU fuel exhausted (limit: {limit} units, consumed: {consumed} units)")]
     FuelExhausted {
         /// The fuel limit that was exceeded.
         limit: u64,
+        /// The amount of fuel consumed before exhaustion.
+        consumed: u64,
     },
 
     /// Memory limit exceeded.
@@ -106,12 +109,14 @@ pub enum Error {
     ///
     /// **Recovery:** Increase `--memory-limit <size>` (e.g., `256M`, `1G`).
     /// Check for memory leaks in the WASM module.
-    #[error("Memory limit exceeded (limit: {limit} bytes, requested: {requested} bytes)")]
+    #[error("Memory limit exceeded (limit: {limit} bytes, requested: {requested} bytes, current usage: {current_usage} bytes)")]
     MemoryLimitExceeded {
         /// The configured memory limit in bytes.
         limit: usize,
         /// The number of bytes the sandbox attempted to allocate.
         requested: usize,
+        /// The memory usage at the time of the failed allocation.
+        current_usage: usize,
     },
 
     /// Capability not granted.
@@ -257,15 +262,20 @@ pub enum Error {
     /// not match the expected signature.
     ///
     /// **Recovery:** WASI entry points should have signature `() -> ()` or
-    /// `(i32, i32) -> i32`. Verify the module's exported function types.
+    /// `(i32, i32) -> i32`. Verify the module's exported function types with
+    /// `isolate info <file> --exports`.
     #[error("Invalid function signature for '{name}': expected {expected}, got {actual}")]
     InvalidSignature {
         /// The function name with the mismatched signature.
         name: String,
-        /// The expected function signature.
+        /// The expected function signature (e.g., "(i32, i32) -> i32").
         expected: String,
         /// The actual function signature found in the module.
         actual: String,
+        /// Number of parameters expected, if known.
+        expected_params: Option<usize>,
+        /// Number of parameters found, if known.
+        actual_params: Option<usize>,
     },
 
     /// Pool exhausted.
@@ -363,6 +373,32 @@ impl Error {
         )
     }
 
+    /// Returns true if this is a security-related error.
+    ///
+    /// Security errors include capability denials, access control failures,
+    /// and policy violations.
+    pub fn is_security_error(&self) -> bool {
+        matches!(self.category(), ErrorCategory::Security)
+    }
+
+    /// Returns true if this is a module-related error.
+    ///
+    /// Module errors include compilation failures, validation errors, and
+    /// instantiation problems.
+    pub fn is_module_error(&self) -> bool {
+        matches!(self.category(), ErrorCategory::Module)
+    }
+
+    /// Returns true if this is a configuration error.
+    pub fn is_config_error(&self) -> bool {
+        matches!(self.category(), ErrorCategory::Config)
+    }
+
+    /// Returns true if this is an internal/service error.
+    pub fn is_internal_error(&self) -> bool {
+        matches!(self.category(), ErrorCategory::Internal)
+    }
+
     /// Returns true if this is an HTTP error.
     pub fn is_http_error(&self) -> bool {
         matches!(self, Error::Http(_))
@@ -394,11 +430,11 @@ impl Error {
             ),
             Error::FuelExhausted { .. } => Some(
                 "Increase the fuel limit with --fuel <amount> or optimize the WASM code. \
-                 The default fuel limit may be too low for compute-intensive operations.",
+                 Check the 'consumed' field to gauge how close to the limit the workload runs.",
             ),
             Error::MemoryLimitExceeded { .. } => Some(
                 "Increase the memory limit with --memory-limit <size> (e.g., 256M, 1G). \
-                 Consider if the module has a memory leak or requires more memory for its workload.",
+                 Compare 'current_usage' with 'requested' to distinguish memory leaks from large allocations.",
             ),
             Error::CapabilityDenied(cap) => match cap {
                 Capability::Stdio(_) => Some(
@@ -463,7 +499,8 @@ impl Error {
             ),
             Error::InvalidSignature { .. } => Some(
                 "The function signature doesn't match what's expected. \
-                 WASI entry points should have signature () -> () or (i32, i32) -> i32.",
+                 WASI entry points should have signature () -> (). \
+                 Use 'isolate info <file> --exports' to check the module's exported function types.",
             ),
             Error::PoolExhausted => Some(
                 "All pre-warmed sandboxes are in use. Wait for running sandboxes to complete \
@@ -495,6 +532,196 @@ impl Error {
             ),
         }
     }
+
+    /// Get a machine-readable error code string for this error variant.
+    ///
+    /// These codes are stable across releases and can be used by SDKs
+    /// and tools for programmatic error handling.
+    pub fn error_code(&self) -> &'static str {
+        match self {
+            Error::Create(_) => "SANDBOX_CREATE",
+            Error::Compilation(_) => "WASM_COMPILATION",
+            Error::Instantiation(_) => "WASM_INSTANTIATION",
+            Error::Execution(_) => "WASM_EXECUTION",
+            Error::Timeout(_) => "TIMEOUT",
+            Error::FuelExhausted { .. } => "FUEL_EXHAUSTED",
+            Error::MemoryLimitExceeded { .. } => "MEMORY_LIMIT",
+            Error::CapabilityDenied(_) => "CAPABILITY_DENIED",
+            Error::InvalidCapability(_) => "INVALID_CAPABILITY",
+            Error::InvalidConfig(_) => "INVALID_CONFIG",
+            Error::InvalidState { .. } => "INVALID_STATE",
+            Error::Snapshot(_) => "SNAPSHOT",
+            Error::SnapshotNotFound(_) => "SNAPSHOT_NOT_FOUND",
+            Error::Io { .. } => "IO_ERROR",
+            Error::FilesystemAccessDenied { .. } => "FS_ACCESS_DENIED",
+            Error::NetworkAccessDenied { .. } => "NET_ACCESS_DENIED",
+            Error::Engine(_) => "ENGINE_INTERNAL",
+            Error::ModuleValidation(_) => "MODULE_VALIDATION",
+            Error::FunctionNotFound(_) => "FUNCTION_NOT_FOUND",
+            Error::InvalidSignature { .. } => "INVALID_SIGNATURE",
+            Error::PoolExhausted => "POOL_EXHAUSTED",
+            Error::Http(_) => "HTTP_ERROR",
+            Error::KvStore(_) => "KV_STORE",
+            Error::Policy(_) => "POLICY_VIOLATION",
+            Error::Gateway(_) => "GATEWAY_ERROR",
+            Error::Orchestrator(_) => "ORCHESTRATOR_ERROR",
+            Error::Marketplace(_) => "MARKETPLACE_ERROR",
+        }
+    }
+
+    /// Get the high-level error category.
+    ///
+    /// Categories group error variants for SDK-level retry/handling logic.
+    pub fn category(&self) -> ErrorCategory {
+        match self {
+            Error::Create(_)
+            | Error::Compilation(_)
+            | Error::Instantiation(_)
+            | Error::ModuleValidation(_) => ErrorCategory::Module,
+
+            Error::Execution(_) | Error::FunctionNotFound(_) | Error::InvalidSignature { .. } => {
+                ErrorCategory::Runtime
+            }
+
+            Error::Timeout(_)
+            | Error::FuelExhausted { .. }
+            | Error::MemoryLimitExceeded { .. }
+            | Error::PoolExhausted => ErrorCategory::Resource,
+
+            Error::CapabilityDenied(_)
+            | Error::InvalidCapability(_)
+            | Error::FilesystemAccessDenied { .. }
+            | Error::NetworkAccessDenied { .. }
+            | Error::Policy(_) => ErrorCategory::Security,
+
+            Error::InvalidConfig(_) | Error::InvalidState { .. } => ErrorCategory::Config,
+
+            Error::Io { .. } | Error::Http(_) => ErrorCategory::Io,
+
+            Error::Snapshot(_) | Error::SnapshotNotFound(_) => ErrorCategory::Snapshot,
+
+            Error::Engine(_)
+            | Error::KvStore(_)
+            | Error::Gateway(_)
+            | Error::Orchestrator(_)
+            | Error::Marketplace(_) => ErrorCategory::Internal,
+        }
+    }
+
+    /// Whether this error is likely transient and the operation could succeed
+    /// if retried.
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Error::Timeout(_) | Error::PoolExhausted | Error::Http(_) | Error::Engine(_))
+    }
+}
+
+impl serde::Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Error", 5)?;
+        state.serialize_field("code", self.error_code())?;
+        state.serialize_field("message", &self.to_string())?;
+        state.serialize_field("category", &self.category())?;
+        state.serialize_field("retryable", &self.is_retryable())?;
+        state.serialize_field("suggestion", &self.suggestion())?;
+        state.end()
+    }
+}
+
+/// High-level error category for SDK-friendly handling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ErrorCategory {
+    /// Module compilation/validation errors.
+    Module,
+    /// Runtime execution errors.
+    Runtime,
+    /// Resource limit errors (fuel, memory, timeout, pool).
+    Resource,
+    /// Security/capability errors.
+    Security,
+    /// Configuration errors.
+    Config,
+    /// I/O and network errors.
+    Io,
+    /// Snapshot errors.
+    Snapshot,
+    /// Internal/service errors.
+    Internal,
+}
+
+impl std::fmt::Display for ErrorCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Module => write!(f, "module"),
+            Self::Runtime => write!(f, "runtime"),
+            Self::Resource => write!(f, "resource"),
+            Self::Security => write!(f, "security"),
+            Self::Config => write!(f, "config"),
+            Self::Io => write!(f, "io"),
+            Self::Snapshot => write!(f, "snapshot"),
+            Self::Internal => write!(f, "internal"),
+        }
+    }
+}
+///
+/// Use this to enrich errors with sandbox_id, module_hash, or other
+/// metadata without changing the underlying error variant.
+#[derive(Debug)]
+pub struct ErrorContext {
+    /// The underlying error.
+    pub error: Error,
+    /// Contextual key-value pairs.
+    pub context: Vec<(String, String)>,
+}
+
+impl ErrorContext {
+    /// Wrap an error with context.
+    pub fn new(error: Error) -> Self {
+        Self { error, context: Vec::new() }
+    }
+
+    /// Add a context key-value pair.
+    pub fn with(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.context.push((key.into(), value.into()));
+        self
+    }
+
+    /// Get a context value by key.
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.context.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    }
+}
+
+impl std::fmt::Display for ErrorContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.error)?;
+        if !self.context.is_empty() {
+            write!(f, " [")?;
+            for (i, (k, v)) in self.context.iter().enumerate() {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}={}", k, v)?;
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ErrorContext {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
+}
+
+impl From<Error> for ErrorContext {
+    fn from(error: Error) -> Self {
+        Self::new(error)
+    }
 }
 
 #[cfg(test)]
@@ -508,8 +735,10 @@ mod tests {
         assert!(timeout.is_timeout());
         assert!(timeout.is_resource_limit());
         assert!(!timeout.is_capability_error());
+        assert!(!timeout.is_security_error());
+        assert!(!timeout.is_module_error());
 
-        let fuel = Error::FuelExhausted { limit: 1000 };
+        let fuel = Error::FuelExhausted { limit: 1000, consumed: 1001 };
         assert!(!fuel.is_timeout());
         assert!(fuel.is_resource_limit());
 
@@ -548,6 +777,8 @@ mod tests {
             name: "main".into(),
             expected: "() -> ()".into(),
             actual: "(i32) -> i32".into(),
+            expected_params: Some(0),
+            actual_params: Some(1),
         };
         let msg = format!("{}", err);
         assert!(msg.contains("main"));
@@ -623,8 +854,8 @@ mod tests {
             Error::Instantiation("test".into()),
             Error::Execution("test".into()),
             Error::Timeout(Duration::from_secs(1)),
-            Error::FuelExhausted { limit: 100 },
-            Error::MemoryLimitExceeded { limit: 1024, requested: 2048 },
+            Error::FuelExhausted { limit: 100, consumed: 101 },
+            Error::MemoryLimitExceeded { limit: 1024, requested: 2048, current_usage: 512 },
             Error::CapabilityDenied(Capability::stdout()),
             Error::InvalidCapability("test".into()),
             Error::InvalidConfig("test".into()),
@@ -637,7 +868,13 @@ mod tests {
             Error::Engine("test".into()),
             Error::ModuleValidation("test".into()),
             Error::FunctionNotFound("_start".into()),
-            Error::InvalidSignature { name: "f".into(), expected: "a".into(), actual: "b".into() },
+            Error::InvalidSignature {
+                name: "f".into(),
+                expected: "a".into(),
+                actual: "b".into(),
+                expected_params: None,
+                actual_params: None,
+            },
             Error::PoolExhausted,
             Error::Http("test".into()),
             Error::KvStore("test".into()),
@@ -650,5 +887,150 @@ mod tests {
         for err in &errors {
             assert!(err.suggestion().is_some(), "Error variant {:?} should have a suggestion", err);
         }
+    }
+
+    #[test]
+    fn test_is_retryable() {
+        // Retryable errors
+        assert!(Error::Timeout(Duration::from_secs(1)).is_retryable());
+        assert!(Error::PoolExhausted.is_retryable());
+        assert!(Error::Http("conn refused".into()).is_retryable());
+        assert!(Error::Engine("internal".into()).is_retryable());
+
+        // Non-retryable errors
+        assert!(!Error::Compilation("invalid".into()).is_retryable());
+        assert!(!Error::CapabilityDenied(Capability::stdout()).is_retryable());
+        assert!(!Error::FuelExhausted { limit: 100, consumed: 101 }.is_retryable());
+        assert!(!Error::InvalidConfig("bad".into()).is_retryable());
+        assert!(!Error::MemoryLimitExceeded { limit: 100, requested: 200, current_usage: 50 }
+            .is_retryable());
+    }
+
+    #[test]
+    fn test_error_category() {
+        assert_eq!(Error::Compilation("x".into()).category(), ErrorCategory::Module);
+        assert_eq!(Error::Execution("x".into()).category(), ErrorCategory::Runtime);
+        assert_eq!(
+            Error::FuelExhausted { limit: 1, consumed: 2 }.category(),
+            ErrorCategory::Resource
+        );
+        assert_eq!(
+            Error::CapabilityDenied(Capability::stdout()).category(),
+            ErrorCategory::Security
+        );
+        assert_eq!(Error::InvalidConfig("x".into()).category(), ErrorCategory::Config);
+        assert_eq!(Error::Http("x".into()).category(), ErrorCategory::Io);
+        assert_eq!(Error::Snapshot("x".into()).category(), ErrorCategory::Snapshot);
+        assert_eq!(Error::Engine("x".into()).category(), ErrorCategory::Internal);
+    }
+
+    #[test]
+    fn test_error_code_all_variants() {
+        let errors = vec![
+            Error::Create("x".into()),
+            Error::Compilation("x".into()),
+            Error::Execution("x".into()),
+            Error::Timeout(Duration::from_secs(1)),
+            Error::FuelExhausted { limit: 1, consumed: 2 },
+            Error::PoolExhausted,
+        ];
+        for err in &errors {
+            let code = err.error_code();
+            assert!(!code.is_empty());
+            // Codes should be UPPER_SNAKE_CASE
+            assert_eq!(code, code.to_uppercase());
+        }
+    }
+
+    #[test]
+    fn test_error_context() {
+        let ctx = ErrorContext::new(Error::Execution("failed".into()))
+            .with("sandbox_id", "sb-123")
+            .with("module_hash", "abc123");
+
+        assert_eq!(ctx.get("sandbox_id"), Some("sb-123"));
+        assert_eq!(ctx.get("module_hash"), Some("abc123"));
+        assert_eq!(ctx.get("missing"), None);
+
+        let display = format!("{}", ctx);
+        assert!(display.contains("Execution error: failed"));
+        assert!(display.contains("sandbox_id=sb-123"));
+    }
+
+    #[test]
+    fn test_error_context_from_error() {
+        let err = Error::Timeout(Duration::from_secs(10));
+        let ctx: ErrorContext = err.into();
+        assert!(format!("{}", ctx).contains("timed out"));
+        assert!(ctx.context.is_empty());
+    }
+
+    #[test]
+    fn test_error_category_display() {
+        assert_eq!(format!("{}", ErrorCategory::Module), "module");
+        assert_eq!(format!("{}", ErrorCategory::Resource), "resource");
+        assert_eq!(format!("{}", ErrorCategory::Security), "security");
+    }
+
+    #[test]
+    fn test_is_security_error() {
+        assert!(Error::CapabilityDenied(Capability::stdout()).is_security_error());
+        assert!(Error::FilesystemAccessDenied { path: PathBuf::from("/etc") }.is_security_error());
+        assert!(Error::NetworkAccessDenied { host: "evil.com".into() }.is_security_error());
+        assert!(Error::Policy("deny".into()).is_security_error());
+        assert!(!Error::Timeout(Duration::from_secs(1)).is_security_error());
+    }
+
+    #[test]
+    fn test_is_module_error() {
+        assert!(Error::Compilation("bad".into()).is_module_error());
+        assert!(Error::ModuleValidation("invalid".into()).is_module_error());
+        assert!(Error::Instantiation("failed".into()).is_module_error());
+        assert!(Error::Create("err".into()).is_module_error());
+        assert!(!Error::Execution("trap".into()).is_module_error());
+    }
+
+    #[test]
+    fn test_is_config_error() {
+        assert!(Error::InvalidConfig("bad".into()).is_config_error());
+        assert!(Error::InvalidState { expected: "Ready".into(), actual: "Terminated".into() }
+            .is_config_error());
+        assert!(!Error::Compilation("bad".into()).is_config_error());
+    }
+
+    #[test]
+    fn test_is_internal_error() {
+        assert!(Error::Engine("internal".into()).is_internal_error());
+        assert!(Error::Gateway("err".into()).is_internal_error());
+        assert!(Error::Orchestrator("err".into()).is_internal_error());
+        assert!(!Error::Timeout(Duration::from_secs(1)).is_internal_error());
+    }
+
+    #[test]
+    fn test_error_serialize_json() {
+        let err = Error::Timeout(Duration::from_secs(30));
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["code"], "TIMEOUT");
+        assert_eq!(json["category"], "resource");
+        assert_eq!(json["retryable"], true);
+        assert!(json["message"].as_str().unwrap().contains("30"));
+        assert!(json["suggestion"].as_str().is_some());
+    }
+
+    #[test]
+    fn test_error_serialize_capability_denied() {
+        let err = Error::CapabilityDenied(Capability::stdout());
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["code"], "CAPABILITY_DENIED");
+        assert_eq!(json["category"], "security");
+        assert_eq!(json["retryable"], false);
+    }
+
+    #[test]
+    fn test_error_serialize_io_error() {
+        let err = Error::Io { source: std::io::Error::other("disk full") };
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["code"], "IO_ERROR");
+        assert_eq!(json["category"], "io");
     }
 }

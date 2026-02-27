@@ -124,7 +124,9 @@ impl AgentSession {
         // Check fuel budget
         if let Some(remaining) = self.remaining_fuel() {
             if remaining == 0 {
-                return Err(Error::FuelExhausted { limit: self.config.fuel_budget.unwrap_or(0) });
+                let limit = self.config.fuel_budget.unwrap_or(0);
+                let consumed = self.total_fuel_consumed;
+                return Err(Error::FuelExhausted { limit, consumed });
             }
         }
 

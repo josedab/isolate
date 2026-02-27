@@ -118,8 +118,12 @@ async fn demo_error_suggestions() {
 
     let errors: Vec<Error> = vec![
         Error::Timeout(Duration::from_secs(30)),
-        Error::FuelExhausted { limit: 1_000_000 },
-        Error::MemoryLimitExceeded { limit: 64 * 1024 * 1024, requested: 128 * 1024 * 1024 },
+        Error::FuelExhausted { limit: 1_000_000, consumed: 1_000_001 },
+        Error::MemoryLimitExceeded {
+            limit: 64 * 1024 * 1024,
+            requested: 128 * 1024 * 1024,
+            current_usage: 60 * 1024 * 1024,
+        },
         Error::CapabilityDenied(Capability::stdout()),
         Error::CapabilityDenied(Capability::filesystem_read("/data")),
         Error::CapabilityDenied(Capability::http_client(vec!["api.example.com"])),
@@ -146,7 +150,7 @@ async fn demo_error_categories() {
         timeout.is_capability_error()
     );
 
-    let fuel = Error::FuelExhausted { limit: 100 };
+    let fuel = Error::FuelExhausted { limit: 100, consumed: 101 };
     println!(
         "  FuelExhausted — is_timeout: {}, is_resource_limit: {}, is_capability_error: {}",
         fuel.is_timeout(),

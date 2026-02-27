@@ -99,10 +99,13 @@ fn demo_config_error() {
 fn demo_error_categories() {
     // Create some example errors
     let timeout_error = Error::Timeout(Duration::from_secs(30));
-    let fuel_error = Error::FuelExhausted { limit: 1_000_000 };
+    let fuel_error = Error::FuelExhausted { limit: 1_000_000, consumed: 1_000_001 };
     let capability_error = Error::CapabilityDenied(Capability::stdout());
-    let memory_error =
-        Error::MemoryLimitExceeded { limit: 64 * 1024 * 1024, requested: 128 * 1024 * 1024 };
+    let memory_error = Error::MemoryLimitExceeded {
+        limit: 64 * 1024 * 1024,
+        requested: 128 * 1024 * 1024,
+        current_usage: 60 * 1024 * 1024,
+    };
 
     println!("   Timeout error:");
     println!("     is_timeout: {}", timeout_error.is_timeout());
@@ -124,8 +127,12 @@ fn demo_error_categories() {
 fn demo_error_suggestions() {
     let errors: Vec<Error> = vec![
         Error::Compilation("Invalid module format".to_string()),
-        Error::FuelExhausted { limit: 1_000_000 },
-        Error::MemoryLimitExceeded { limit: 64 * 1024 * 1024, requested: 128 * 1024 * 1024 },
+        Error::FuelExhausted { limit: 1_000_000, consumed: 1_000_001 },
+        Error::MemoryLimitExceeded {
+            limit: 64 * 1024 * 1024,
+            requested: 128 * 1024 * 1024,
+            current_usage: 60 * 1024 * 1024,
+        },
         Error::CapabilityDenied(Capability::stdout()),
         Error::Timeout(Duration::from_secs(30)),
         Error::FunctionNotFound("custom_entry".to_string()),
@@ -142,18 +149,21 @@ fn demo_error_suggestions() {
 
 async fn demo_error_matching() {
     // Simulate getting an error and handling it based on type
-    let simulated_error = Error::FuelExhausted { limit: 1_000_000 };
+    let simulated_error = Error::FuelExhausted { limit: 1_000_000, consumed: 1_000_001 };
 
     match simulated_error {
         Error::Timeout(duration) => {
             println!("   Would retry with longer timeout (was {:?})", duration);
         }
-        Error::FuelExhausted { limit } => {
-            println!("   Would retry with more fuel (was {} units)", limit);
+        Error::FuelExhausted { limit, consumed } => {
+            println!("   Would retry with more fuel (was {} units, consumed {})", limit, consumed);
             println!("   Recommended new limit: {} units", limit * 2);
         }
-        Error::MemoryLimitExceeded { limit, requested } => {
-            println!("   Would retry with more memory (needed {}, had {})", requested, limit);
+        Error::MemoryLimitExceeded { limit, requested, current_usage } => {
+            println!(
+                "   Would retry with more memory (needed {}, had {}, was using {})",
+                requested, limit, current_usage
+            );
         }
         Error::CapabilityDenied(cap) => {
             println!("   Missing capability: {:?}", cap);
@@ -177,7 +187,7 @@ async fn demo_propagation() -> Result<(), Error> {
     // (shown as demonstration - would require anyhow or similar)
 
     // Pattern 3: Mapping errors for custom handling
-    let result: Result<(), Error> = Err(Error::FuelExhausted { limit: 100 });
+    let result: Result<(), Error> = Err(Error::FuelExhausted { limit: 100, consumed: 101 });
 
     // Transform or wrap the error before propagating
     result.map_err(|e| {
