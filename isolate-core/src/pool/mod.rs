@@ -14,7 +14,6 @@
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 
-
 //! # Example
 //!
 //! ```rust,ignore
@@ -38,6 +37,7 @@
 pub mod autoscale;
 pub mod billing;
 pub mod hierarchy;
+pub mod manager;
 pub mod prewarm;
 mod quota;
 mod tenant;
