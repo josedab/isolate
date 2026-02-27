@@ -93,6 +93,10 @@ pub struct RunArgs {
     #[arg(long)]
     pub show_stats: bool,
 
+    /// Verbose output: show capability checks and resource metering
+    #[arg(short, long)]
+    pub verbose: bool,
+
     /// Watch for file changes and re-execute
     #[arg(short, long)]
     pub watch: bool,
@@ -370,6 +374,21 @@ pub async fn run_once(args: &RunArgs, format: OutputFormat, quiet: bool) -> Resu
     }
 
     let config = builder.build()?;
+
+    // Verbose mode: show configuration summary
+    if args.verbose {
+        eprintln!("{}", "╭─ Sandbox Configuration ─────────────────╮".dimmed());
+        eprintln!("  {} {} capabilities granted", "Capabilities:".dimmed(), capabilities.len());
+        for cap in &capabilities {
+            eprintln!("    {} {cap:?}", "✓".green());
+        }
+        eprintln!("  {} {}", "Memory limit:".dimmed(), format_bytes(memory_limit));
+        eprintln!("  {} {timeout}s", "Wall timeout:".dimmed());
+        if let Some(f) = fuel {
+            eprintln!("  {} {}", "Fuel:".dimmed(), format_number(f));
+        }
+        eprintln!("{}", "╰──────────────────────────────────────────╯".dimmed());
+    }
 
     // Show spinner while creating sandbox
     let spinner = if !quiet && format == OutputFormat::Pretty {
