@@ -22,9 +22,7 @@
 //! let health = manager.health_check();
 //! ```
 
-use super::{
-    GlobalValue, Snapshot, SnapshotEngine, SnapshotEngineConfig, SnapshotId,
-};
+use super::{GlobalValue, Snapshot, SnapshotEngine, SnapshotEngineConfig, SnapshotId};
 use crate::config::ModuleHash;
 use crate::error::{Error, Result};
 use crate::sandbox::SandboxId;
@@ -321,13 +319,7 @@ impl LiveSnapshotManager {
             if let Some(parent_id) = self.latest_per_module.get(&module_hash) {
                 if let Ok(parent) = self.engine.load(&parent_id) {
                     record.is_incremental = true;
-                    Snapshot::incremental(
-                        sandbox_id,
-                        module_hash.clone(),
-                        &parent,
-                        memory,
-                        globals,
-                    )
+                    Snapshot::incremental(sandbox_id, module_hash.clone(), &parent, memory, globals)
                 } else {
                     Snapshot::from_memory(sandbox_id, module_hash.clone(), memory, globals)
                 }
@@ -385,8 +377,7 @@ impl LiveSnapshotManager {
 
     /// Run garbage collection on expired snapshots.
     pub fn garbage_collect(&self) -> GcResult {
-        let cutoff =
-            Utc::now() - chrono::Duration::hours(self.config.retention_hours as i64);
+        let cutoff = Utc::now() - chrono::Duration::hours(self.config.retention_hours as i64);
         let mut collected = 0;
 
         // Collect snapshot IDs that are expired
@@ -455,10 +446,7 @@ impl LiveSnapshotManager {
         let mut issues = Vec::new();
 
         if storage_remaining_pct < 10.0 {
-            issues.push(format!(
-                "Storage nearly full: {:.1}% remaining",
-                storage_remaining_pct
-            ));
+            issues.push(format!("Storage nearly full: {:.1}% remaining", storage_remaining_pct));
         }
 
         if recent_failures > 10 {
@@ -571,16 +559,12 @@ mod tests {
         // First snapshot (full)
         let mut memory1 = vec![0u8; 65536];
         memory1[0..4].copy_from_slice(b"test");
-        manager
-            .create_snapshot(sandbox_id, module_hash.clone(), &memory1, vec![])
-            .unwrap();
+        manager.create_snapshot(sandbox_id, module_hash.clone(), &memory1, vec![]).unwrap();
 
         // Second snapshot (should be incremental)
         let mut memory2 = memory1.clone();
         memory2[100..104].copy_from_slice(b"new!");
-        let id2 = manager
-            .create_snapshot(sandbox_id, module_hash, &memory2, vec![])
-            .unwrap();
+        let id2 = manager.create_snapshot(sandbox_id, module_hash, &memory2, vec![]).unwrap();
 
         let metrics = manager.metrics();
         assert_eq!(metrics.total_created, 2);
@@ -628,9 +612,7 @@ mod tests {
 
         // Create several snapshots
         for _ in 0..5 {
-            manager
-                .create_snapshot(sandbox_id, module_hash.clone(), &memory, vec![])
-                .unwrap();
+            manager.create_snapshot(sandbox_id, module_hash.clone(), &memory, vec![]).unwrap();
         }
 
         assert_eq!(manager.engine().snapshot_count(), 5);
@@ -653,9 +635,7 @@ mod tests {
         let memory = vec![0u8; 65536];
 
         for _ in 0..5 {
-            manager
-                .create_snapshot(sandbox_id, module_hash.clone(), &memory, vec![])
-                .unwrap();
+            manager.create_snapshot(sandbox_id, module_hash.clone(), &memory, vec![]).unwrap();
         }
 
         let gc_result = manager.garbage_collect();

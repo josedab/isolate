@@ -3,8 +3,6 @@
 //! Provides a Rego-like policy evaluation engine that evaluates conditions
 //! against runtime context, producing allow/deny decisions with full traces.
 
-
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
@@ -140,13 +138,23 @@ impl PolicyCondition {
         match self.op {
             ConditionOp::Equals => actual == &self.value,
             ConditionOp::NotEquals => actual != &self.value,
-            ConditionOp::GreaterThan => compare_values(actual, &self.value) == Some(std::cmp::Ordering::Greater),
-            ConditionOp::LessThan => compare_values(actual, &self.value) == Some(std::cmp::Ordering::Less),
+            ConditionOp::GreaterThan => {
+                compare_values(actual, &self.value) == Some(std::cmp::Ordering::Greater)
+            }
+            ConditionOp::LessThan => {
+                compare_values(actual, &self.value) == Some(std::cmp::Ordering::Less)
+            }
             ConditionOp::GreaterOrEqual => {
-                matches!(compare_values(actual, &self.value), Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal))
+                matches!(
+                    compare_values(actual, &self.value),
+                    Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
+                )
             }
             ConditionOp::LessOrEqual => {
-                matches!(compare_values(actual, &self.value), Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal))
+                matches!(
+                    compare_values(actual, &self.value),
+                    Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+                )
             }
             ConditionOp::Contains => match (actual, &self.value) {
                 (ContextValue::String(s), ContextValue::String(sub)) => s.contains(sub.as_str()),
@@ -170,9 +178,7 @@ impl PolicyCondition {
                 _ => false,
             },
             ConditionOp::Matches => match (actual, &self.value) {
-                (ContextValue::String(s), ContextValue::String(pattern)) => {
-                    glob_match(s, pattern)
-                }
+                (ContextValue::String(s), ContextValue::String(pattern)) => glob_match(s, pattern),
                 _ => false,
             },
         }
@@ -254,7 +260,12 @@ impl EvalRule {
     }
 
     /// Add a condition.
-    pub fn condition(mut self, attr: &str, op: ConditionOp, value: impl Into<ContextValue>) -> Self {
+    pub fn condition(
+        mut self,
+        attr: &str,
+        op: ConditionOp,
+        value: impl Into<ContextValue>,
+    ) -> Self {
         self.conditions.push(PolicyCondition::new(attr, op, value));
         self
     }
@@ -391,7 +402,8 @@ impl PolicyEvaluator {
 
         for rule in &self.rules {
             let action_matched = rule.matches_action(&context.action);
-            let conditions_matched = action_matched && rule.conditions.iter().all(|c| c.evaluate(context));
+            let conditions_matched =
+                action_matched && rule.conditions.iter().all(|c| c.evaluate(context));
             let effect = if conditions_matched { Some(rule.effect) } else { None };
 
             trace.push(RuleEvalTrace {
@@ -480,7 +492,10 @@ mod tests {
             .with_env("time_of_day", "morning");
 
         assert_eq!(ctx.resolve("subject.role"), Some(&ContextValue::String("admin".to_string())));
-        assert_eq!(ctx.resolve("resource.path"), Some(&ContextValue::String("/data/secrets".to_string())));
+        assert_eq!(
+            ctx.resolve("resource.path"),
+            Some(&ContextValue::String("/data/secrets".to_string()))
+        );
         assert!(ctx.resolve("subject.nonexistent").is_none());
         assert!(ctx.resolve("invalid").is_none());
     }
@@ -497,7 +512,11 @@ mod tests {
 
     #[test]
     fn test_condition_numeric() {
-        let cond = PolicyCondition::new("subject.trust_level", ConditionOp::GreaterOrEqual, ContextValue::Int(3));
+        let cond = PolicyCondition::new(
+            "subject.trust_level",
+            ConditionOp::GreaterOrEqual,
+            ContextValue::Int(3),
+        );
         let ctx = EvalContext::new("test").with_subject("trust_level", 5i64);
         assert!(cond.evaluate(&ctx));
 
@@ -524,9 +543,11 @@ mod tests {
 
     #[test]
     fn test_eval_rule() {
-        let rule = EvalRule::new("allow-admin", PolicyEffect::Allow)
-            .action("fs:*")
-            .condition("subject.role", ConditionOp::Equals, "admin");
+        let rule = EvalRule::new("allow-admin", PolicyEffect::Allow).action("fs:*").condition(
+            "subject.role",
+            ConditionOp::Equals,
+            "admin",
+        );
 
         let ctx = EvalContext::new("fs:read").with_subject("role", "admin");
         assert_eq!(rule.evaluate(&ctx), Some(PolicyEffect::Allow));
@@ -540,14 +561,15 @@ mod tests {
 
     #[test]
     fn test_evaluator_deny_overrides() {
-        let mut evaluator = PolicyEvaluator::new()
-            .with_strategy(ConflictStrategy::DenyOverrides);
+        let mut evaluator = PolicyEvaluator::new().with_strategy(ConflictStrategy::DenyOverrides);
 
         evaluator.add_rule(EvalRule::new("allow-all", PolicyEffect::Allow).action("*"));
         evaluator.add_rule(
-            EvalRule::new("deny-secrets", PolicyEffect::Deny)
-                .action("fs:*")
-                .condition("resource.path", ConditionOp::StartsWith, "/secrets"),
+            EvalRule::new("deny-secrets", PolicyEffect::Deny).action("fs:*").condition(
+                "resource.path",
+                ConditionOp::StartsWith,
+                "/secrets",
+            ),
         );
 
         // Regular file: allowed
@@ -586,19 +608,11 @@ mod tests {
 
     #[test]
     fn test_evaluator_priority() {
-        let mut evaluator = PolicyEvaluator::new()
-            .with_strategy(ConflictStrategy::PriorityBased);
+        let mut evaluator = PolicyEvaluator::new().with_strategy(ConflictStrategy::PriorityBased);
 
-        evaluator.add_rule(
-            EvalRule::new("low-deny", PolicyEffect::Deny)
-                .action("*")
-                .priority(1),
-        );
-        evaluator.add_rule(
-            EvalRule::new("high-allow", PolicyEffect::Allow)
-                .action("*")
-                .priority(10),
-        );
+        evaluator.add_rule(EvalRule::new("low-deny", PolicyEffect::Deny).action("*").priority(1));
+        evaluator
+            .add_rule(EvalRule::new("high-allow", PolicyEffect::Allow).action("*").priority(10));
 
         let ctx = EvalContext::new("fs:read");
         let result = evaluator.evaluate(&ctx);

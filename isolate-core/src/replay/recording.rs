@@ -53,13 +53,17 @@ pub struct Recording {
 impl Recording {
     /// Total data size of all recorded events (approximate).
     pub fn data_size(&self) -> usize {
-        self.events.iter().map(|e| {
-            match &e.kind {
-                EventKind::Input(d) | EventKind::Output(d) | EventKind::ErrorOutput(d) | EventKind::Random(d) => d.len(),
+        self.events
+            .iter()
+            .map(|e| match &e.kind {
+                EventKind::Input(d)
+                | EventKind::Output(d)
+                | EventKind::ErrorOutput(d)
+                | EventKind::Random(d) => d.len(),
                 EventKind::MemorySnapshot { .. } => 16,
                 _ => 32,
-            }
-        }).sum()
+            })
+            .sum()
     }
 
     /// Get events of a specific kind.
@@ -114,11 +118,8 @@ impl ExecutionRecorder {
             .as_micros() as u64;
 
         let mut seq = self.inner.sequence.lock();
-        let event = RecordingEvent {
-            sequence: *seq,
-            timestamp_us: now - self.inner.start_time,
-            kind,
-        };
+        let event =
+            RecordingEvent { sequence: *seq, timestamp_us: now - self.inner.start_time, kind };
         *seq += 1;
         drop(seq);
 
@@ -214,7 +215,11 @@ mod tests {
         rec.record_event(EventKind::EnvAccess { key: "HOME".into(), value: Some("/home".into()) });
         rec.record_event(EventKind::Random(vec![1, 2, 3, 4]));
         rec.record_event(EventKind::FileOp { path: "/tmp/f".into(), op: "read".into() });
-        rec.record_event(EventKind::NetOp { host: "example.com".into(), port: 443, op: "connect".into() });
+        rec.record_event(EventKind::NetOp {
+            host: "example.com".into(),
+            port: 443,
+            op: "connect".into(),
+        });
         rec.record_event(EventKind::MemorySnapshot { pages: 10, used_bytes: 65536 });
         rec.record_event(EventKind::FuelCheckpoint(500000));
 

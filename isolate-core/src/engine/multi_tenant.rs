@@ -20,7 +20,6 @@
 //! let output = engine.run("acme-corp", &wasm_bytes, &[]).await?;
 //! ```
 
-
 #![allow(missing_docs)]
 use crate::config::SandboxConfig;
 use crate::engine::wasm::WasmEngine;
@@ -133,11 +132,7 @@ pub struct MultiTenantConfig {
 
 impl Default for MultiTenantConfig {
     fn default() -> Self {
-        Self {
-            max_tenants: 1000,
-            default_quota: TenantQuota::default(),
-            allow_unknown: false,
-        }
+        Self { max_tenants: 1000, default_quota: TenantQuota::default(), allow_unknown: false }
     }
 }
 
@@ -155,28 +150,16 @@ impl MultiTenantEngine {
     /// Create a new multi-tenant engine.
     pub fn new(config: MultiTenantConfig) -> Result<Self> {
         let engine = Arc::new(WasmEngine::new()?);
-        Ok(Self {
-            engine,
-            tenants: DashMap::new(),
-            config,
-        })
+        Ok(Self { engine, tenants: DashMap::new(), config })
     }
 
     /// Create with a shared WASM engine.
     pub fn with_engine(engine: Arc<WasmEngine>, config: MultiTenantConfig) -> Self {
-        Self {
-            engine,
-            tenants: DashMap::new(),
-            config,
-        }
+        Self { engine, tenants: DashMap::new(), config }
     }
 
     /// Register a tenant with a quota.
-    pub fn register_tenant(
-        &self,
-        id: impl Into<String>,
-        quota: TenantQuota,
-    ) -> Result<()> {
+    pub fn register_tenant(&self, id: impl Into<String>, quota: TenantQuota) -> Result<()> {
         let id = id.into();
         if self.tenants.len() >= self.config.max_tenants {
             return Err(Error::InvalidConfig(format!(
@@ -222,11 +205,8 @@ impl MultiTenantEngine {
         }
 
         let result = async {
-            let mut sandbox = crate::Sandbox::create_with_engine(
-                sandbox_config,
-                self.engine.clone(),
-            )
-            .await?;
+            let mut sandbox =
+                crate::Sandbox::create_with_engine(sandbox_config, self.engine.clone()).await?;
             sandbox.run(input).await
         }
         .await;

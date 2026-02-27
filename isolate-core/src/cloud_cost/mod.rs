@@ -10,8 +10,6 @@
 //! - **Cost Calculator**: Accurate cost estimation per execution
 //! - **Routing Optimizer**: Constraint-based optimal provider selection
 
-
-
 #![allow(missing_docs)]
 pub mod calculator;
 pub mod optimizer;
@@ -19,9 +17,9 @@ pub mod pricing;
 pub mod provider;
 
 pub use calculator::{CostCalculator, CostEstimate};
-pub use optimizer::{RoutingOptimizer, RoutingDecision, RoutingConstraints};
-pub use pricing::{PricingTracker, PricePoint, PricingTier};
-pub use provider::{CloudProvider, ProviderConfig, ProviderRegion, ProviderCapabilities};
+pub use optimizer::{RoutingConstraints, RoutingDecision, RoutingOptimizer};
+pub use pricing::{PricePoint, PricingTier, PricingTracker};
+pub use provider::{CloudProvider, ProviderCapabilities, ProviderConfig, ProviderRegion};
 
 #[cfg(test)]
 mod tests {

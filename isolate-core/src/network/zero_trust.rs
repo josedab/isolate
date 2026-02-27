@@ -46,7 +46,7 @@ impl Default for CaConfig {
         Self {
             subject: "Isolate Internal CA".to_string(),
             default_validity: Duration::from_secs(24 * 3600), // 24 hours
-            max_validity: Duration::from_secs(7 * 24 * 3600),  // 7 days
+            max_validity: Duration::from_secs(7 * 24 * 3600), // 7 days
             key_bits: 2048,
             auto_rotate: true,
             rotation_threshold_pct: 20.0,
@@ -134,12 +134,7 @@ pub struct CertificateAuthority {
 impl CertificateAuthority {
     /// Create a new certificate authority.
     pub fn new(config: CaConfig) -> Self {
-        Self {
-            config,
-            issued: HashMap::new(),
-            revoked: HashSet::new(),
-            next_serial: 1,
-        }
+        Self { config, issued: HashMap::new(), revoked: HashSet::new(), next_serial: 1 }
     }
 
     /// Issue a certificate for a sandbox.
@@ -148,9 +143,8 @@ impl CertificateAuthority {
         sandbox_id: &str,
         validity: Option<Duration>,
     ) -> Certificate {
-        let validity = validity
-            .unwrap_or(self.config.default_validity)
-            .min(self.config.max_validity);
+        let validity =
+            validity.unwrap_or(self.config.default_validity).min(self.config.max_validity);
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -161,7 +155,7 @@ impl CertificateAuthority {
         self.next_serial += 1;
 
         let fingerprint = {
-            use sha2::{Sha256, Digest};
+            use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(format!("{}:{}:{}", serial, sandbox_id, now).as_bytes());
             format!("{:x}", hasher.finalize())
@@ -328,7 +322,9 @@ impl NetworkSegment {
     /// Check if communication to a target segment is allowed.
     pub fn can_communicate_with(&self, target_segment_id: &str) -> bool {
         self.allowed_targets.iter().any(|t| {
-            t == target_segment_id || t == "*" || (t.ends_with('*') && target_segment_id.starts_with(&t[..t.len()-1]))
+            t == target_segment_id
+                || t == "*"
+                || (t.ends_with('*') && target_segment_id.starts_with(&t[..t.len() - 1]))
         })
     }
 }
@@ -506,8 +502,8 @@ impl IdentityVerifier {
 
         // Check identity matches certificate subject
         let expected_subject = format!("sandbox:{}", identity.sandbox_id);
-        let subject_matches = cert.subject == expected_subject
-            || cert.san.contains(&expected_subject);
+        let subject_matches =
+            cert.subject == expected_subject || cert.san.contains(&expected_subject);
         checks.push(("subject_matches".to_string(), subject_matches));
         if !subject_matches {
             return Ok(VerificationResult {

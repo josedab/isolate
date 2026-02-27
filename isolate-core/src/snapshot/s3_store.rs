@@ -131,11 +131,14 @@ impl S3Store {
                     }
 
                     let mut tracker = self.dirty_tracker.write();
-                    tracker.insert(snapshot.id, DirtyPageTracker {
-                        dirty_pages,
-                        pages_uploaded: (uploaded / page_size as u64) + 1,
-                        bytes_uploaded: uploaded,
-                    });
+                    tracker.insert(
+                        snapshot.id,
+                        DirtyPageTracker {
+                            dirty_pages,
+                            pages_uploaded: (uploaded / page_size as u64) + 1,
+                            bytes_uploaded: uploaded,
+                        },
+                    );
 
                     (uploaded, total_size.saturating_sub(uploaded))
                 } else {
@@ -291,10 +294,7 @@ mod tests {
     #[tokio::test]
     async fn test_s3_store_basic() {
         let dir = tempfile::tempdir().unwrap();
-        let config = S3StoreConfig {
-            cache_dir: dir.path().to_path_buf(),
-            ..Default::default()
-        };
+        let config = S3StoreConfig { cache_dir: dir.path().to_path_buf(), ..Default::default() };
         let store = S3Store::new(config).unwrap();
 
         let snapshot = make_snapshot();
@@ -325,10 +325,7 @@ mod tests {
     #[tokio::test]
     async fn test_s3_store_list() {
         let dir = tempfile::tempdir().unwrap();
-        let config = S3StoreConfig {
-            cache_dir: dir.path().to_path_buf(),
-            ..Default::default()
-        };
+        let config = S3StoreConfig { cache_dir: dir.path().to_path_buf(), ..Default::default() };
         let store = S3Store::new(config).unwrap();
 
         store.store(&make_snapshot()).await.unwrap();
@@ -341,10 +338,7 @@ mod tests {
     #[tokio::test]
     async fn test_s3_store_incremental_upload() {
         let dir = tempfile::tempdir().unwrap();
-        let config = S3StoreConfig {
-            cache_dir: dir.path().to_path_buf(),
-            ..Default::default()
-        };
+        let config = S3StoreConfig { cache_dir: dir.path().to_path_buf(), ..Default::default() };
         let store = S3Store::new(config).unwrap();
 
         let snap1 = make_snapshot();
@@ -361,10 +355,7 @@ mod tests {
     #[tokio::test]
     async fn test_s3_store_incremental_no_parent() {
         let dir = tempfile::tempdir().unwrap();
-        let config = S3StoreConfig {
-            cache_dir: dir.path().to_path_buf(),
-            ..Default::default()
-        };
+        let config = S3StoreConfig { cache_dir: dir.path().to_path_buf(), ..Default::default() };
         let store = S3Store::new(config).unwrap();
 
         let snap = make_snapshot();

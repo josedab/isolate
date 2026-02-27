@@ -64,10 +64,7 @@ pub struct MeshCapability {
 
 impl MeshCapability {
     /// Create a capability with full access to a channel.
-    pub fn full_access(
-        node_id: MeshNodeId,
-        channel: VirtualChannelId,
-    ) -> Self {
+    pub fn full_access(node_id: MeshNodeId, channel: VirtualChannelId) -> Self {
         let mut send = HashSet::new();
         let mut recv = HashSet::new();
         send.insert(channel.clone());
@@ -244,11 +241,7 @@ impl SandboxMesh {
         let id = config.id.clone();
         channels.insert(
             id,
-            ChannelState {
-                config,
-                subscribers: HashSet::new(),
-                queues: HashMap::new(),
-            },
+            ChannelState { config, subscribers: HashSet::new(), queues: HashMap::new() },
         );
         Ok(())
     }
@@ -256,10 +249,7 @@ impl SandboxMesh {
     /// Remove a virtual channel.
     pub fn remove_channel(&self, id: &VirtualChannelId) -> Result<(), MeshError> {
         let mut channels = self.channels.write();
-        channels
-            .remove(id)
-            .map(|_| ())
-            .ok_or_else(|| MeshError::ChannelNotFound(id.0.clone()))
+        channels.remove(id).map(|_| ()).ok_or_else(|| MeshError::ChannelNotFound(id.0.clone()))
     }
 
     /// Grant a mesh capability to a sandbox.
@@ -304,10 +294,7 @@ impl SandboxMesh {
             .ok_or_else(|| MeshError::ChannelNotFound(channel_id.0.clone()))?;
 
         state.subscribers.insert(node_id.clone());
-        state
-            .queues
-            .entry(node_id.clone())
-            .or_insert_with(VecDeque::new);
+        state.queues.entry(node_id.clone()).or_insert_with(VecDeque::new);
         Ok(())
     }
 
@@ -401,24 +388,13 @@ impl SandboxMesh {
             .get_mut(channel_id)
             .ok_or_else(|| MeshError::ChannelNotFound(channel_id.0.clone()))?;
 
-        Ok(state
-            .queues
-            .get_mut(node_id)
-            .and_then(|q| q.pop_front()))
+        Ok(state.queues.get_mut(node_id).and_then(|q| q.pop_front()))
     }
 
     /// Get the number of pending messages for a node on a channel.
-    pub fn pending_count(
-        &self,
-        node_id: &MeshNodeId,
-        channel_id: &VirtualChannelId,
-    ) -> usize {
+    pub fn pending_count(&self, node_id: &MeshNodeId, channel_id: &VirtualChannelId) -> usize {
         let channels = self.channels.read();
-        channels
-            .get(channel_id)
-            .and_then(|s| s.queues.get(node_id))
-            .map(|q| q.len())
-            .unwrap_or(0)
+        channels.get(channel_id).and_then(|s| s.queues.get(node_id)).map(|q| q.len()).unwrap_or(0)
     }
 
     /// Get mesh statistics.
@@ -468,8 +444,7 @@ mod tests {
     fn test_capability_gated_send() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let sender = MeshNodeId::new("sandbox-a");
         let receiver = MeshNodeId::new("sandbox-b");
@@ -482,9 +457,7 @@ mod tests {
         mesh.subscribe(&receiver, &ch).unwrap();
 
         // Send a message
-        let msg_id = mesh
-            .send(&sender, &ch, b"hello".to_vec(), HashMap::new())
-            .unwrap();
+        let msg_id = mesh.send(&sender, &ch, b"hello".to_vec(), HashMap::new()).unwrap();
         assert_eq!(msg_id, 0);
 
         // Receive
@@ -497,8 +470,7 @@ mod tests {
     fn test_capability_denied_send() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let node = MeshNodeId::new("sandbox-a");
         // Grant receive-only
@@ -513,8 +485,7 @@ mod tests {
     fn test_capability_denied_receive() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let node = MeshNodeId::new("sandbox-a");
         mesh.grant_capability(MeshCapability::send_only(node.clone(), ch.clone()));
@@ -527,8 +498,7 @@ mod tests {
     fn test_no_capability() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let node = MeshNodeId::new("unregistered");
         let result = mesh.send(&node, &ch, b"data".to_vec(), HashMap::new());
@@ -539,8 +509,7 @@ mod tests {
     fn test_message_too_large() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let node = MeshNodeId::new("sandbox-a");
         let mut cap = MeshCapability::send_only(node.clone(), ch.clone());
@@ -555,8 +524,7 @@ mod tests {
     fn test_pubsub_multiple_subscribers() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let sender = MeshNodeId::new("publisher");
         let sub1 = MeshNodeId::new("sub-1");
@@ -569,8 +537,7 @@ mod tests {
         mesh.subscribe(&sub1, &ch).unwrap();
         mesh.subscribe(&sub2, &ch).unwrap();
 
-        mesh.send(&sender, &ch, b"broadcast".to_vec(), HashMap::new())
-            .unwrap();
+        mesh.send(&sender, &ch, b"broadcast".to_vec(), HashMap::new()).unwrap();
 
         // Both subscribers should receive the message
         let msg1 = mesh.receive(&sub1, &ch).unwrap().unwrap();
@@ -610,8 +577,7 @@ mod tests {
     fn test_revoke_capability() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let node = MeshNodeId::new("sandbox-a");
         mesh.grant_capability(MeshCapability::full_access(node.clone(), ch.clone()));
@@ -626,8 +592,7 @@ mod tests {
     fn test_statistics() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let sender = MeshNodeId::new("sender");
         let receiver = MeshNodeId::new("receiver");
@@ -648,8 +613,7 @@ mod tests {
     fn test_pending_count() {
         let mesh = SandboxMesh::new();
         let ch = VirtualChannelId::new("events");
-        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub))
-            .unwrap();
+        mesh.create_channel(VirtualChannelConfig::new("events", ChannelPattern::PubSub)).unwrap();
 
         let sender = MeshNodeId::new("sender");
         let receiver = MeshNodeId::new("receiver");

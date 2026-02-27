@@ -743,8 +743,8 @@ mod tests {
     #[test]
     fn test_policy_rule_priority_ordering() {
         let policy = NetworkPolicy::builder()
-            .deny_http("evil.com")     // priority 1
-            .allow_http("*.com")       // priority 2 (evaluated first)
+            .deny_http("evil.com") // priority 1
+            .allow_http("*.com") // priority 2 (evaluated first)
             .build();
 
         // Higher priority rule (allow *.com) is evaluated first

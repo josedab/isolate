@@ -61,9 +61,7 @@ mod tests {
     #[test]
     fn test_deployment_controller_lifecycle() {
         let ctrl = DeploymentController::new(
-            DeploymentStrategy::Canary {
-                steps: vec![1, 10, 50, 100],
-            },
+            DeploymentStrategy::Canary { steps: vec![1, 10, 50, 100] },
             RollbackTrigger::error_rate(5.0),
         );
 

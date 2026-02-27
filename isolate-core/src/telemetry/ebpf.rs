@@ -7,8 +7,6 @@
 //! provides the event model, correlation engine, and analysis pipeline that
 //! can be fed from either real eBPF probes or simulated instrumentation.
 
-
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
@@ -104,12 +102,7 @@ pub struct EventCorrelator {
 impl EventCorrelator {
     /// Create a new event correlator.
     pub fn new(max_events_per_sandbox: usize) -> Self {
-        Self {
-            sandbox_events: HashMap::new(),
-            next_id: 0,
-            max_events_per_sandbox,
-            total_events: 0,
-        }
+        Self { sandbox_events: HashMap::new(), next_id: 0, max_events_per_sandbox, total_events: 0 }
     }
 
     /// Record a syscall event.
@@ -139,10 +132,7 @@ impl EventCorrelator {
         sandbox_id: &str,
         category: SyscallCategory,
     ) -> Vec<&SyscallEvent> {
-        self.events_for(sandbox_id)
-            .iter()
-            .filter(|e| e.category == category)
-            .collect()
+        self.events_for(sandbox_id).iter().filter(|e| e.category == category).collect()
     }
 
     /// Generate a syscall profile for a sandbox.
@@ -501,9 +491,7 @@ mod tests {
 
         let anomalies = analyzer.analyze(&profile);
         assert!(!anomalies.is_empty());
-        assert!(anomalies
-            .iter()
-            .any(|a| a.anomaly_type == AnomalyType::ExcessiveNetworkActivity));
+        assert!(anomalies.iter().any(|a| a.anomaly_type == AnomalyType::ExcessiveNetworkActivity));
     }
 
     #[test]

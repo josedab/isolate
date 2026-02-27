@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::audit_trail::AuditTrail;
 use super::evidence::EvidenceCollector;
-use super::frameworks::{ControlStatus, ControlSeverity, FrameworkId, FrameworkTemplate};
+use super::frameworks::{ControlSeverity, ControlStatus, FrameworkId, FrameworkTemplate};
 
 /// Coverage status for a single control.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,16 +40,15 @@ impl ComplianceReport {
 
     /// Get critical controls that failed.
     pub fn critical_failures(&self) -> Vec<&ControlCoverage> {
-        self.controls.iter()
+        self.controls
+            .iter()
             .filter(|c| c.severity == ControlSeverity::Critical && c.status == ControlStatus::Fail)
             .collect()
     }
 
     /// Controls that still need testing.
     pub fn untested_controls(&self) -> Vec<&ControlCoverage> {
-        self.controls.iter()
-            .filter(|c| c.status == ControlStatus::NotTested)
-            .collect()
+        self.controls.iter().filter(|c| c.status == ControlStatus::NotTested).collect()
     }
 }
 
@@ -97,7 +96,9 @@ impl ReportGenerator {
             };
 
             let notes = match status {
-                ControlStatus::Pass => format!("{} evidence items, {} audit entries", ev_count, audit_count),
+                ControlStatus::Pass => {
+                    format!("{} evidence items, {} audit entries", ev_count, audit_count)
+                }
                 ControlStatus::Fail => "Insufficient evidence or audit trail".to_string(),
                 ControlStatus::NotTested => "No evidence collected".to_string(),
                 ControlStatus::NotApplicable => "Not applicable".to_string(),
@@ -208,7 +209,9 @@ mod tests {
         let report = gen.generate(&template, &trail, &collector);
 
         // Critical controls without evidence should not pass
-        let non_passing: Vec<_> = report.controls.iter()
+        let non_passing: Vec<_> = report
+            .controls
+            .iter()
             .filter(|c| c.severity == ControlSeverity::Critical && c.status != ControlStatus::Pass)
             .collect();
         assert!(!non_passing.is_empty());

@@ -64,8 +64,7 @@ impl ToolDefinition {
         if let Some(ref schema) = self.input_schema {
             return schema.clone();
         }
-        let mut builder = JsonSchema::object()
-            .description(self.description.clone());
+        let mut builder = JsonSchema::object().description(self.description.clone());
         for param in &self.parameters {
             let param_schema = match param.param_type {
                 ToolParameterType::String => JsonSchema::string(),
@@ -85,7 +84,10 @@ impl ToolDefinition {
     }
 
     /// Validate input JSON against this tool's schema.
-    pub fn validate_input(&self, input: &serde_json::Value) -> Vec<super::protocol::ValidationError> {
+    pub fn validate_input(
+        &self,
+        input: &serde_json::Value,
+    ) -> Vec<super::protocol::ValidationError> {
         self.generate_schema().validate(input)
     }
 
@@ -357,11 +359,8 @@ mod tests {
     #[test]
     fn test_tool_with_custom_schema() {
         use super::super::protocol::JsonSchema;
-        let schema = JsonSchema::object()
-            .required_property("query", JsonSchema::string())
-            .build();
-        let tool = ToolDefinition::new("search", "Search the web")
-            .with_input_schema(schema);
+        let schema = JsonSchema::object().required_property("query", JsonSchema::string()).build();
+        let tool = ToolDefinition::new("search", "Search the web").with_input_schema(schema);
 
         let valid = serde_json::json!({"query": "rust wasm"});
         assert!(tool.validate_input(&valid).is_empty());

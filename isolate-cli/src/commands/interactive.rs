@@ -161,9 +161,8 @@ mod tests {
         let selections: Vec<usize> = vec![];
 
         for idx in &selections {
-            match *idx {
-                0 => capabilities.push(Capability::stdout()),
-                _ => {}
+            if *idx == 0 {
+                capabilities.push(Capability::stdout());
             }
         }
 

@@ -109,20 +109,14 @@ impl ScaleController {
             *self.consecutive_up.lock() += 1;
             *self.consecutive_down.lock() = 0;
             self.mark_action();
-            ScaleAction::ScaleUp {
-                current: current_size,
-                target,
-            }
+            ScaleAction::ScaleUp { current: current_size, target }
         } else if target < current_size && current_utilization < self.config.scale_down_threshold {
             *self.consecutive_down.lock() += 1;
             *self.consecutive_up.lock() = 0;
             // Require 2 consecutive scale-down signals before acting (hysteresis)
             if *self.consecutive_down.lock() >= 2 {
                 self.mark_action();
-                ScaleAction::ScaleDown {
-                    current: current_size,
-                    target,
-                }
+                ScaleAction::ScaleDown { current: current_size, target }
             } else {
                 ScaleAction::NoOp
             }

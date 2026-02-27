@@ -3,7 +3,8 @@
 //! Provides trigger definitions, a registry for managing them, and event types
 //! for representing incoming trigger invocations.
 
-#![allow(missing_docs)]//!
+#![allow(missing_docs)]
+//!
 //! # Example
 //!
 //! ```rust
@@ -27,11 +28,11 @@
 //! registry.register(trigger).unwrap();
 //! ```
 
+use crate::error::{Error, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use crate::error::{Error, Result};
 
 // ---------------------------------------------------------------------------
 // HttpMethod
@@ -57,10 +58,7 @@ pub enum HttpMethod {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TriggerKind {
     /// Triggered by an incoming HTTP request matching the path and methods.
-    Http {
-        path: String,
-        methods: Vec<HttpMethod>,
-    },
+    Http { path: String, methods: Vec<HttpMethod> },
     /// Triggered on a cron schedule (e.g. `"0 * * * *"`).
     Cron { schedule: String },
     /// Triggered at a fixed interval.
@@ -133,11 +131,7 @@ impl TriggerDefinition {
 impl TriggerDefinitionBuilder {
     /// Create a new builder with sensible defaults.
     pub fn new() -> Self {
-        Self {
-            enabled: true,
-            max_concurrent: 1,
-            ..Default::default()
-        }
+        Self { enabled: true, max_concurrent: 1, ..Default::default() }
     }
 
     /// Set the trigger id.
@@ -187,23 +181,17 @@ impl TriggerDefinitionBuilder {
     /// Returns an error if required fields (`id`, `name`, `kind`, `module_hash`)
     /// are missing, or if `max_concurrent` is zero.
     pub fn build(self) -> Result<TriggerDefinition> {
-        let id = self
-            .id
-            .ok_or_else(|| Error::InvalidConfig("trigger id is required".into()))?;
-        let name = self
-            .name
-            .ok_or_else(|| Error::InvalidConfig("trigger name is required".into()))?;
-        let kind = self
-            .kind
-            .ok_or_else(|| Error::InvalidConfig("trigger kind is required".into()))?;
+        let id = self.id.ok_or_else(|| Error::InvalidConfig("trigger id is required".into()))?;
+        let name =
+            self.name.ok_or_else(|| Error::InvalidConfig("trigger name is required".into()))?;
+        let kind =
+            self.kind.ok_or_else(|| Error::InvalidConfig("trigger kind is required".into()))?;
         let module_hash = self
             .module_hash
             .ok_or_else(|| Error::InvalidConfig("module_hash is required".into()))?;
 
         if self.max_concurrent == 0 {
-            return Err(Error::InvalidConfig(
-                "max_concurrent must be at least 1".into(),
-            ));
+            return Err(Error::InvalidConfig("max_concurrent must be at least 1".into()));
         }
 
         // Validate cron schedule has exactly 5 fields.
@@ -276,9 +264,7 @@ pub struct TriggerRegistry {
 impl TriggerRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
-        Self {
-            triggers: HashMap::new(),
-        }
+        Self { triggers: HashMap::new() }
     }
 
     /// Register a trigger definition.
@@ -319,13 +305,9 @@ impl TriggerRegistry {
                     return false;
                 }
                 match &t.kind {
-                    TriggerKind::Http {
-                        path: trigger_path,
-                        methods,
-                    } => {
+                    TriggerKind::Http { path: trigger_path, methods } => {
                         trigger_path == path
-                            && (methods.contains(&HttpMethod::Any)
-                                || methods.contains(method))
+                            && (methods.contains(&HttpMethod::Any) || methods.contains(method))
                     }
                     _ => false,
                 }
@@ -357,10 +339,7 @@ mod tests {
         TriggerDefinition::builder()
             .id(id)
             .name(format!("trigger-{id}"))
-            .kind(TriggerKind::Http {
-                path: path.to_string(),
-                methods,
-            })
+            .kind(TriggerKind::Http { path: path.to_string(), methods })
             .module_hash("deadbeef")
             .build()
             .unwrap()
@@ -391,8 +370,7 @@ mod tests {
     #[test]
     fn test_unregister() {
         let mut reg = TriggerRegistry::new();
-        reg.register(sample_http_trigger("rm", "/x", vec![HttpMethod::Get]))
-            .unwrap();
+        reg.register(sample_http_trigger("rm", "/x", vec![HttpMethod::Get])).unwrap();
         assert!(reg.unregister("rm"));
         assert!(!reg.unregister("rm"));
         assert!(reg.get("rm").is_none());
@@ -401,10 +379,8 @@ mod tests {
     #[test]
     fn test_list_triggers() {
         let mut reg = TriggerRegistry::new();
-        reg.register(sample_http_trigger("a", "/a", vec![HttpMethod::Get]))
-            .unwrap();
-        reg.register(sample_http_trigger("b", "/b", vec![HttpMethod::Post]))
-            .unwrap();
+        reg.register(sample_http_trigger("a", "/a", vec![HttpMethod::Get])).unwrap();
+        reg.register(sample_http_trigger("b", "/b", vec![HttpMethod::Post])).unwrap();
         assert_eq!(reg.list().len(), 2);
     }
 
@@ -413,10 +389,8 @@ mod tests {
     #[test]
     fn test_match_http_exact() {
         let mut reg = TriggerRegistry::new();
-        reg.register(sample_http_trigger("h1", "/run", vec![HttpMethod::Post]))
-            .unwrap();
-        reg.register(sample_http_trigger("h2", "/other", vec![HttpMethod::Post]))
-            .unwrap();
+        reg.register(sample_http_trigger("h1", "/run", vec![HttpMethod::Post])).unwrap();
+        reg.register(sample_http_trigger("h2", "/other", vec![HttpMethod::Post])).unwrap();
 
         let matches = reg.match_http("/run", &HttpMethod::Post);
         assert_eq!(matches.len(), 1);
@@ -426,8 +400,7 @@ mod tests {
     #[test]
     fn test_match_http_method_mismatch() {
         let mut reg = TriggerRegistry::new();
-        reg.register(sample_http_trigger("h1", "/run", vec![HttpMethod::Post]))
-            .unwrap();
+        reg.register(sample_http_trigger("h1", "/run", vec![HttpMethod::Post])).unwrap();
 
         let matches = reg.match_http("/run", &HttpMethod::Get);
         assert!(matches.is_empty());
@@ -436,8 +409,7 @@ mod tests {
     #[test]
     fn test_match_http_any_method() {
         let mut reg = TriggerRegistry::new();
-        reg.register(sample_http_trigger("h1", "/any", vec![HttpMethod::Any]))
-            .unwrap();
+        reg.register(sample_http_trigger("h1", "/any", vec![HttpMethod::Any])).unwrap();
 
         assert_eq!(reg.match_http("/any", &HttpMethod::Get).len(), 1);
         assert_eq!(reg.match_http("/any", &HttpMethod::Delete).len(), 1);
@@ -446,12 +418,8 @@ mod tests {
     #[test]
     fn test_match_http_multiple_methods() {
         let mut reg = TriggerRegistry::new();
-        reg.register(sample_http_trigger(
-            "h1",
-            "/multi",
-            vec![HttpMethod::Get, HttpMethod::Post],
-        ))
-        .unwrap();
+        reg.register(sample_http_trigger("h1", "/multi", vec![HttpMethod::Get, HttpMethod::Post]))
+            .unwrap();
 
         assert_eq!(reg.match_http("/multi", &HttpMethod::Get).len(), 1);
         assert_eq!(reg.match_http("/multi", &HttpMethod::Post).len(), 1);
@@ -484,9 +452,7 @@ mod tests {
         let t = TriggerDefinition::builder()
             .id("c1")
             .name("cron trigger")
-            .kind(TriggerKind::Cron {
-                schedule: "0 * * * *".to_string(),
-            })
+            .kind(TriggerKind::Cron { schedule: "0 * * * *".to_string() })
             .module_hash("hash")
             .build();
         assert!(t.is_ok());
@@ -497,9 +463,7 @@ mod tests {
         let t = TriggerDefinition::builder()
             .id("c2")
             .name("bad cron")
-            .kind(TriggerKind::Cron {
-                schedule: "0 *".to_string(),
-            })
+            .kind(TriggerKind::Cron { schedule: "0 *".to_string() })
             .module_hash("hash")
             .build();
         assert!(t.is_err());
@@ -510,9 +474,7 @@ mod tests {
         let t = TriggerDefinition::builder()
             .id("c3")
             .name("bad cron")
-            .kind(TriggerKind::Cron {
-                schedule: "0 * * * * *".to_string(),
-            })
+            .kind(TriggerKind::Cron { schedule: "0 * * * * *".to_string() })
             .module_hash("hash")
             .build();
         assert!(t.is_err());
@@ -523,8 +485,7 @@ mod tests {
     #[test]
     fn test_enabled_triggers() {
         let mut reg = TriggerRegistry::new();
-        reg.register(sample_http_trigger("e1", "/a", vec![HttpMethod::Get]))
-            .unwrap();
+        reg.register(sample_http_trigger("e1", "/a", vec![HttpMethod::Get])).unwrap();
 
         let disabled = TriggerDefinition::builder()
             .id("e2")
@@ -554,9 +515,7 @@ mod tests {
         let t = TriggerDefinition::builder()
             .id("mc2")
             .name("high concurrency")
-            .kind(TriggerKind::Timer {
-                interval: Duration::from_secs(60),
-            })
+            .kind(TriggerKind::Timer { interval: Duration::from_secs(60) })
             .module_hash("hash")
             .max_concurrent(10)
             .build()
@@ -619,11 +578,8 @@ mod tests {
 
     #[test]
     fn test_builder_missing_kind() {
-        let res = TriggerDefinition::builder()
-            .id("no-kind")
-            .name("no kind")
-            .module_hash("hash")
-            .build();
+        let res =
+            TriggerDefinition::builder().id("no-kind").name("no kind").module_hash("hash").build();
         assert!(res.is_err());
     }
 
@@ -666,9 +622,7 @@ mod tests {
         let t = TriggerDefinition::builder()
             .id("wh")
             .name("webhook")
-            .kind(TriggerKind::Webhook {
-                secret: Some("s3cret".to_string()),
-            })
+            .kind(TriggerKind::Webhook { secret: Some("s3cret".to_string()) })
             .module_hash("hash")
             .build()
             .unwrap();
@@ -684,9 +638,7 @@ mod tests {
         let t = TriggerDefinition::builder()
             .id("timer")
             .name("timer trigger")
-            .kind(TriggerKind::Timer {
-                interval: Duration::from_secs(120),
-            })
+            .kind(TriggerKind::Timer { interval: Duration::from_secs(120) })
             .module_hash("hash")
             .build()
             .unwrap();

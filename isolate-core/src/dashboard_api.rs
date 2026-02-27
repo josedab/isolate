@@ -15,12 +15,8 @@
 //! | GET | /api/v1/resources | Resource usage summary |
 //! | GET | /api/v1/health | Health check |
 
-
-
 #![allow(missing_docs)]
-use crate::dashboard::{
-    AlertLevel, AlertThresholds, DashboardEvent, DashboardState,
-};
+use crate::dashboard::{AlertLevel, AlertThresholds, DashboardEvent, DashboardState};
 use crate::sandbox::SandboxId;
 
 use serde::{Deserialize, Serialize};
@@ -219,10 +215,8 @@ impl DashboardRouter {
             Some(sandbox) => {
                 serde_json::to_string(&ApiResponse::success(sandbox)).unwrap_or_default()
             }
-            None => {
-                serde_json::to_string(&ApiResponse::<()>::error("Sandbox not found"))
-                    .unwrap_or_default()
-            }
+            None => serde_json::to_string(&ApiResponse::<()>::error("Sandbox not found"))
+                .unwrap_or_default(),
         }
     }
 
@@ -230,10 +224,7 @@ impl DashboardRouter {
     pub fn handle_events(&self, limit: Option<usize>) -> String {
         let limit = limit.unwrap_or(50).min(1000);
         let events = self.state.recent_events(limit);
-        let resp = EventsResponse {
-            count: events.len(),
-            events,
-        };
+        let resp = EventsResponse { count: events.len(), events };
         serde_json::to_string(&ApiResponse::success(resp)).unwrap_or_default()
     }
 
@@ -268,7 +259,9 @@ impl DashboardRouter {
 
         let level = if active_alerts.iter().any(|_| true) {
             // Check if any critical alerts exist
-            let has_critical = events.iter().any(|e| matches!(e, DashboardEvent::Alert { level: AlertLevel::Critical, .. }));
+            let has_critical = events
+                .iter()
+                .any(|e| matches!(e, DashboardEvent::Alert { level: AlertLevel::Critical, .. }));
             if has_critical {
                 AlertLevel::Critical
             } else if !active_alerts.is_empty() {
@@ -280,11 +273,7 @@ impl DashboardRouter {
             AlertLevel::Info
         };
 
-        let resp = AlertStatus {
-            level,
-            active_alerts,
-            thresholds: self.thresholds.clone(),
-        };
+        let resp = AlertStatus { level, active_alerts, thresholds: self.thresholds.clone() };
         serde_json::to_string(&ApiResponse::success(resp)).unwrap_or_default()
     }
 
@@ -300,10 +289,8 @@ impl DashboardRouter {
             (HttpMethod::Get, "/api/v1/health") => self.handle_health(),
             (HttpMethod::Get, "/api/v1/alerts") => self.handle_alerts(),
             (HttpMethod::Get, "/api/v1/ws/events") => self.handle_ws_info(),
-            _ => {
-                serde_json::to_string(&ApiResponse::<()>::error(format!("Not found: {}", path)))
-                    .unwrap_or_default()
-            }
+            _ => serde_json::to_string(&ApiResponse::<()>::error(format!("Not found: {}", path)))
+                .unwrap_or_default(),
         }
     }
 
@@ -329,10 +316,7 @@ impl DashboardRouter {
             })
             .collect();
 
-        let resp = ExecutionHistoryResponse {
-            entries: history,
-            total: events.len(),
-        };
+        let resp = ExecutionHistoryResponse { entries: history, total: events.len() };
         serde_json::to_string(&ApiResponse::success(resp)).unwrap_or_default()
     }
 
@@ -343,7 +327,8 @@ impl DashboardRouter {
             .iter()
             .map(|s| {
                 let (memory_pct, fuel_pct) = if let Some(ref usage) = s.resource_usage {
-                    let mem = (usage.peak_memory as f64 / (128.0 * 1024.0 * 1024.0) * 100.0).min(100.0);
+                    let mem =
+                        (usage.peak_memory as f64 / (128.0 * 1024.0 * 1024.0) * 100.0).min(100.0);
                     let fuel = (usage.fuel_consumed as f64 / 10_000_000.0 * 100.0).min(100.0);
                     (mem, fuel)
                 } else {

@@ -47,19 +47,13 @@ impl Workflow {
     /// Find root nodes (no incoming edges).
     pub fn roots(&self) -> Vec<&str> {
         let targets: HashSet<&str> = self.edges.iter().map(|e| e.to.as_str()).collect();
-        self.nodes.keys()
-            .filter(|id| !targets.contains(id.as_str()))
-            .map(|s| s.as_str())
-            .collect()
+        self.nodes.keys().filter(|id| !targets.contains(id.as_str())).map(|s| s.as_str()).collect()
     }
 
     /// Find leaf nodes (no outgoing edges).
     pub fn leaves(&self) -> Vec<&str> {
         let sources: HashSet<&str> = self.edges.iter().map(|e| e.from.as_str()).collect();
-        self.nodes.keys()
-            .filter(|id| !sources.contains(id.as_str()))
-            .map(|s| s.as_str())
-            .collect()
+        self.nodes.keys().filter(|id| !sources.contains(id.as_str())).map(|s| s.as_str()).collect()
     }
 
     pub fn node_count(&self) -> usize {
@@ -80,11 +74,7 @@ pub struct WorkflowBuilder {
 
 impl WorkflowBuilder {
     pub fn new(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            nodes: HashMap::new(),
-            edges: Vec::new(),
-        }
+        Self { name: name.into(), nodes: HashMap::new(), edges: Vec::new() }
     }
 
     pub fn add_node(mut self, node: Node) -> Self {
@@ -99,15 +89,16 @@ impl WorkflowBuilder {
         if !self.nodes.contains_key(to) {
             return Err(WorkflowError::NodeNotFound(to.to_string()));
         }
-        self.edges.push(Edge {
-            from: NodeId::new(from),
-            to: NodeId::new(to),
-            label: None,
-        });
+        self.edges.push(Edge { from: NodeId::new(from), to: NodeId::new(to), label: None });
         Ok(self)
     }
 
-    pub fn add_labeled_edge(mut self, from: &str, to: &str, label: &str) -> Result<Self, WorkflowError> {
+    pub fn add_labeled_edge(
+        mut self,
+        from: &str,
+        to: &str,
+        label: &str,
+    ) -> Result<Self, WorkflowError> {
         if !self.nodes.contains_key(from) {
             return Err(WorkflowError::NodeNotFound(from.to_string()));
         }
@@ -147,10 +138,8 @@ impl WorkflowBuilder {
             *in_degree.entry(edge.to.as_str()).or_insert(0) += 1;
         }
 
-        let mut queue: Vec<&str> = in_degree.iter()
-            .filter(|(_, &deg)| deg == 0)
-            .map(|(&id, _)| id)
-            .collect();
+        let mut queue: Vec<&str> =
+            in_degree.iter().filter(|(_, &deg)| deg == 0).map(|(&id, _)| id).collect();
         queue.sort(); // deterministic ordering
 
         let mut result = Vec::new();
@@ -200,8 +189,10 @@ mod tests {
             .add_node(Node::new("a", NodeKind::Passthrough))
             .add_node(Node::new("b", NodeKind::Passthrough))
             .add_node(Node::new("c", NodeKind::Passthrough))
-            .add_edge("a", "b").unwrap()
-            .add_edge("b", "c").unwrap()
+            .add_edge("a", "b")
+            .unwrap()
+            .add_edge("b", "c")
+            .unwrap()
             .build()
             .unwrap();
 
@@ -217,8 +208,10 @@ mod tests {
             .add_node(Node::new("c", NodeKind::Passthrough))
             .add_node(Node::new("a", NodeKind::Passthrough))
             .add_node(Node::new("b", NodeKind::Passthrough))
-            .add_edge("a", "b").unwrap()
-            .add_edge("b", "c").unwrap()
+            .add_edge("a", "b")
+            .unwrap()
+            .add_edge("b", "c")
+            .unwrap()
             .build()
             .unwrap();
 
@@ -235,8 +228,10 @@ mod tests {
         let result = WorkflowBuilder::new("cyclic")
             .add_node(Node::new("a", NodeKind::Passthrough))
             .add_node(Node::new("b", NodeKind::Passthrough))
-            .add_edge("a", "b").unwrap()
-            .add_edge("b", "a").unwrap()
+            .add_edge("a", "b")
+            .unwrap()
+            .add_edge("b", "a")
+            .unwrap()
             .build();
 
         assert!(matches!(result, Err(WorkflowError::CycleDetected)));
@@ -263,10 +258,14 @@ mod tests {
             .add_node(Node::new("left", NodeKind::Passthrough))
             .add_node(Node::new("right", NodeKind::Passthrough))
             .add_node(Node::new("end", NodeKind::Passthrough))
-            .add_edge("start", "left").unwrap()
-            .add_edge("start", "right").unwrap()
-            .add_edge("left", "end").unwrap()
-            .add_edge("right", "end").unwrap()
+            .add_edge("start", "left")
+            .unwrap()
+            .add_edge("start", "right")
+            .unwrap()
+            .add_edge("left", "end")
+            .unwrap()
+            .add_edge("right", "end")
+            .unwrap()
             .build()
             .unwrap();
 
@@ -283,7 +282,8 @@ mod tests {
         let wf = WorkflowBuilder::new("labeled")
             .add_node(Node::new("a", NodeKind::Passthrough))
             .add_node(Node::new("b", NodeKind::Passthrough))
-            .add_labeled_edge("a", "b", "on_success").unwrap()
+            .add_labeled_edge("a", "b", "on_success")
+            .unwrap()
             .build()
             .unwrap();
 
@@ -293,9 +293,10 @@ mod tests {
     #[test]
     fn test_get_node() {
         let wf = WorkflowBuilder::new("test")
-            .add_node(Node::new("n1", NodeKind::Transform {
-                transform: TransformFn::Identity,
-            }).with_label("Node One"))
+            .add_node(
+                Node::new("n1", NodeKind::Transform { transform: TransformFn::Identity })
+                    .with_label("Node One"),
+            )
             .build()
             .unwrap();
 

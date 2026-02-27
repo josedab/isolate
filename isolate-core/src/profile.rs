@@ -47,18 +47,18 @@ impl LanguageProfile {
         match self {
             Self::Rust => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 16 * 1024 * 1024,   // 16MB
-                    stack_max: 512 * 1024,         // 512KB
-                    total_max: 32 * 1024 * 1024,   // 32MB
+                    heap_max: 16 * 1024 * 1024,  // 16MB
+                    stack_max: 512 * 1024,       // 512KB
+                    total_max: 32 * 1024 * 1024, // 32MB
                 },
                 cpu: CpuLimits {
-                    fuel: Some(50_000_000),         // 50M - Rust is efficient
+                    fuel: Some(50_000_000), // 50M - Rust is efficient
                     cpu_time: Some(Duration::from_secs(10)),
                     preemption_interval: Duration::from_millis(10),
                 },
                 io: IoLimits {
-                    read_bytes: Some(10 * 1024 * 1024),  // 10MB
-                    write_bytes: Some(1024 * 1024),       // 1MB
+                    read_bytes: Some(10 * 1024 * 1024), // 10MB
+                    write_bytes: Some(1024 * 1024),     // 1MB
                     iops: Some(500),
                 },
                 time: TimeLimits {
@@ -68,18 +68,18 @@ impl LanguageProfile {
             },
             Self::Python => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 128 * 1024 * 1024,   // 128MB - interpreter needs room
-                    stack_max: 2 * 1024 * 1024,    // 2MB
-                    total_max: 256 * 1024 * 1024,  // 256MB
+                    heap_max: 128 * 1024 * 1024,  // 128MB - interpreter needs room
+                    stack_max: 2 * 1024 * 1024,   // 2MB
+                    total_max: 256 * 1024 * 1024, // 256MB
                 },
                 cpu: CpuLimits {
-                    fuel: Some(500_000_000),         // 500M - interpreted, needs more
+                    fuel: Some(500_000_000), // 500M - interpreted, needs more
                     cpu_time: Some(Duration::from_secs(60)),
                     preemption_interval: Duration::from_millis(10),
                 },
                 io: IoLimits {
-                    read_bytes: Some(50 * 1024 * 1024),   // 50MB
-                    write_bytes: Some(10 * 1024 * 1024),  // 10MB
+                    read_bytes: Some(50 * 1024 * 1024),  // 50MB
+                    write_bytes: Some(10 * 1024 * 1024), // 10MB
                     iops: Some(2000),
                 },
                 time: TimeLimits {
@@ -89,18 +89,18 @@ impl LanguageProfile {
             },
             Self::JavaScript => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 64 * 1024 * 1024,    // 64MB
-                    stack_max: 1024 * 1024,         // 1MB
-                    total_max: 128 * 1024 * 1024,  // 128MB
+                    heap_max: 64 * 1024 * 1024,   // 64MB
+                    stack_max: 1024 * 1024,       // 1MB
+                    total_max: 128 * 1024 * 1024, // 128MB
                 },
                 cpu: CpuLimits {
-                    fuel: Some(200_000_000),         // 200M
+                    fuel: Some(200_000_000), // 200M
                     cpu_time: Some(Duration::from_secs(30)),
                     preemption_interval: Duration::from_millis(10),
                 },
                 io: IoLimits {
-                    read_bytes: Some(50 * 1024 * 1024),   // 50MB - high I/O for event loops
-                    write_bytes: Some(10 * 1024 * 1024),  // 10MB
+                    read_bytes: Some(50 * 1024 * 1024), // 50MB - high I/O for event loops
+                    write_bytes: Some(10 * 1024 * 1024), // 10MB
                     iops: Some(5000),
                 },
                 time: TimeLimits {
@@ -110,12 +110,12 @@ impl LanguageProfile {
             },
             Self::Go => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 64 * 1024 * 1024,    // 64MB
-                    stack_max: 4 * 1024 * 1024,    // 4MB - goroutines need stack
-                    total_max: 128 * 1024 * 1024,  // 128MB
+                    heap_max: 64 * 1024 * 1024,   // 64MB
+                    stack_max: 4 * 1024 * 1024,   // 4MB - goroutines need stack
+                    total_max: 128 * 1024 * 1024, // 128MB
                 },
                 cpu: CpuLimits {
-                    fuel: Some(100_000_000),         // 100M
+                    fuel: Some(100_000_000), // 100M
                     cpu_time: Some(Duration::from_secs(30)),
                     preemption_interval: Duration::from_millis(5),
                 },
@@ -131,12 +131,12 @@ impl LanguageProfile {
             },
             Self::C => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 32 * 1024 * 1024,    // 32MB
-                    stack_max: 2 * 1024 * 1024,    // 2MB
-                    total_max: 64 * 1024 * 1024,   // 64MB
+                    heap_max: 32 * 1024 * 1024,  // 32MB
+                    stack_max: 2 * 1024 * 1024,  // 2MB
+                    total_max: 64 * 1024 * 1024, // 64MB
                 },
                 cpu: CpuLimits {
-                    fuel: Some(50_000_000),          // 50M - C is efficient
+                    fuel: Some(50_000_000), // 50M - C is efficient
                     cpu_time: Some(Duration::from_secs(10)),
                     preemption_interval: Duration::from_millis(10),
                 },
@@ -156,10 +156,7 @@ impl LanguageProfile {
     /// Get recommended default capabilities for this language profile.
     pub fn default_capabilities(&self) -> Vec<Capability> {
         match self {
-            Self::Rust => vec![
-                Capability::stdout(),
-                Capability::stderr(),
-            ],
+            Self::Rust => vec![Capability::stdout(), Capability::stderr()],
             Self::Python => vec![
                 Capability::stdout(),
                 Capability::stderr(),
@@ -180,10 +177,7 @@ impl LanguageProfile {
                 Capability::monotonic_clock(),
                 Capability::secure_random(),
             ],
-            Self::C => vec![
-                Capability::stdout(),
-                Capability::stderr(),
-            ],
+            Self::C => vec![Capability::stdout(), Capability::stderr()],
         }
     }
 
@@ -191,7 +185,9 @@ impl LanguageProfile {
     pub fn description(&self) -> &'static str {
         match self {
             Self::Rust => "Rust: minimal heap (16MB), low stack (512KB), efficient fuel (50M)",
-            Self::Python => "Python: large heap (128MB), temp dir, generous stack (2MB), high fuel (500M)",
+            Self::Python => {
+                "Python: large heap (128MB), temp dir, generous stack (2MB), high fuel (500M)"
+            }
             Self::JavaScript => "JavaScript: medium heap (64MB), high I/O limits, timers enabled",
             Self::Go => "Go: large stack (4MB), medium heap (64MB), fast preemption",
             Self::C => "C/C++: moderate heap (32MB), custom stack (2MB), file I/O oriented",
@@ -249,7 +245,10 @@ impl std::str::FromStr for LanguageProfile {
             "javascript" | "js" | "typescript" | "ts" => Ok(Self::JavaScript),
             "go" | "golang" => Ok(Self::Go),
             "c" | "cpp" | "c++" | "cc" => Ok(Self::C),
-            _ => Err(format!("Unknown language profile: '{}'. Available: rust, python, javascript, go, c", s)),
+            _ => Err(format!(
+                "Unknown language profile: '{}'. Available: rust, python, javascript, go, c",
+                s
+            )),
         }
     }
 }

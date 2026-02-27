@@ -40,21 +40,21 @@ pub struct TimelineView<'a> {
 impl Timeline {
     /// Build a timeline from a recording.
     pub fn from_recording(recording: &Recording) -> Self {
-        let entries: Vec<TimelineEntry> = recording.events.iter().map(|e| {
-            let (label, category) = Self::summarize_event(&e.kind);
-            TimelineEntry {
-                sequence: e.sequence,
-                timestamp_us: e.timestamp_us,
-                label,
-                category,
-            }
-        }).collect();
+        let entries: Vec<TimelineEntry> = recording
+            .events
+            .iter()
+            .map(|e| {
+                let (label, category) = Self::summarize_event(&e.kind);
+                TimelineEntry {
+                    sequence: e.sequence,
+                    timestamp_us: e.timestamp_us,
+                    label,
+                    category,
+                }
+            })
+            .collect();
 
-        Self {
-            total_duration_us: recording.duration_us,
-            entries,
-            bookmarks: Vec::new(),
-        }
+        Self { total_duration_us: recording.duration_us, entries, bookmarks: Vec::new() }
     }
 
     fn summarize_event(kind: &EventKind) -> (String, String) {
@@ -63,11 +63,17 @@ impl Timeline {
             EventKind::Output(d) => (format!("Output ({} bytes)", d.len()), "io".into()),
             EventKind::ErrorOutput(d) => (format!("Stderr ({} bytes)", d.len()), "io".into()),
             EventKind::EnvAccess { key, .. } => (format!("Env: {}", key), "env".into()),
-            EventKind::Random(d) => (format!("Random ({} bytes)", d.len()), "nondeterminism".into()),
+            EventKind::Random(d) => {
+                (format!("Random ({} bytes)", d.len()), "nondeterminism".into())
+            }
             EventKind::ClockRead(ts) => (format!("Clock: {}μs", ts), "nondeterminism".into()),
             EventKind::FileOp { path, op } => (format!("{}: {}", op, path), "fs".into()),
-            EventKind::NetOp { host, port, op } => (format!("{}: {}:{}", op, host, port), "net".into()),
-            EventKind::MemorySnapshot { pages, used_bytes } => (format!("Memory: {} pages, {} bytes", pages, used_bytes), "memory".into()),
+            EventKind::NetOp { host, port, op } => {
+                (format!("{}: {}:{}", op, host, port), "net".into())
+            }
+            EventKind::MemorySnapshot { pages, used_bytes } => {
+                (format!("Memory: {} pages, {} bytes", pages, used_bytes), "memory".into())
+            }
             EventKind::FuelCheckpoint(fuel) => (format!("Fuel: {}", fuel), "resource".into()),
             EventKind::Exit(code) => (format!("Exit({})", code), "lifecycle".into()),
         }
@@ -89,7 +95,8 @@ impl Timeline {
 
     /// Get entries in a time range.
     pub fn range(&self, start_us: u64, end_us: u64) -> Vec<&TimelineEntry> {
-        self.entries.iter()
+        self.entries
+            .iter()
             .filter(|e| e.timestamp_us >= start_us && e.timestamp_us <= end_us)
             .collect()
     }
@@ -101,11 +108,7 @@ impl Timeline {
 
     /// Add a bookmark.
     pub fn add_bookmark(&mut self, name: impl Into<String>, sequence: u64, note: Option<String>) {
-        self.bookmarks.push(Bookmark {
-            name: name.into(),
-            sequence,
-            note,
-        });
+        self.bookmarks.push(Bookmark { name: name.into(), sequence, note });
     }
 
     /// Get all bookmarks.
@@ -129,10 +132,7 @@ impl Timeline {
             return None;
         }
         let target_time = (self.total_duration_us as f64 * pct) as u64;
-        self.entries.iter()
-            .rev()
-            .find(|e| e.timestamp_us <= target_time)
-            .or(self.entries.first())
+        self.entries.iter().rev().find(|e| e.timestamp_us <= target_time).or(self.entries.first())
     }
 }
 
@@ -201,7 +201,11 @@ mod tests {
         let rec = ExecutionRecorder::new("labels");
         rec.record_event(EventKind::MemorySnapshot { pages: 10, used_bytes: 65536 });
         rec.record_event(EventKind::FuelCheckpoint(500000));
-        rec.record_event(EventKind::NetOp { host: "api.com".into(), port: 443, op: "connect".into() });
+        rec.record_event(EventKind::NetOp {
+            host: "api.com".into(),
+            port: 443,
+            op: "connect".into(),
+        });
 
         let recording = rec.finish();
         let timeline = Timeline::from_recording(&recording);

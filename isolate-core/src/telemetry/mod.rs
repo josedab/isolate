@@ -27,7 +27,6 @@
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 
-
 mod context;
 pub mod ebpf;
 mod spans;

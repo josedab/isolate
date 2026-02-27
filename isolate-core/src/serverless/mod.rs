@@ -9,7 +9,6 @@
 //! - Request/response mapping between HTTP and sandbox I/O
 //! - Deployment manifest generation
 
-
 #![allow(missing_docs)]
 pub mod adapter;
 pub mod function;
@@ -27,6 +26,6 @@ pub use function::{
 pub use runtime::{FunctionContext, RuntimeHandler, RuntimeMetrics};
 pub use triggers::{
     CronConfig, DeadLetterEntry, EventOutcome, MessageQueueConfig, QueueProvider, RetryPolicy,
-    TriggerDefinition, TriggerEvent, TriggerId, TriggerManager, TriggerSource,
-    TriggerStatistics, WebhookConfig,
+    TriggerDefinition, TriggerEvent, TriggerId, TriggerManager, TriggerSource, TriggerStatistics,
+    WebhookConfig,
 };

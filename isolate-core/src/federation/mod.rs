@@ -10,18 +10,16 @@
 //! - **Gossip Protocol**: Metadata propagation across peers
 //! - **Local Cache**: LRU eviction with configurable limits
 
-
-
 #![allow(missing_docs)]
 pub mod cache;
 pub mod content;
 pub mod gossip;
 pub mod peers;
 
-pub use cache::{ModuleCache, CacheConfig, CacheEntry, CacheStats};
+pub use cache::{CacheConfig, CacheEntry, CacheStats, ModuleCache};
 pub use content::{ContentId, ContentStore, StoredModule};
 pub use gossip::{GossipMessage, GossipProtocol, ModuleAnnouncement};
-pub use peers::{PeerRegistry, PeerId, PeerInfo, PeerStatus};
+pub use peers::{PeerId, PeerInfo, PeerRegistry, PeerStatus};
 
 #[cfg(test)]
 mod tests {

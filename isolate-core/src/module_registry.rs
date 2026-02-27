@@ -218,8 +218,7 @@ impl ModuleRegistry {
     /// Remove a module by hash.
     pub fn remove(&self, hash: &ModuleHash) -> bool {
         if let Some((_, entry)) = self.entries.remove(hash) {
-            self.total_bytes
-                .fetch_sub(entry.bytes.len() as u64, Ordering::Relaxed);
+            self.total_bytes.fetch_sub(entry.bytes.len() as u64, Ordering::Relaxed);
             true
         } else {
             false
@@ -283,9 +282,7 @@ pub enum RegistryError {
 mod tests {
     use super::*;
 
-    const MINIMAL_WASM: &[u8] = &[
-        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-    ];
+    const MINIMAL_WASM: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
     #[test]
     fn test_store_and_get() {
@@ -324,10 +321,7 @@ mod tests {
         registry.store(MINIMAL_WASM, None).unwrap();
         // Second different module would exceed limit
         let big = vec![0u8; 11];
-        assert!(matches!(
-            registry.store(&big, None),
-            Err(RegistryError::StorageFull { .. })
-        ));
+        assert!(matches!(registry.store(&big, None), Err(RegistryError::StorageFull { .. })));
     }
 
     #[test]
@@ -342,10 +336,8 @@ mod tests {
         ));
 
         // With signature, it works
-        let meta = ModuleMetadata {
-            signature: Some("abc123".to_string()),
-            ..ModuleMetadata::default()
-        };
+        let meta =
+            ModuleMetadata { signature: Some("abc123".to_string()), ..ModuleMetadata::default() };
         assert!(registry.store(MINIMAL_WASM, Some(meta)).is_ok());
     }
 

@@ -87,8 +87,8 @@ impl GuardrailConfig {
             max_output_bytes: 1024 * 1024,
             max_concurrent_sessions: 20,
             blocked_output_patterns: vec![
-                r"\b\d{3}-\d{2}-\d{4}\b".to_string(),  // SSN pattern
-                r"\b\d{16}\b".to_string(),               // Credit card pattern
+                r"\b\d{3}-\d{2}-\d{4}\b".to_string(), // SSN pattern
+                r"\b\d{16}\b".to_string(),            // Credit card pattern
             ],
             blocked_input_patterns: vec![
                 "ignore previous instructions".to_string(),
@@ -361,7 +361,7 @@ impl ContentFilter {
             "-----BEGIN PRIVATE KEY-----",
             "-----BEGIN RSA PRIVATE KEY-----",
             "-----BEGIN EC PRIVATE KEY-----",
-            "AKIA",  // AWS access key prefix
+            "AKIA", // AWS access key prefix
         ];
 
         for indicator in &secret_indicators {
@@ -444,8 +444,8 @@ impl ContentFilter {
             "'; DROP TABLE",
             "\" OR 1=1",
             "' OR '1'='1",
-            "${jndi:",    // Log4Shell
-            "{{",         // Template injection (only flag if followed by suspicious content)
+            "${jndi:", // Log4Shell
+            "{{",      // Template injection (only flag if followed by suspicious content)
         ];
 
         let lower = text.to_lowercase();
@@ -456,7 +456,10 @@ impl ContentFilter {
                 if *pattern == "{{" {
                     if let Some(pos) = lower.find("{{") {
                         let after = &lower[pos + 2..];
-                        if after.contains("import") || after.contains("exec") || after.contains("__") {
+                        if after.contains("import")
+                            || after.contains("exec")
+                            || after.contains("__")
+                        {
                             return true;
                         }
                     }
@@ -640,11 +643,7 @@ impl ChainDepthTracker {
         let depth = self.current_depth.fetch_add(1, Ordering::Relaxed);
         if depth as usize >= self.max_depth {
             self.current_depth.fetch_sub(1, Ordering::Relaxed);
-            Err(format!(
-                "Execution chain depth {} exceeds maximum {}",
-                depth + 1,
-                self.max_depth
-            ))
+            Err(format!("Execution chain depth {} exceeds maximum {}", depth + 1, self.max_depth))
         } else {
             Ok(ChainDepthGuard { tracker: self })
         }
@@ -728,9 +727,7 @@ mod tests {
 
     #[test]
     fn test_content_filter_blocked_pattern() {
-        let config = GuardrailConfig::builder()
-            .block_pattern("BLOCKED_WORD".to_string())
-            .build();
+        let config = GuardrailConfig::builder().block_pattern("BLOCKED_WORD".to_string()).build();
         let filter = ContentFilter::new(&config);
         let result = filter.check_output("This contains BLOCKED_WORD in it");
         assert!(!result.allowed);
@@ -838,10 +835,8 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_budget_exceeded() {
-        let config = GuardrailConfig::builder()
-            .max_calls_per_minute(100)
-            .max_total_cost(1.0)
-            .build();
+        let config =
+            GuardrailConfig::builder().max_calls_per_minute(100).max_total_cost(1.0).build();
         let limiter = SessionRateLimiter::new(&config);
 
         limiter.record_cost(1.5);
@@ -851,10 +846,8 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_stats() {
-        let config = GuardrailConfig::builder()
-            .max_calls_per_minute(10)
-            .max_total_cost(50.0)
-            .build();
+        let config =
+            GuardrailConfig::builder().max_calls_per_minute(10).max_total_cost(50.0).build();
         let limiter = SessionRateLimiter::new(&config);
 
         limiter.try_acquire();
@@ -1020,10 +1013,8 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_record_cost_cumulative() {
-        let config = GuardrailConfig::builder()
-            .max_calls_per_minute(100)
-            .max_total_cost(5.0)
-            .build();
+        let config =
+            GuardrailConfig::builder().max_calls_per_minute(100).max_total_cost(5.0).build();
         let limiter = SessionRateLimiter::new(&config);
 
         limiter.record_cost(2.0);

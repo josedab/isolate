@@ -237,8 +237,7 @@ impl WorldGenerator {
         key: impl Into<String>,
         interfaces: Vec<impl Into<String>>,
     ) -> Self {
-        self.custom_mappings
-            .insert(key.into(), interfaces.into_iter().map(Into::into).collect());
+        self.custom_mappings.insert(key.into(), interfaces.into_iter().map(Into::into).collect());
         self
     }
 
@@ -351,10 +350,7 @@ impl WorldGenerator {
             Capability::HostFunction(_) => {
                 // Host functions are custom; check custom mappings
                 let desc = cap.description();
-                self.custom_mappings
-                    .get(&desc)
-                    .cloned()
-                    .unwrap_or_default()
+                self.custom_mappings.get(&desc).cloned().unwrap_or_default()
             }
         }
     }
@@ -614,9 +610,7 @@ impl PipelineStage {
     fn process(&self, input: &[u8]) -> Result<Vec<u8>, String> {
         match &self.transform {
             TransformKind::Passthrough => Ok(input.to_vec()),
-            TransformKind::Uppercase => {
-                Ok(input.iter().map(|b| b.to_ascii_uppercase()).collect())
-            }
+            TransformKind::Uppercase => Ok(input.iter().map(|b| b.to_ascii_uppercase()).collect()),
             TransformKind::Prefix(prefix) => {
                 let mut out = prefix.as_bytes().to_vec();
                 out.extend_from_slice(input);
@@ -751,8 +745,7 @@ mod tests {
 
     #[test]
     fn test_world_definition_to_wit_with_docs() {
-        let world = WorldDefinition::new("documented")
-            .with_docs("My documented world");
+        let world = WorldDefinition::new("documented").with_docs("My documented world");
 
         let wit = world.to_wit();
         assert!(wit.contains("/// My documented world"));
@@ -907,12 +900,8 @@ mod tests {
     #[test]
     fn test_generator_from_config_with_network() {
         let wasm: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
-        let config = ComponentConfig::builder()
-            .component(wasm)
-            .unwrap()
-            .allow_tcp()
-            .build()
-            .unwrap();
+        let config =
+            ComponentConfig::builder().component(wasm).unwrap().allow_tcp().build().unwrap();
 
         let gen = WorldGenerator::new();
         let world = gen.from_config(&config);
@@ -1042,23 +1031,20 @@ mod tests {
 
     #[test]
     fn test_stage_with_capability() {
-        let stage =
-            PipelineStage::new("cap-stage", b"wasm").with_capability(Capability::stdout());
+        let stage = PipelineStage::new("cap-stage", b"wasm").with_capability(Capability::stdout());
         assert!(stage.capabilities.has(&Capability::stdout()));
     }
 
     #[test]
     fn test_stage_with_resource_limits() {
         let limits = ResourceLimits::restrictive();
-        let stage =
-            PipelineStage::new("limited", b"wasm").with_resource_limits(limits.clone());
+        let stage = PipelineStage::new("limited", b"wasm").with_resource_limits(limits.clone());
         assert!(stage.resource_limits.is_some());
     }
 
     #[test]
     fn test_stage_with_metadata() {
-        let stage = PipelineStage::new("meta", b"wasm")
-            .with_metadata("role", "transformer");
+        let stage = PipelineStage::new("meta", b"wasm").with_metadata("role", "transformer");
         assert_eq!(stage.metadata.get("role").unwrap(), "transformer");
     }
 
@@ -1082,8 +1068,7 @@ mod tests {
 
     #[test]
     fn test_transform_uppercase() {
-        let stage =
-            PipelineStage::new("up", b"x").with_transform(TransformKind::Uppercase);
+        let stage = PipelineStage::new("up", b"x").with_transform(TransformKind::Uppercase);
         assert_eq!(stage.process(b"hello").unwrap(), b"HELLO");
     }
 

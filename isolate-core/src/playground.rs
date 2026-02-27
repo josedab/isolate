@@ -179,10 +179,7 @@ pub struct PlaygroundExecutor {
 impl PlaygroundExecutor {
     /// Create a new executor with the given concurrency limit.
     pub fn new(max_concurrent: usize) -> Self {
-        Self {
-            semaphore: Arc::new(Semaphore::new(max_concurrent)),
-            max_concurrent,
-        }
+        Self { semaphore: Arc::new(Semaphore::new(max_concurrent)), max_concurrent }
     }
 
     /// Return the number of currently active (in-flight) executions.
@@ -296,7 +293,8 @@ impl PlaygroundExample {
 int main() {
     printf("Hello from WASM!\n");
     return 0;
-}"#.to_string(),
+}"#
+                .to_string(),
             },
             PlaygroundExample {
                 id: "fibonacci".to_string(),
@@ -316,7 +314,8 @@ int main() {
 
 fn main() {
     println!("fib(10) = {}", fib(10));
-}"#.to_string(),
+}"#
+                .to_string(),
             },
             PlaygroundExample {
                 id: "env-reader".to_string(),
@@ -328,7 +327,8 @@ fn main() {
     for (key, value) in std::env::vars() {
         println!("{key}={value}");
     }
-}"#.to_string(),
+}"#
+                .to_string(),
             },
             PlaygroundExample {
                 id: "json-processor".to_string(),
@@ -341,7 +341,8 @@ fn main() {
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input).unwrap();
     println!("Received {} bytes of input", input.len());
-}"#.to_string(),
+}"#
+                .to_string(),
             },
         ]
     }
@@ -360,8 +361,7 @@ mod tests {
 
     #[test]
     fn test_builder_creates_valid_request() {
-        let req = PlaygroundRequest::builder("test-1", vec![0x00, 0x61, 0x73, 0x6d])
-            .build();
+        let req = PlaygroundRequest::builder("test-1", vec![0x00, 0x61, 0x73, 0x6d]).build();
 
         assert_eq!(req.source_id, "test-1");
         assert_eq!(req.wasm_bytes, vec![0x00, 0x61, 0x73, 0x6d]);
@@ -369,8 +369,7 @@ mod tests {
 
     #[test]
     fn test_default_values() {
-        let req = PlaygroundRequest::builder("test-2", vec![1, 2, 3])
-            .build();
+        let req = PlaygroundRequest::builder("test-2", vec![1, 2, 3]).build();
 
         assert!(req.stdin.is_empty());
         assert!(req.language.is_none());
@@ -411,10 +410,7 @@ mod tests {
         assert_eq!(ExecutionStatus::NonZeroExit(1).to_string(), "NonZeroExit(1)");
         assert_eq!(ExecutionStatus::Timeout.to_string(), "Timeout");
         assert_eq!(ExecutionStatus::MemoryExceeded.to_string(), "MemoryExceeded");
-        assert_eq!(
-            ExecutionStatus::Error("oops".to_string()).to_string(),
-            "Error: oops"
-        );
+        assert_eq!(ExecutionStatus::Error("oops".to_string()).to_string(), "Error: oops");
     }
 
     #[test]
@@ -438,8 +434,7 @@ mod tests {
     #[tokio::test]
     async fn test_executor_with_hello_wasm() {
         let executor = PlaygroundExecutor::new(2);
-        let request = PlaygroundRequest::builder("hello-test", HELLO_WASM.to_vec())
-            .build();
+        let request = PlaygroundRequest::builder("hello-test", HELLO_WASM.to_vec()).build();
 
         let response = executor.execute(request).await.expect("execution should succeed");
 
@@ -456,8 +451,7 @@ mod tests {
     #[tokio::test]
     async fn test_executor_with_exit_42_wasm() {
         let executor = PlaygroundExecutor::new(2);
-        let request = PlaygroundRequest::builder("exit42-test", EXIT_42_WASM.to_vec())
-            .build();
+        let request = PlaygroundRequest::builder("exit42-test", EXIT_42_WASM.to_vec()).build();
 
         let response = executor.execute(request).await.expect("execution should succeed");
 
@@ -474,11 +468,9 @@ mod tests {
         for i in 0..4 {
             let exec = executor.clone();
             let handle = tokio::spawn(async move {
-                let request = PlaygroundRequest::builder(
-                    format!("concurrent-{}", i),
-                    HELLO_WASM.to_vec(),
-                )
-                .build();
+                let request =
+                    PlaygroundRequest::builder(format!("concurrent-{}", i), HELLO_WASM.to_vec())
+                        .build();
                 exec.execute(request).await
             });
             handles.push(handle);

@@ -10,8 +10,6 @@
 //! - **Anomaly Detection**: Detect unusual execution patterns
 //! - **Recommendations**: Suggest optimizations based on collected data
 
-
-
 #![allow(missing_docs)]
 pub mod anomaly;
 pub mod collector;
@@ -19,10 +17,10 @@ pub mod instrumentation;
 pub mod recommendations;
 pub mod timeseries;
 
-pub use anomaly::{AnomalyDetector, Anomaly, AnomalyType, AnomalySeverity};
-pub use instrumentation::{InstrumentationPoint, ExecutionMetrics, MetricsCollector};
+pub use anomaly::{Anomaly, AnomalyDetector, AnomalySeverity, AnomalyType};
+pub use instrumentation::{ExecutionMetrics, InstrumentationPoint, MetricsCollector};
 pub use recommendations::{Recommendation, RecommendationEngine, RecommendationType};
-pub use timeseries::{TimeSeriesStore, MetricPoint, MetricQuery, MetricAggregation};
+pub use timeseries::{MetricAggregation, MetricPoint, MetricQuery, TimeSeriesStore};
 
 #[cfg(test)]
 mod tests {

@@ -22,10 +22,7 @@ pub struct HostFnRegistry {
 impl HostFnRegistry {
     /// Create a new empty registry builder.
     pub fn new() -> Self {
-        Self {
-            inner: HostFunctions::new(),
-            descriptors: Vec::new(),
-        }
+        Self { inner: HostFunctions::new(), descriptors: Vec::new() }
     }
 
     /// Register a closure that takes `&[u8]` and returns `Result<Vec<u8>>`.
@@ -40,10 +37,7 @@ impl HostFnRegistry {
             input_schema: None,
             output_schema: None,
         });
-        self.inner.register(FnHostAdapter {
-            name,
-            func: Box::new(f),
-        });
+        self.inner.register(FnHostAdapter { name, func: Box::new(f) });
         self
     }
 
@@ -127,10 +121,7 @@ impl HostFnRegistry {
             input_schema: None,
             output_schema: None,
         });
-        self.inner.register(FnHostAdapter {
-            name,
-            func: Box::new(f),
-        });
+        self.inner.register(FnHostAdapter { name, func: Box::new(f) });
         self
     }
 
@@ -246,19 +237,13 @@ pub struct HostFnValidator {
 impl HostFnValidator {
     /// Create a new validator with the given maximum argument size in bytes.
     pub fn new(max_arg_size: usize) -> Self {
-        Self {
-            max_arg_size,
-            rate_counters: HashMap::new(),
-            rate_limits: HashMap::new(),
-        }
+        Self { max_arg_size, rate_counters: HashMap::new(), rate_limits: HashMap::new() }
     }
 
     /// Set a per-function call-count limit.
     pub fn set_rate_limit(&mut self, name: impl Into<String>, max_calls: u64) {
         let name = name.into();
-        self.rate_counters
-            .entry(name.clone())
-            .or_insert_with(|| Arc::new(AtomicU64::new(0)));
+        self.rate_counters.entry(name.clone()).or_insert_with(|| Arc::new(AtomicU64::new(0)));
         self.rate_limits.insert(name, max_calls);
     }
 
@@ -343,9 +328,8 @@ mod tests {
         }
 
         let mut registry = HostFnRegistry::new();
-        registry.register_json_fn("add", |input: AddInput| {
-            Ok(AddOutput { sum: input.a + input.b })
-        });
+        registry
+            .register_json_fn("add", |input: AddInput| Ok(AddOutput { sum: input.a + input.b }));
 
         let host = registry.build();
         let result = host.call("add", br#"{"a":3,"b":4}"#).unwrap();
@@ -371,9 +355,7 @@ mod tests {
     #[test]
     fn test_string_fn() {
         let mut registry = HostFnRegistry::new();
-        registry.register_string_fn("greet", |name: &str| {
-            Ok(format!("Hello, {name}!"))
-        });
+        registry.register_string_fn("greet", |name: &str| Ok(format!("Hello, {name}!")));
 
         let host = registry.build();
         let result = host.call("greet", b"World").unwrap();
@@ -434,9 +416,7 @@ mod tests {
     #[test]
     fn test_descriptor_listing() {
         let mut registry = HostFnRegistry::new();
-        registry
-            .register_fn("a", |_| Ok(vec![]))
-            .register_fn("b", |_| Ok(vec![]));
+        registry.register_fn("a", |_| Ok(vec![])).register_fn("b", |_| Ok(vec![]));
 
         let names: Vec<&str> = registry.descriptors().iter().map(|d| d.name.as_str()).collect();
         assert_eq!(names, vec!["a", "b"]);

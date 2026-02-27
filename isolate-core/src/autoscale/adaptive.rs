@@ -42,10 +42,10 @@ impl Default for AdaptiveConfig {
             min_samples: 10,
             max_reduction_pct: 0.5,
             max_increase_multiplier: 2.0,
-            floor_memory_bytes: 16 * 1024 * 1024,         // 16MB
+            floor_memory_bytes: 16 * 1024 * 1024, // 16MB
             floor_fuel: 100_000,
             floor_timeout_s: 1,
-            ceiling_memory_bytes: 4 * 1024 * 1024 * 1024,  // 4GB
+            ceiling_memory_bytes: 4 * 1024 * 1024 * 1024, // 4GB
             ceiling_fuel: 1_000_000_000,
             ceiling_timeout_s: 3600,
         }
@@ -114,10 +114,7 @@ impl Histogram {
     }
 
     fn max(&self) -> f64 {
-        self.values
-            .iter()
-            .cloned()
-            .fold(f64::NEG_INFINITY, f64::max)
+        self.values.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
     }
 }
 
@@ -176,18 +173,13 @@ impl ModuleHistograms {
 impl AdaptiveTuner {
     /// Create a new adaptive tuner with the given configuration.
     pub fn new(config: AdaptiveConfig) -> Self {
-        Self {
-            config,
-            modules: parking_lot::Mutex::new(HashMap::new()),
-        }
+        Self { config, modules: parking_lot::Mutex::new(HashMap::new()) }
     }
 
     /// Record an execution sample for a module.
     pub fn record_sample(&self, module_id: &str, sample: ExecutionSample) {
         let mut modules = self.modules.lock();
-        let hist = modules
-            .entry(module_id.to_string())
-            .or_insert_with(ModuleHistograms::new);
+        let hist = modules.entry(module_id.to_string()).or_insert_with(ModuleHistograms::new);
 
         hist.memory.add(sample.peak_memory_bytes as f64);
         hist.fuel.add(sample.fuel_consumed as f64);
@@ -199,11 +191,7 @@ impl AdaptiveTuner {
     }
 
     /// Compute tuning recommendations for a module based on collected data.
-    pub fn recommend(
-        &self,
-        module_id: &str,
-        current: &TunedLimits,
-    ) -> TuningRecommendation {
+    pub fn recommend(&self, module_id: &str, current: &TunedLimits) -> TuningRecommendation {
         let modules = self.modules.lock();
         let hist = match modules.get(module_id) {
             Some(h) => h,
@@ -230,8 +218,8 @@ impl AdaptiveTuner {
         let mut new_limits = current.clone();
 
         // Tune memory
-        let mem_target = hist.memory.percentile(self.config.target_percentile)
-            * self.config.headroom_multiplier;
+        let mem_target =
+            hist.memory.percentile(self.config.target_percentile) * self.config.headroom_multiplier;
         let new_mem = self.apply_guardrails_u64(
             current.memory_bytes,
             mem_target as u64,
@@ -254,8 +242,8 @@ impl AdaptiveTuner {
         }
 
         // Tune fuel
-        let fuel_target = hist.fuel.percentile(self.config.target_percentile)
-            * self.config.headroom_multiplier;
+        let fuel_target =
+            hist.fuel.percentile(self.config.target_percentile) * self.config.headroom_multiplier;
         let new_fuel = self.apply_guardrails_u64(
             current.fuel,
             fuel_target as u64,
@@ -302,8 +290,7 @@ impl AdaptiveTuner {
         }
 
         // If executions are hitting limits, ensure we increase
-        let hit_rate =
-            hist.limit_hits as f64 / hist.total_samples as f64;
+        let hit_rate = hist.limit_hits as f64 / hist.total_samples as f64;
         if hit_rate > 0.1 {
             // >10% hitting limits — ensure headroom
             if new_limits.memory_bytes <= current.memory_bytes {
@@ -359,13 +346,11 @@ impl AdaptiveTuner {
         let mut result = target;
 
         // Apply max reduction
-        let min_allowed =
-            (current as f64 * (1.0 - self.config.max_reduction_pct)) as u64;
+        let min_allowed = (current as f64 * (1.0 - self.config.max_reduction_pct)) as u64;
         result = result.max(min_allowed);
 
         // Apply max increase
-        let max_allowed =
-            (current as f64 * self.config.max_increase_multiplier) as u64;
+        let max_allowed = (current as f64 * self.config.max_increase_multiplier) as u64;
         result = result.min(max_allowed);
 
         // Apply absolute floor and ceiling
@@ -392,10 +377,7 @@ mod tests {
     use super::*;
 
     fn make_config() -> AdaptiveConfig {
-        AdaptiveConfig {
-            min_samples: 5,
-            ..Default::default()
-        }
+        AdaptiveConfig { min_samples: 5, ..Default::default() }
     }
 
     fn make_sample(mem_mb: u64, fuel: u64, time_s: f64) -> ExecutionSample {
@@ -439,11 +421,8 @@ mod tests {
             tuner.record_sample("mod-1", make_sample(50, 500_000, 2.0));
         }
 
-        let current = TunedLimits {
-            memory_bytes: 256 * 1024 * 1024,
-            fuel: 10_000_000,
-            timeout_s: 60,
-        };
+        let current =
+            TunedLimits { memory_bytes: 256 * 1024 * 1024, fuel: 10_000_000, timeout_s: 60 };
 
         let rec = tuner.recommend("mod-1", &current);
         assert!(!rec.changed);
@@ -484,11 +463,8 @@ mod tests {
             tuner.record_sample("mod-1", make_sample(1, 100, 0.01));
         }
 
-        let current = TunedLimits {
-            memory_bytes: 64 * 1024 * 1024,
-            fuel: 1_000_000,
-            timeout_s: 30,
-        };
+        let current =
+            TunedLimits { memory_bytes: 64 * 1024 * 1024, fuel: 1_000_000, timeout_s: 30 };
 
         let rec = tuner.recommend("mod-1", &current);
         assert!(rec.limits.memory_bytes >= 32 * 1024 * 1024);
@@ -505,11 +481,8 @@ mod tests {
             tuner.record_sample("mod-1", make_sample(400, 50_000_000, 100.0));
         }
 
-        let current = TunedLimits {
-            memory_bytes: 256 * 1024 * 1024,
-            fuel: 10_000_000,
-            timeout_s: 60,
-        };
+        let current =
+            TunedLimits { memory_bytes: 256 * 1024 * 1024, fuel: 10_000_000, timeout_s: 60 };
 
         let rec = tuner.recommend("mod-1", &current);
         assert!(rec.limits.memory_bytes <= 512 * 1024 * 1024);
@@ -521,19 +494,18 @@ mod tests {
 
         // Most executions hitting limits
         for _ in 0..10 {
-            tuner.record_sample("mod-1", ExecutionSample {
-                peak_memory_bytes: 100 * 1024 * 1024,
-                fuel_consumed: 500_000,
-                wall_time_s: 2.0,
-                hit_limit: true,
-            });
+            tuner.record_sample(
+                "mod-1",
+                ExecutionSample {
+                    peak_memory_bytes: 100 * 1024 * 1024,
+                    fuel_consumed: 500_000,
+                    wall_time_s: 2.0,
+                    hit_limit: true,
+                },
+            );
         }
 
-        let current = TunedLimits {
-            memory_bytes: 100 * 1024 * 1024,
-            fuel: 500_000,
-            timeout_s: 2,
-        };
+        let current = TunedLimits { memory_bytes: 100 * 1024 * 1024, fuel: 500_000, timeout_s: 2 };
 
         let rec = tuner.recommend("mod-1", &current);
         assert!(rec.changed);
@@ -560,11 +532,8 @@ mod tests {
         let tuner = AdaptiveTuner::new(make_config());
         assert!(tuner.module_stats("unknown").is_none());
 
-        let current = TunedLimits {
-            memory_bytes: 128 * 1024 * 1024,
-            fuel: 1_000_000,
-            timeout_s: 30,
-        };
+        let current =
+            TunedLimits { memory_bytes: 128 * 1024 * 1024, fuel: 1_000_000, timeout_s: 30 };
         let rec = tuner.recommend("unknown", &current);
         assert!(!rec.changed);
     }
@@ -602,15 +571,20 @@ mod tests {
 
         let current = TunedLimits {
             memory_bytes: 120 * 1024 * 1024, // Close to actual usage * headroom
-            fuel: 1_200_000,                  // Close to actual * headroom
-            timeout_s: 7,                      // Close to actual * headroom
+            fuel: 1_200_000,                 // Close to actual * headroom
+            timeout_s: 7,                    // Close to actual * headroom
         };
 
         let rec = tuner.recommend("mod-1", &current);
         // Changes should be minimal since current is already well-tuned
         for change in &rec.changes {
             let pct_change = ((change.new_value - change.old_value) / change.old_value).abs();
-            assert!(pct_change < 0.5, "change too large for {}: {:.0}%", change.resource, pct_change * 100.0);
+            assert!(
+                pct_change < 0.5,
+                "change too large for {}: {:.0}%",
+                change.resource,
+                pct_change * 100.0
+            );
         }
     }
 }

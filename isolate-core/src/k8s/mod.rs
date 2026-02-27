@@ -70,16 +70,16 @@ pub use disaster_recovery::{
 
 // Re-export observability types
 pub use observability::{
-    AlertRule, AlertRuleSet, GrafanaDashboard, MetricDefinition, MetricType,
-    PrometheusExporter, PrometheusOperatorMetrics,
+    AlertRule, AlertRuleSet, GrafanaDashboard, MetricDefinition, MetricType, PrometheusExporter,
+    PrometheusOperatorMetrics,
 };
 
 // Re-export IsolateSandbox CRD types
 pub use isolate_sandbox::{
-    AutoScalingSpec, IsolateConfigMapKeyRef, IsolateEnvVar, IsolateEnvVarSource,
-    IsolateModuleSource, IsolateObjectMeta, IsolateSandbox, IsolateSandboxCondition,
-    IsolateSandboxPhase, IsolateSandboxSpec, IsolateSandboxStatus, IsolateSecretKeyRef,
-    K8sResourceSpec, isolate_sandbox_crd_yaml, parse_capability,
+    isolate_sandbox_crd_yaml, parse_capability, AutoScalingSpec, IsolateConfigMapKeyRef,
+    IsolateEnvVar, IsolateEnvVarSource, IsolateModuleSource, IsolateObjectMeta, IsolateSandbox,
+    IsolateSandboxCondition, IsolateSandboxPhase, IsolateSandboxSpec, IsolateSandboxStatus,
+    IsolateSecretKeyRef, K8sResourceSpec,
 };
 
 /// Kubernetes API version for Isolate CRDs.

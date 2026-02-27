@@ -58,8 +58,6 @@
 //! # }
 //! ```
 
-
-
 #![allow(missing_docs)]
 mod executor;
 mod provider;

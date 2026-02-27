@@ -8,7 +8,6 @@
 //! - Plan/apply workflow support
 //! - Import existing resources into IaC state
 
-
 #![allow(missing_docs)]
 pub mod declarative;
 pub mod plan;
@@ -16,8 +15,8 @@ pub mod resource;
 pub mod state;
 
 pub use declarative::{
-    ConfigError, ConfigLoader, EnvironmentOverride, ResourceSpec, SandboxFile, SandboxSpec,
-    parse_duration, parse_size,
+    parse_duration, parse_size, ConfigError, ConfigLoader, EnvironmentOverride, ResourceSpec,
+    SandboxFile, SandboxSpec,
 };
 pub use plan::{
     ActionType, ApplyError, ApplyResult, ExecutionPlan, PlanBuilder, PlanSummary, PlannedAction,

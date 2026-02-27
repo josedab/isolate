@@ -16,12 +16,7 @@ pub struct ForecastConfig {
 
 impl Default for ForecastConfig {
     fn default() -> Self {
-        Self {
-            alpha: 0.3,
-            trend_weight: 0.5,
-            min_samples: 5,
-            safety_margin: 1.2,
-        }
+        Self { alpha: 0.3, trend_weight: 0.5, min_samples: 5, safety_margin: 1.2 }
     }
 }
 
@@ -126,11 +121,7 @@ impl DemandForecaster {
         // Stability factor: low coefficient of variation = high stability
         let mean = values.iter().sum::<f64>() / n as f64;
         let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n as f64;
-        let cv = if mean > 0.0 {
-            variance.sqrt() / mean
-        } else {
-            1.0
-        };
+        let cv = if mean > 0.0 { variance.sqrt() / mean } else { 1.0 };
         let stability_factor = (1.0 - cv.min(1.0)).max(0.0);
 
         (volume_factor * 0.5 + stability_factor * 0.5).clamp(0.0, 1.0)
@@ -224,12 +215,8 @@ mod tests {
 
     #[test]
     fn test_custom_config() {
-        let config = ForecastConfig {
-            alpha: 0.5,
-            trend_weight: 0.7,
-            min_samples: 3,
-            safety_margin: 1.5,
-        };
+        let config =
+            ForecastConfig { alpha: 0.5, trend_weight: 0.7, min_samples: 3, safety_margin: 1.5 };
         let forecaster = DemandForecaster::new(config);
         let ring = ring_with_steady_load(50.0, 10);
         let forecast = forecaster.predict(&ring);

@@ -20,10 +20,7 @@ pub struct FunctionId {
 impl FunctionId {
     /// Create a new function identifier.
     pub fn new(module: impl Into<String>, name: impl Into<String>) -> Self {
-        Self {
-            module: module.into(),
-            name: name.into(),
-        }
+        Self { module: module.into(), name: name.into() }
     }
 
     /// Display name for flamegraph output.
@@ -198,11 +195,7 @@ impl WasmProfiler {
     }
 
     /// Record a function call with its metrics.
-    pub fn record_function_call(
-        &self,
-        func_name: &str,
-        metrics: FunctionCallMetrics,
-    ) {
+    pub fn record_function_call(&self, func_name: &str, metrics: FunctionCallMetrics) {
         let mut funcs = self.functions.lock();
         let profile = funcs.entry(func_name.to_string()).or_default();
         profile.call_count += 1;
@@ -277,7 +270,8 @@ impl WasmProfiler {
         hot_functions.sort_by(|a, b| b.self_time_us.cmp(&a.self_time_us));
         hot_functions.truncate(20); // Top 20
 
-        let suggestions = Self::generate_suggestions(&functions, total_duration, total_fuel, peak_memory);
+        let suggestions =
+            Self::generate_suggestions(&functions, total_duration, total_fuel, peak_memory);
 
         ExecutionProfileReport {
             module_id: self.module_id.clone(),
@@ -297,12 +291,8 @@ impl WasmProfiler {
         let mut stack_counts: HashMap<String, u64> = HashMap::new();
 
         for sample in samples.iter() {
-            let stack: String = sample
-                .frames
-                .iter()
-                .map(|f| f.display_name())
-                .collect::<Vec<_>>()
-                .join(";");
+            let stack: String =
+                sample.frames.iter().map(|f| f.display_name()).collect::<Vec<_>>().join(";");
 
             if !stack.is_empty() {
                 *stack_counts.entry(stack).or_insert(0) += 1;
@@ -319,11 +309,7 @@ impl WasmProfiler {
 
     /// Render flamegraph entries as folded stack text.
     pub fn render_flamegraph_folded(entries: &[FlamegraphEntry]) -> String {
-        entries
-            .iter()
-            .map(|e| format!("{} {}", e.stack, e.count))
-            .collect::<Vec<_>>()
-            .join("\n")
+        entries.iter().map(|e| format!("{} {}", e.stack, e.count)).collect::<Vec<_>>().join("\n")
     }
 
     fn categorize_hotspot(profile: &FunctionProfile, total_duration: u64) -> HotspotCategory {
@@ -334,8 +320,7 @@ impl WasmProfiler {
         };
 
         let io_ratio = if profile.fuel_consumed > 0 {
-            (profile.io_bytes_read + profile.io_bytes_written) as f64
-                / profile.fuel_consumed as f64
+            (profile.io_bytes_read + profile.io_bytes_written) as f64 / profile.fuel_consumed as f64
         } else {
             0.0
         };
@@ -451,7 +436,14 @@ pub struct FlamegraphEntry {
 mod tests {
     use super::*;
 
-    fn metrics(total_time_us: u64, self_time_us: u64, fuel: u64, memory_alloc: u64, io_read: u64, io_write: u64) -> FunctionCallMetrics {
+    fn metrics(
+        total_time_us: u64,
+        self_time_us: u64,
+        fuel: u64,
+        memory_alloc: u64,
+        io_read: u64,
+        io_write: u64,
+    ) -> FunctionCallMetrics {
         FunctionCallMetrics { total_time_us, self_time_us, fuel, memory_alloc, io_read, io_write }
     }
 
@@ -526,14 +518,8 @@ mod tests {
     #[test]
     fn test_flamegraph_render() {
         let entries = vec![
-            FlamegraphEntry {
-                stack: "main;helper".into(),
-                count: 5,
-            },
-            FlamegraphEntry {
-                stack: "main;io".into(),
-                count: 3,
-            },
+            FlamegraphEntry { stack: "main;helper".into(), count: 5 },
+            FlamegraphEntry { stack: "main;io".into(), count: 3 },
         ];
 
         let rendered = WasmProfiler::render_flamegraph_folded(&entries);
@@ -573,14 +559,12 @@ mod tests {
         let profiler = WasmProfiler::new("test");
 
         // Single function consuming "most" of the time
-        profiler.record_function_call("bottleneck", metrics(1_000_000, 1_000_000, 50_000_000, 0, 0, 0));
+        profiler
+            .record_function_call("bottleneck", metrics(1_000_000, 1_000_000, 50_000_000, 0, 0, 0));
 
         let report = profiler.finish();
         // Should have a CPU suggestion
-        assert!(report
-            .suggestions
-            .iter()
-            .any(|s| s.category == "cpu" && s.function.is_some()));
+        assert!(report.suggestions.iter().any(|s| s.category == "cpu" && s.function.is_some()));
     }
 
     #[test]
@@ -593,10 +577,7 @@ mod tests {
         );
 
         let report = profiler.finish();
-        assert!(report
-            .suggestions
-            .iter()
-            .any(|s| s.category == "memory" && s.function.is_some()));
+        assert!(report.suggestions.iter().any(|s| s.category == "memory" && s.function.is_some()));
     }
 
     #[test]

@@ -74,6 +74,16 @@ pub fn print_banner() {
     println!("  {}  v{}\n", "Secure Sandbox Runtime".dimmed(), env!("CARGO_PKG_VERSION"));
 }
 
+pub fn create_spinner(msg: &str) -> ProgressBar {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.cyan} {msg}").unwrap().tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+    );
+    pb.set_message(msg.to_string());
+    pb.enable_steady_tick(Duration::from_millis(100));
+    pb
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -195,14 +205,4 @@ mod tests {
         // u64::MAX = 18,446,744,073,709,551,615
         assert!(result.starts_with("18,446,744,073,709,551,615"));
     }
-}
-
-pub fn create_spinner(msg: &str) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.cyan} {msg}").unwrap().tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
-    pb.set_message(msg.to_string());
-    pb.enable_steady_tick(Duration::from_millis(100));
-    pb
 }

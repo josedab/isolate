@@ -223,11 +223,7 @@ impl InputSummary {
             serde_json::Value::Object(map) => map.keys().cloned().collect(),
             _ => Vec::new(),
         };
-        Self {
-            size_bytes,
-            content_type: "application/json".to_string(),
-            schema_keys,
-        }
+        Self { size_bytes, content_type: "application/json".to_string(), schema_keys }
     }
 }
 
@@ -290,7 +286,9 @@ impl TraceBuilder {
 
         let root_span = TraceSpan::new(tool_name, SpanKind::ToolCall)
             .with_duration(total_duration)
-            .with_status(if output.success() { SpanStatus::Ok } else {
+            .with_status(if output.success() {
+                SpanStatus::Ok
+            } else {
                 SpanStatus::Error(output.stderr.clone())
             })
             .with_attr("exit_code", output.exit_code.to_string());
@@ -344,10 +342,7 @@ impl TraceStore {
 
     /// Get traces for a specific tool.
     pub fn for_tool(&self, tool_name: &str) -> Vec<&ExecutionTrace> {
-        self.traces
-            .iter()
-            .filter(|t| t.root_span.name == tool_name)
-            .collect()
+        self.traces.iter().filter(|t| t.root_span.name == tool_name).collect()
     }
 
     /// Get traces that exceeded their budget.
@@ -379,11 +374,8 @@ impl TraceStore {
     pub fn stats(&self) -> TraceStats {
         let total = self.traces.len();
         let succeeded = self.traces.iter().filter(|t| !t.budget_exceeded).count();
-        let avg_duration = if total > 0 {
-            self.total_duration() / total as u32
-        } else {
-            Duration::ZERO
-        };
+        let avg_duration =
+            if total > 0 { self.total_duration() / total as u32 } else { Duration::ZERO };
 
         TraceStats {
             total_traces: total,
@@ -427,12 +419,11 @@ mod tests {
     fn test_trace_span_tree() {
         let child1 = TraceSpan::new("compile", SpanKind::Compilation)
             .with_duration(Duration::from_millis(10));
-        let child2 = TraceSpan::new("execute", SpanKind::Execution)
-            .with_duration(Duration::from_millis(50));
+        let child2 =
+            TraceSpan::new("execute", SpanKind::Execution).with_duration(Duration::from_millis(50));
 
-        let root = TraceSpan::new("tool-call", SpanKind::ToolCall)
-            .with_child(child1)
-            .with_child(child2);
+        let root =
+            TraceSpan::new("tool-call", SpanKind::ToolCall).with_child(child1).with_child(child2);
 
         assert_eq!(root.depth(), 2);
         assert_eq!(root.span_count(), 3);
@@ -448,16 +439,10 @@ mod tests {
     #[test]
     fn test_resource_budget_exceeded() {
         let budget = ResourceBudget::default().with_fuel(1000);
-        let usage = ResourceUsageSummary {
-            fuel_consumed: 2000,
-            ..Default::default()
-        };
+        let usage = ResourceUsageSummary { fuel_consumed: 2000, ..Default::default() };
         assert!(budget.is_exceeded(&usage));
 
-        let within = ResourceUsageSummary {
-            fuel_consumed: 500,
-            ..Default::default()
-        };
+        let within = ResourceUsageSummary { fuel_consumed: 500, ..Default::default() };
         assert!(!budget.is_exceeded(&within));
     }
 

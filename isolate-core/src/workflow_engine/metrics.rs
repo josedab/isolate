@@ -93,20 +93,34 @@ impl MetricsCollector {
     }
 
     /// Start timing a stage.
-    pub fn begin_stage(&mut self, stage_id: impl Into<String>, stage_name: impl Into<String>, input_size_bytes: usize) {
+    pub fn begin_stage(
+        &mut self,
+        stage_id: impl Into<String>,
+        stage_name: impl Into<String>,
+        input_size_bytes: usize,
+    ) {
         let id = stage_id.into();
-        self.active_stages.insert(id.clone(), ActiveStage {
-            stage_id: id,
-            stage_name: stage_name.into(),
-            start: Instant::now(),
-            input_size_bytes,
-            fuel_consumed: None,
-            retry_count: 0,
-        });
+        self.active_stages.insert(
+            id.clone(),
+            ActiveStage {
+                stage_id: id,
+                stage_name: stage_name.into(),
+                start: Instant::now(),
+                input_size_bytes,
+                fuel_consumed: None,
+                retry_count: 0,
+            },
+        );
     }
 
     /// Finish timing a stage and record its output.
-    pub fn end_stage(&mut self, stage_id: &str, output_size_bytes: usize, success: bool, error: Option<String>) {
+    pub fn end_stage(
+        &mut self,
+        stage_id: &str,
+        output_size_bytes: usize,
+        success: bool,
+        error: Option<String>,
+    ) {
         if let Some(active) = self.active_stages.remove(stage_id) {
             let end = Instant::now();
             let duration = end.duration_since(active.start);
@@ -146,16 +160,14 @@ impl MetricsCollector {
     /// Finalize collection and produce aggregate pipeline metrics.
     pub fn finalize(self) -> PipelineMetrics {
         let total_duration = self.pipeline_start.elapsed();
-        let total_fuel_consumed: u64 = self.completed_stages.iter()
-            .filter_map(|s| s.fuel_consumed)
-            .sum();
+        let total_fuel_consumed: u64 =
+            self.completed_stages.iter().filter_map(|s| s.fuel_consumed).sum();
         let succeeded_count = self.completed_stages.iter().filter(|s| s.success).count();
         let failed_count = self.completed_stages.iter().filter(|s| !s.success).count();
         let stage_count = self.completed_stages.len();
 
-        let total_output_bytes: usize = self.completed_stages.iter()
-            .map(|s| s.output_size_bytes)
-            .sum();
+        let total_output_bytes: usize =
+            self.completed_stages.iter().map(|s| s.output_size_bytes).sum();
         let throughput_bytes_per_sec = if total_duration.as_secs_f64() > 0.0 {
             total_output_bytes as f64 / total_duration.as_secs_f64()
         } else {
@@ -183,9 +195,7 @@ pub struct MetricsAwareExecutor {
 
 impl MetricsAwareExecutor {
     pub fn new() -> Self {
-        Self {
-            executor: WorkflowExecutor::new(),
-        }
+        Self { executor: WorkflowExecutor::new() }
     }
 
     /// Execute a workflow and return both the execution result and pipeline metrics.
@@ -238,7 +248,8 @@ impl MetricsAwareExecutor {
                     collector.record_retry(node_id);
                     let retry = self.executor.execute_node(node_id, &node.kind, &node_input);
                     if retry.success {
-                        let output_bytes = serde_json::to_string(&retry.data).unwrap_or_default().len();
+                        let output_bytes =
+                            serde_json::to_string(&retry.data).unwrap_or_default().len();
                         collector.end_stage(node_id, output_bytes, true, None);
                         outputs.insert(node_id.clone(), retry.data.clone());
                         nodes_executed += 1;
@@ -257,11 +268,8 @@ impl MetricsAwareExecutor {
             node_outputs.push(result);
         }
 
-        let final_output = order
-            .last()
-            .and_then(|id| outputs.get(id))
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
+        let final_output =
+            order.last().and_then(|id| outputs.get(id)).cloned().unwrap_or(serde_json::Value::Null);
 
         let status = if has_failure && nodes_executed == 0 {
             ExecutionStatus::Failed
@@ -585,12 +593,14 @@ mod tests {
     #[test]
     fn test_metrics_aware_executor_chain() {
         let wf = WorkflowBuilder::new("chain")
-            .add_node(Node::new("extract", NodeKind::Transform {
-                transform: TransformFn::JsonPath("$.name".into()),
-            }))
-            .add_node(Node::new("identity", NodeKind::Transform {
-                transform: TransformFn::Identity,
-            }))
+            .add_node(Node::new(
+                "extract",
+                NodeKind::Transform { transform: TransformFn::JsonPath("$.name".into()) },
+            ))
+            .add_node(Node::new(
+                "identity",
+                NodeKind::Transform { transform: TransformFn::Identity },
+            ))
             .add_edge("extract", "identity")
             .unwrap()
             .build()
@@ -611,10 +621,10 @@ mod tests {
     #[test]
     fn test_metrics_aware_executor_sandbox_records_fuel() {
         let wf = WorkflowBuilder::new("sandbox-metrics")
-            .add_node(Node::new("run", NodeKind::Sandbox {
-                module_name: "test.wasm".into(),
-                fuel_limit: 100_000,
-            }))
+            .add_node(Node::new(
+                "run",
+                NodeKind::Sandbox { module_name: "test.wasm".into(), fuel_limit: 100_000 },
+            ))
             .build()
             .unwrap();
 
@@ -630,19 +640,26 @@ mod tests {
     fn test_metrics_aware_executor_diamond() {
         let wf = WorkflowBuilder::new("diamond")
             .add_node(Node::new("start", NodeKind::Passthrough))
-            .add_node(Node::new("left", NodeKind::Transform {
-                transform: TransformFn::JsonPath("$.a".into()),
-            }))
-            .add_node(Node::new("right", NodeKind::Transform {
-                transform: TransformFn::JsonPath("$.b".into()),
-            }))
-            .add_node(Node::new("merge", NodeKind::FanIn {
-                merge_strategy: MergeStrategy::Collect,
-            }))
-            .add_edge("start", "left").unwrap()
-            .add_edge("start", "right").unwrap()
-            .add_edge("left", "merge").unwrap()
-            .add_edge("right", "merge").unwrap()
+            .add_node(Node::new(
+                "left",
+                NodeKind::Transform { transform: TransformFn::JsonPath("$.a".into()) },
+            ))
+            .add_node(Node::new(
+                "right",
+                NodeKind::Transform { transform: TransformFn::JsonPath("$.b".into()) },
+            ))
+            .add_node(Node::new(
+                "merge",
+                NodeKind::FanIn { merge_strategy: MergeStrategy::Collect },
+            ))
+            .add_edge("start", "left")
+            .unwrap()
+            .add_edge("start", "right")
+            .unwrap()
+            .add_edge("left", "merge")
+            .unwrap()
+            .add_edge("right", "merge")
+            .unwrap()
             .build()
             .unwrap();
 

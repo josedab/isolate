@@ -65,11 +65,7 @@ struct CollectorInner {
 
 impl MetricsCollector {
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(CollectorInner {
-                metrics: RwLock::new(Vec::new()),
-            }),
-        }
+        Self { inner: Arc::new(CollectorInner { metrics: RwLock::new(Vec::new()) }) }
     }
 
     /// Record execution metrics.
@@ -79,11 +75,7 @@ impl MetricsCollector {
 
     /// Get metrics for a specific module.
     pub fn for_module(&self, module_name: &str) -> Vec<ExecutionMetrics> {
-        self.inner.metrics.read()
-            .iter()
-            .filter(|m| m.module_name == module_name)
-            .cloned()
-            .collect()
+        self.inner.metrics.read().iter().filter(|m| m.module_name == module_name).cloned().collect()
     }
 
     /// Get all collected metrics.

@@ -52,11 +52,7 @@ struct EvidenceCollectorInner {
 
 impl EvidenceCollector {
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(EvidenceCollectorInner {
-                evidence: RwLock::new(Vec::new()),
-            }),
-        }
+        Self { inner: Arc::new(EvidenceCollectorInner { evidence: RwLock::new(Vec::new()) }) }
     }
 
     /// Add evidence to the collection.
@@ -66,16 +62,14 @@ impl EvidenceCollector {
 
     /// Get all evidence for a specific control.
     pub fn for_control(&self, control_id: &str) -> Vec<Evidence> {
-        self.inner.evidence.read()
-            .iter()
-            .filter(|e| e.control_id == control_id)
-            .cloned()
-            .collect()
+        self.inner.evidence.read().iter().filter(|e| e.control_id == control_id).cloned().collect()
     }
 
     /// Get all evidence of a specific type.
     pub fn by_type(&self, evidence_type: EvidenceType) -> Vec<Evidence> {
-        self.inner.evidence.read()
+        self.inner
+            .evidence
+            .read()
             .iter()
             .filter(|e| e.evidence_type == evidence_type)
             .cloned()

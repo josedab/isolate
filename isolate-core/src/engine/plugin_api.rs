@@ -227,8 +227,8 @@ mod tests {
     fn test_plugin_registry_unprefixed() {
         let mut registry = PluginRegistry::new();
 
-        let plugin = HostPlugin::new("math", "1.0.0")
-            .function("add", "Add numbers", |_| Ok(vec![]));
+        let plugin =
+            HostPlugin::new("math", "1.0.0").function("add", "Add numbers", |_| Ok(vec![]));
 
         registry.install_unprefixed(plugin);
 
@@ -254,13 +254,9 @@ mod tests {
     fn test_multiple_plugins() {
         let mut registry = PluginRegistry::new();
 
+        registry.install(HostPlugin::new("math", "1.0.0").function("add", "Add", |_| Ok(vec![1])));
         registry.install(
-            HostPlugin::new("math", "1.0.0")
-                .function("add", "Add", |_| Ok(vec![1]))
-        );
-        registry.install(
-            HostPlugin::new("string", "2.0.0")
-                .function("upper", "Uppercase", |_| Ok(vec![2]))
+            HostPlugin::new("string", "2.0.0").function("upper", "Uppercase", |_| Ok(vec![2])),
         );
 
         assert_eq!(registry.plugin_count(), 2);
@@ -276,7 +272,7 @@ mod tests {
             HostPlugin::new("db", "1.0.0")
                 .description("Database access")
                 .author("team")
-                .requires_capability("filesystem:read")
+                .requires_capability("filesystem:read"),
         );
 
         let catalog = registry.catalog_json();

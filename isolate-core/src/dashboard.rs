@@ -87,7 +87,13 @@ impl DashboardState {
     }
 
     /// Record a run completion.
-    pub fn record_run(&self, id: &SandboxId, duration: Duration, usage: ResourceUsage, success: bool) {
+    pub fn record_run(
+        &self,
+        id: &SandboxId,
+        duration: Duration,
+        usage: ResourceUsage,
+        success: bool,
+    ) {
         if let Some(mut entry) = self.sandboxes.get_mut(id) {
             entry.run_count += 1;
             entry.last_run_duration = Some(duration);
@@ -96,11 +102,7 @@ impl DashboardState {
         if !success {
             self.counters.total_failed.fetch_add(1, Ordering::Relaxed);
         }
-        self.push_event(DashboardEvent::RunCompleted {
-            sandbox_id: *id,
-            duration,
-            success,
-        });
+        self.push_event(DashboardEvent::RunCompleted { sandbox_id: *id, duration, success });
     }
 
     /// Remove a sandbox from tracking.
@@ -198,16 +200,9 @@ pub enum DashboardEvent {
     /// A sandbox was terminated.
     SandboxTerminated { sandbox_id: SandboxId },
     /// A run completed.
-    RunCompleted {
-        sandbox_id: SandboxId,
-        duration: Duration,
-        success: bool,
-    },
+    RunCompleted { sandbox_id: SandboxId, duration: Duration, success: bool },
     /// An alert was triggered.
-    Alert {
-        level: AlertLevel,
-        message: String,
-    },
+    Alert { level: AlertLevel, message: String },
 }
 
 /// Alert severity levels.
@@ -232,11 +227,7 @@ pub struct AlertThresholds {
 
 impl Default for AlertThresholds {
     fn default() -> Self {
-        Self {
-            max_active_sandboxes: 500,
-            max_failure_rate: 0.1,
-            max_avg_duration_ms: 5_000,
-        }
+        Self { max_active_sandboxes: 500, max_failure_rate: 0.1, max_avg_duration_ms: 5_000 }
     }
 }
 
@@ -448,10 +439,7 @@ mod tests {
     #[test]
     fn test_alert_thresholds_active_sandboxes() {
         let dashboard = DashboardState::new(100);
-        let thresholds = AlertThresholds {
-            max_active_sandboxes: 1,
-            ..AlertThresholds::default()
-        };
+        let thresholds = AlertThresholds { max_active_sandboxes: 1, ..AlertThresholds::default() };
 
         let id1 = SandboxId::new();
         let id2 = SandboxId::new();
@@ -463,20 +451,15 @@ mod tests {
         dashboard.check_alerts(&thresholds);
 
         let events = dashboard.recent_events(100);
-        let alert_events: Vec<_> = events
-            .iter()
-            .filter(|e| matches!(e, DashboardEvent::Alert { .. }))
-            .collect();
+        let alert_events: Vec<_> =
+            events.iter().filter(|e| matches!(e, DashboardEvent::Alert { .. })).collect();
         assert!(!alert_events.is_empty());
     }
 
     #[test]
     fn test_alert_failure_rate() {
         let dashboard = DashboardState::new(100);
-        let thresholds = AlertThresholds {
-            max_failure_rate: 0.1,
-            ..AlertThresholds::default()
-        };
+        let thresholds = AlertThresholds { max_failure_rate: 0.1, ..AlertThresholds::default() };
 
         let id = SandboxId::new();
         dashboard.register_sandbox(id, "h".to_string());

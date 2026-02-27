@@ -3,7 +3,6 @@
 // This module is experimental and not all APIs are used yet.
 #![allow(dead_code)]
 
-
 use opentelemetry::{
     global,
     propagation::{Extractor, Injector},

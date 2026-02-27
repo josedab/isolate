@@ -93,11 +93,9 @@ impl OptimizationPass {
 
         let mut i = 0;
         while i + 2 < body.len() {
-            if let (
-                IRInstruction::Const(t1, a),
-                IRInstruction::Const(t2, b),
-                op,
-            ) = (&body[i], &body[i + 1], &body[i + 2]) {
+            if let (IRInstruction::Const(t1, a), IRInstruction::Const(t2, b), op) =
+                (&body[i], &body[i + 1], &body[i + 2])
+            {
                 if t1 == t2 {
                     let result = match op {
                         IRInstruction::Add(_) => Some(a.wrapping_add(*b)),
@@ -135,7 +133,14 @@ impl OptimizationPass {
                 found_return = true;
             }
             // Reset at block boundaries
-            if matches!(inst, IRInstruction::Block(_) | IRInstruction::Loop(_) | IRInstruction::If(_) | IRInstruction::Else | IRInstruction::End) {
+            if matches!(
+                inst,
+                IRInstruction::Block(_)
+                    | IRInstruction::Loop(_)
+                    | IRInstruction::If(_)
+                    | IRInstruction::Else
+                    | IRInstruction::End
+            ) {
                 found_return = false;
             }
         }
@@ -308,7 +313,7 @@ mod tests {
             IRInstruction::Const(IRType::I32, 42),
             IRInstruction::Return,
             IRInstruction::Const(IRType::I32, 99), // dead
-            IRInstruction::Call(1),                 // dead
+            IRInstruction::Call(1),                // dead
         ]);
 
         let (_, _, dead) = OptimizationPass::DeadCodeElimination.apply(&mut ir);
@@ -360,11 +365,7 @@ mod tests {
 
     #[test]
     fn test_pass_manager_none() {
-        let mut ir = make_ir(vec![
-            IRInstruction::Nop,
-            IRInstruction::Nop,
-            IRInstruction::Return,
-        ]);
+        let mut ir = make_ir(vec![IRInstruction::Nop, IRInstruction::Nop, IRInstruction::Return]);
 
         let mut pm = PassManager::new(OptimizationLevel::None);
         let stats = pm.run(&mut ir);

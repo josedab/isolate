@@ -41,21 +41,9 @@ pub struct PricingTier {
 impl PricingTier {
     pub fn standard_tiers() -> Vec<PricingTier> {
         vec![
-            PricingTier {
-                name: "Free".into(),
-                min_executions: 0,
-                discount_pct: 0.0,
-            },
-            PricingTier {
-                name: "Growth".into(),
-                min_executions: 10_000,
-                discount_pct: 10.0,
-            },
-            PricingTier {
-                name: "Scale".into(),
-                min_executions: 100_000,
-                discount_pct: 25.0,
-            },
+            PricingTier { name: "Free".into(), min_executions: 0, discount_pct: 0.0 },
+            PricingTier { name: "Growth".into(), min_executions: 10_000, discount_pct: 10.0 },
+            PricingTier { name: "Scale".into(), min_executions: 100_000, discount_pct: 25.0 },
             PricingTier {
                 name: "Enterprise".into(),
                 min_executions: 1_000_000,
@@ -66,10 +54,7 @@ impl PricingTier {
 
     /// Find the applicable tier for a given execution count.
     pub fn find_tier(tiers: &[PricingTier], executions: u64) -> Option<&PricingTier> {
-        tiers
-            .iter()
-            .rev()
-            .find(|t| executions >= t.min_executions)
+        tiers.iter().rev().find(|t| executions >= t.min_executions)
     }
 }
 
@@ -96,10 +81,7 @@ pub struct CostCalculator {
 
 impl CostCalculator {
     pub fn new(pricing: UnitPricing) -> Self {
-        Self {
-            pricing,
-            tiers: PricingTier::standard_tiers(),
-        }
+        Self { pricing, tiers: PricingTier::standard_tiers() }
     }
 
     pub fn with_tiers(mut self, tiers: Vec<PricingTier>) -> Self {
@@ -119,8 +101,7 @@ impl CostCalculator {
             (usage.total_bytes_written as f64 / (1024.0 * 1024.0 * 1024.0)) * p.cost_per_gb_write;
         let execution_cost =
             (usage.execution_count as f64 / 1000.0) * p.cost_per_thousand_executions;
-        let wall_time_cost =
-            (usage.total_wall_time_ms as f64 / 3_600_000.0) * p.cost_per_wall_hour;
+        let wall_time_cost = (usage.total_wall_time_ms as f64 / 3_600_000.0) * p.cost_per_wall_hour;
 
         let subtotal =
             fuel_cost + memory_cost + read_cost + write_cost + execution_cost + wall_time_cost;
@@ -156,7 +137,7 @@ mod tests {
             execution_count: 10_000,
             total_wall_time_ms: 3_600_000, // 1 hour
             total_fuel_consumed: 5_000_000,
-            total_bytes_read: 1024 * 1024 * 1024, // 1 GB
+            total_bytes_read: 1024 * 1024 * 1024,   // 1 GB
             total_bytes_written: 512 * 1024 * 1024, // 0.5 GB
             peak_memory_bytes: 128 * 1024 * 1024,
             first_execution_epoch_ms: 0,

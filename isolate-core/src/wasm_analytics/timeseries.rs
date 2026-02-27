@@ -80,14 +80,13 @@ pub struct TimeSeriesStore {
 
 impl TimeSeriesStore {
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self { inner: Arc::new(RwLock::new(HashMap::new())) }
     }
 
     /// Push a new data point.
     pub fn push(&self, metric_name: &str, value: f64, timestamp: u64) {
-        self.inner.write()
+        self.inner
+            .write()
             .entry(metric_name.to_string())
             .or_default()
             .push(MetricPoint { value, timestamp });
@@ -95,10 +94,12 @@ impl TimeSeriesStore {
 
     /// Query points in a time range.
     pub fn query(&self, metric_name: &str, start: u64, end: u64) -> Vec<MetricPoint> {
-        self.inner.read()
+        self.inner
+            .read()
             .get(metric_name)
             .map(|points| {
-                points.iter()
+                points
+                    .iter()
                     .filter(|p| p.timestamp >= start && p.timestamp <= end)
                     .cloned()
                     .collect()

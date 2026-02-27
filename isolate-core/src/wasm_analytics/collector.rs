@@ -311,7 +311,9 @@ impl MetricsCollector {
         lines.push("# TYPE isolate_sandboxes_created_total counter".to_string());
         lines.push(format!("isolate_sandboxes_created_total {}", s.total_created));
 
-        lines.push("# HELP isolate_executions_completed_total Total executions completed".to_string());
+        lines.push(
+            "# HELP isolate_executions_completed_total Total executions completed".to_string(),
+        );
         lines.push("# TYPE isolate_executions_completed_total counter".to_string());
         lines.push(format!("isolate_executions_completed_total {}", s.total_completed));
 
@@ -319,7 +321,9 @@ impl MetricsCollector {
         lines.push("# TYPE isolate_executions_failed_total counter".to_string());
         lines.push(format!("isolate_executions_failed_total {}", s.total_failed));
 
-        lines.push("# HELP isolate_execution_duration_seconds Average execution duration".to_string());
+        lines.push(
+            "# HELP isolate_execution_duration_seconds Average execution duration".to_string(),
+        );
         lines.push("# TYPE isolate_execution_duration_seconds gauge".to_string());
         lines.push(format!(
             "isolate_execution_duration_seconds{{quantile=\"avg\"}} {:.6}",

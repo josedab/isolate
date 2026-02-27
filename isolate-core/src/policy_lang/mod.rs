@@ -26,8 +26,8 @@
 //! ```
 
 #![allow(missing_docs)]
-mod eval;
 pub mod decision;
+mod eval;
 pub mod lint;
 mod parser;
 
@@ -40,7 +40,7 @@ pub use eval::{
     ConflictStrategy, FindingSeverity, PolicyComposer, PolicyEvaluator, ResolvedPolicy,
     VersionedPolicy,
 };
-pub use lint::{LintFinding, LintResult, LintSeverity, PolicyLinter, PolicyTest, run_policy_tests};
+pub use lint::{run_policy_tests, LintFinding, LintResult, LintSeverity, PolicyLinter, PolicyTest};
 pub use parser::{
     CapabilityBlock, NetworkBlock, ParseError, PolicyDocument, PolicyParser, ResourceBlock,
     SandboxPolicy,

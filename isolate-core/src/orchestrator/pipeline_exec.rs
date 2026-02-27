@@ -184,10 +184,7 @@ pub struct OrchestratedPipelineResult {
 impl OrchestratedPipelineResult {
     /// Get the output from the last successful stage.
     pub fn final_output(&self) -> Option<&StageExecutionRecord> {
-        self.stage_records
-            .iter()
-            .rev()
-            .find(|r| r.state == StageExecutionState::Completed)
+        self.stage_records.iter().rev().find(|r| r.state == StageExecutionState::Completed)
     }
 
     /// Get a summary string.
@@ -232,8 +229,7 @@ impl PipelineExecutionMetrics {
             self.total_failed.fetch_add(1, Ordering::Relaxed);
         }
         self.total_stages.fetch_add(result.stages_executed as u64, Ordering::Relaxed);
-        self.total_admission_denials
-            .fetch_add(result.admission_denials as u64, Ordering::Relaxed);
+        self.total_admission_denials.fetch_add(result.admission_denials as u64, Ordering::Relaxed);
         self.total_fuel.fetch_add(result.total_fuel_consumed, Ordering::Relaxed);
     }
 
@@ -358,9 +354,7 @@ impl OrchestratedPipelineExecutor {
         } else {
             format!(
                 "denied: {:?}",
-                decision.denial_reason.unwrap_or(
-                    super::admission::DenialReason::TenantNotFound
-                )
+                decision.denial_reason.unwrap_or(super::admission::DenialReason::TenantNotFound)
             )
         };
 
@@ -374,11 +368,7 @@ impl OrchestratedPipelineExecutor {
             fuel_consumed: 0,
             peak_memory: 0,
             retries: 0,
-            error: if !decision.admitted {
-                Some("Admission denied".to_string())
-            } else {
-                None
-            },
+            error: if !decision.admitted { Some("Admission denied".to_string()) } else { None },
         }
     }
 
@@ -398,11 +388,8 @@ impl OrchestratedPipelineExecutor {
 
         // Enforce fuel budget before planning
         if let Some(budget) = self.config.total_fuel_budget {
-            let total_fuel: u64 = pipeline
-                .stages
-                .values()
-                .filter_map(|s| s.config.resources.cpu.fuel)
-                .sum();
+            let total_fuel: u64 =
+                pipeline.stages.values().filter_map(|s| s.config.resources.cpu.fuel).sum();
             if total_fuel > budget {
                 return Err(Error::InvalidConfig(format!(
                     "Total estimated fuel {} exceeds budget {}",
@@ -451,11 +438,8 @@ impl OrchestratedPipelineExecutor {
         peak_memory: usize,
         duration: Duration,
     ) {
-        record.state = if success {
-            StageExecutionState::Completed
-        } else {
-            StageExecutionState::Failed
-        };
+        record.state =
+            if success { StageExecutionState::Completed } else { StageExecutionState::Failed };
         record.fuel_consumed = fuel_consumed;
         record.peak_memory = peak_memory;
         record.duration = Some(duration);
@@ -471,24 +455,15 @@ impl OrchestratedPipelineExecutor {
         let stages_executed = records
             .iter()
             .filter(|r| {
-                matches!(
-                    r.state,
-                    StageExecutionState::Completed | StageExecutionState::Failed
-                )
+                matches!(r.state, StageExecutionState::Completed | StageExecutionState::Failed)
             })
             .count();
-        let stages_failed = records
-            .iter()
-            .filter(|r| r.state == StageExecutionState::Failed)
-            .count();
-        let stages_skipped = records
-            .iter()
-            .filter(|r| r.state == StageExecutionState::Skipped)
-            .count();
-        let admission_denials = records
-            .iter()
-            .filter(|r| r.state == StageExecutionState::AdmissionDenied)
-            .count();
+        let stages_failed =
+            records.iter().filter(|r| r.state == StageExecutionState::Failed).count();
+        let stages_skipped =
+            records.iter().filter(|r| r.state == StageExecutionState::Skipped).count();
+        let admission_denials =
+            records.iter().filter(|r| r.state == StageExecutionState::AdmissionDenied).count();
         let total_fuel_consumed: u64 = records.iter().map(|r| r.fuel_consumed).sum();
         let total_peak_memory: usize = records.iter().map(|r| r.peak_memory).max().unwrap_or(0);
         let success = stages_failed == 0 && admission_denials == 0;
@@ -558,19 +533,13 @@ pub fn validate_pipeline_quota(
 
     if let Some(budget) = config.total_fuel_budget {
         if total_fuel > budget {
-            issues.push(format!(
-                "Estimated fuel {} exceeds budget {}",
-                total_fuel, budget
-            ));
+            issues.push(format!("Estimated fuel {} exceeds budget {}", total_fuel, budget));
         }
     }
 
     if let Some(budget) = config.total_memory_budget {
         if total_memory > budget {
-            issues.push(format!(
-                "Estimated memory {} exceeds budget {}",
-                total_memory, budget
-            ));
+            issues.push(format!("Estimated memory {} exceeds budget {}", total_memory, budget));
         }
     }
 
@@ -624,10 +593,10 @@ pub struct QuotaValidationResult {
 
 #[cfg(test)]
 mod tests {
+    use super::super::admission::QuotaBudget;
     use super::*;
     use crate::capability::Capability;
     use crate::pipeline::{PipelineDefinition, Stage};
-    use super::super::admission::QuotaBudget;
 
     const MINIMAL_WASM: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
@@ -677,9 +646,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("acme")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("acme").build();
         let executor = OrchestratedPipelineExecutor::new(config);
         let order = executor.plan(&pipeline).unwrap();
 
@@ -693,14 +660,9 @@ mod tests {
 
     #[test]
     fn test_executor_admit_stage_success() {
-        let pipeline = PipelineDefinition::builder()
-            .stage(make_stage("s1", 1000))
-            .build()
-            .unwrap();
+        let pipeline = PipelineDefinition::builder().stage(make_stage("s1", 1000)).build().unwrap();
 
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("acme")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("acme").build();
         let executor = OrchestratedPipelineExecutor::new(config);
         let mut ac = make_admission();
 
@@ -711,14 +673,9 @@ mod tests {
 
     #[test]
     fn test_executor_admit_stage_denied() {
-        let pipeline = PipelineDefinition::builder()
-            .stage(make_stage("s1", 1000))
-            .build()
-            .unwrap();
+        let pipeline = PipelineDefinition::builder().stage(make_stage("s1", 1000)).build().unwrap();
 
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("unknown-tenant")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("unknown-tenant").build();
         let executor = OrchestratedPipelineExecutor::new(config);
         let mut ac = make_admission();
 
@@ -729,10 +686,7 @@ mod tests {
 
     #[test]
     fn test_executor_admit_enforcement_disabled() {
-        let pipeline = PipelineDefinition::builder()
-            .stage(make_stage("s1", 1000))
-            .build()
-            .unwrap();
+        let pipeline = PipelineDefinition::builder().stage(make_stage("s1", 1000)).build().unwrap();
 
         let config = OrchestratedPipelineConfig::builder()
             .tenant_id("unknown-tenant")
@@ -755,9 +709,7 @@ mod tests {
             .unwrap();
 
         // Use unknown tenant so admission is denied
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("unknown-tenant")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("unknown-tenant").build();
         let executor = OrchestratedPipelineExecutor::new(config);
         let mut ac = make_admission();
 
@@ -820,9 +772,7 @@ mod tests {
 
     #[test]
     fn test_aggregate_result_all_success() {
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("acme")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("acme").build();
         let executor = OrchestratedPipelineExecutor::new(config);
 
         let records = vec![
@@ -863,9 +813,7 @@ mod tests {
 
     #[test]
     fn test_aggregate_result_with_failures() {
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("acme")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("acme").build();
         let executor = OrchestratedPipelineExecutor::new(config);
 
         let records = vec![
@@ -903,9 +851,7 @@ mod tests {
 
     #[test]
     fn test_metrics_across_executions() {
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("acme")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("acme").build();
         let executor = OrchestratedPipelineExecutor::new(config);
 
         // First execution: success
@@ -972,14 +918,11 @@ mod tests {
 
     #[test]
     fn test_validate_quota_memory_exceeded() {
-        let pipeline = PipelineDefinition::builder()
-            .stage(make_stage("a", 1000))
-            .build()
-            .unwrap();
+        let pipeline = PipelineDefinition::builder().stage(make_stage("a", 1000)).build().unwrap();
 
         let config = OrchestratedPipelineConfig::builder()
             .tenant_id("acme")
-            .total_memory_budget(100)  // tiny
+            .total_memory_budget(100) // tiny
             .build();
         let mut ac = make_admission();
 
@@ -990,14 +933,9 @@ mod tests {
 
     #[test]
     fn test_validate_quota_admission_denied() {
-        let pipeline = PipelineDefinition::builder()
-            .stage(make_stage("a", 1000))
-            .build()
-            .unwrap();
+        let pipeline = PipelineDefinition::builder().stage(make_stage("a", 1000)).build().unwrap();
 
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("nonexistent")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("nonexistent").build();
         let mut ac = make_admission();
 
         let result = validate_pipeline_quota(&pipeline, &config, &mut ac);
@@ -1007,14 +945,9 @@ mod tests {
 
     #[test]
     fn test_validate_quota_passes() {
-        let pipeline = PipelineDefinition::builder()
-            .stage(make_stage("a", 1000))
-            .build()
-            .unwrap();
+        let pipeline = PipelineDefinition::builder().stage(make_stage("a", 1000)).build().unwrap();
 
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("acme")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("acme").build();
         let mut ac = make_admission();
 
         let result = validate_pipeline_quota(&pipeline, &config, &mut ac);
@@ -1027,14 +960,9 @@ mod tests {
     fn test_validate_empty_pipeline() {
         // Can't easily make an empty pipeline via the builder (it validates),
         // so test the function's empty-pipeline error path via quota checks
-        let pipeline = PipelineDefinition::builder()
-            .stage(make_stage("a", 1000))
-            .build()
-            .unwrap();
+        let pipeline = PipelineDefinition::builder().stage(make_stage("a", 1000)).build().unwrap();
 
-        let config = OrchestratedPipelineConfig::builder()
-            .tenant_id("acme")
-            .build();
+        let config = OrchestratedPipelineConfig::builder().tenant_id("acme").build();
         let mut ac = make_admission();
 
         let result = validate_pipeline_quota(&pipeline, &config, &mut ac);

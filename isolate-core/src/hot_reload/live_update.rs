@@ -49,9 +49,7 @@ pub struct ConnectionTracker {
 impl ConnectionTracker {
     /// Create a new connection tracker.
     pub fn new() -> Self {
-        Self {
-            connections: dashmap::DashMap::new(),
-        }
+        Self { connections: dashmap::DashMap::new() }
     }
 
     /// Acquire a connection slot for a version. Returns a guard that
@@ -61,18 +59,12 @@ impl ConnectionTracker {
             .entry(version_id.clone())
             .or_insert_with(|| AtomicU64::new(0))
             .fetch_add(1, Ordering::Relaxed);
-        ConnectionGuard {
-            version_id: version_id.clone(),
-            tracker: self,
-        }
+        ConnectionGuard { version_id: version_id.clone(), tracker: self }
     }
 
     /// Get the number of active connections for a version.
     pub fn active_count(&self, version_id: &VersionId) -> u64 {
-        self.connections
-            .get(version_id)
-            .map(|c| c.value().load(Ordering::Relaxed))
-            .unwrap_or(0)
+        self.connections.get(version_id).map(|c| c.value().load(Ordering::Relaxed)).unwrap_or(0)
     }
 
     /// Check if a version has been fully drained (zero active connections).
@@ -113,20 +105,11 @@ impl<'a> Drop for ConnectionGuard<'a> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UpdateResult {
     /// Update completed successfully, all traffic on new version.
-    Completed {
-        version: VersionId,
-        duration: Duration,
-    },
+    Completed { version: VersionId, duration: Duration },
     /// Update was rolled back due to health issues.
-    RolledBack {
-        version: VersionId,
-        reason: String,
-    },
+    RolledBack { version: VersionId, reason: String },
     /// Update is still in progress (canary phase).
-    InProgress {
-        version: VersionId,
-        canary_pct: u8,
-    },
+    InProgress { version: VersionId, canary_pct: u8 },
 }
 
 /// Manages zero-downtime live updates of WASM modules.
@@ -148,10 +131,8 @@ pub struct LiveUpdateManager {
 impl LiveUpdateManager {
     /// Create a new live update manager.
     pub fn new(config: LiveUpdateConfig) -> Self {
-        let controller = DeploymentController::new(
-            config.strategy.clone(),
-            config.rollback_trigger.clone(),
-        );
+        let controller =
+            DeploymentController::new(config.strategy.clone(), config.rollback_trigger.clone());
 
         Self {
             config,
@@ -182,11 +163,7 @@ impl LiveUpdateManager {
             return Err("another update is already in progress".into());
         }
 
-        let active = self
-            .active_version
-            .read()
-            .clone()
-            .ok_or("no active version deployed")?;
+        let active = self.active_version.read().clone().ok_or("no active version deployed")?;
 
         let new_vid = new_version.id.clone();
         self.registry.register(new_version);
@@ -196,19 +173,11 @@ impl LiveUpdateManager {
 
         // For immediate deployments, the controller completes immediately
         if matches!(self.controller.state(), DeploymentState::Completed { .. }) {
-            self.router
-                .set_route(VersionRoute::single(new_vid.clone()));
+            self.router.set_route(VersionRoute::single(new_vid.clone()));
             *self.active_version.write() = Some(new_vid.clone());
             self.gc_old_versions();
-            let duration = self
-                .update_started_at
-                .lock()
-                .map(|s| s.elapsed())
-                .unwrap_or_default();
-            return Ok(UpdateResult::Completed {
-                version: new_vid,
-                duration,
-            });
+            let duration = self.update_started_at.lock().map(|s| s.elapsed()).unwrap_or_default();
+            return Ok(UpdateResult::Completed { version: new_vid, duration });
         }
 
         // Set up canary route
@@ -216,27 +185,16 @@ impl LiveUpdateManager {
             DeploymentState::InProgress { canary_pct, .. } => canary_pct,
             _ => 1,
         };
-        self.router.set_route(VersionRoute::canary(
-            active,
-            new_vid.clone(),
-            canary_pct,
-        ));
+        self.router.set_route(VersionRoute::canary(active, new_vid.clone(), canary_pct));
 
-        Ok(UpdateResult::InProgress {
-            version: new_vid,
-            canary_pct,
-        })
+        Ok(UpdateResult::InProgress { version: new_vid, canary_pct })
     }
 
     /// Advance the canary deployment to the next step.
     ///
     /// Checks health metrics and either advances or rolls back.
     pub fn advance(&self) -> Result<UpdateResult, String> {
-        let active = self
-            .active_version
-            .read()
-            .clone()
-            .ok_or("no active version")?;
+        let active = self.active_version.read().clone().ok_or("no active version")?;
 
         match self.controller.advance_step(&self.health) {
             Ok(pct) => {
@@ -244,47 +202,31 @@ impl LiveUpdateManager {
                 match state {
                     DeploymentState::Completed { version } => {
                         // Full rollout: switch all traffic and drain old version
-                        self.router
-                            .set_route(VersionRoute::single(version.clone()));
+                        self.router.set_route(VersionRoute::single(version.clone()));
                         *self.active_version.write() = Some(version.clone());
                         self.gc_old_versions();
-                        let duration = self
-                            .update_started_at
-                            .lock()
-                            .map(|s| s.elapsed())
-                            .unwrap_or_default();
+                        let duration =
+                            self.update_started_at.lock().map(|s| s.elapsed()).unwrap_or_default();
                         Ok(UpdateResult::Completed { version, duration })
                     }
-                    DeploymentState::InProgress {
-                        target_version,
-                        canary_pct,
-                        ..
-                    } => {
+                    DeploymentState::InProgress { target_version, canary_pct, .. } => {
                         self.router.set_route(VersionRoute::canary(
                             active,
                             target_version.clone(),
                             canary_pct,
                         ));
-                        Ok(UpdateResult::InProgress {
-                            version: target_version,
-                            canary_pct: pct,
-                        })
+                        Ok(UpdateResult::InProgress { version: target_version, canary_pct: pct })
                     }
                     _ => Err("unexpected state after advance".into()),
                 }
             }
             Err(e) => {
                 // Rollback: restore traffic to active version
-                self.router
-                    .set_route(VersionRoute::single(active));
+                self.router.set_route(VersionRoute::single(active));
                 match self.controller.state() {
-                    DeploymentState::RolledBack {
-                        failed_version,
-                        reason,
-                    } => Ok(UpdateResult::RolledBack {
-                        version: failed_version,
-                        reason,
-                    }),
+                    DeploymentState::RolledBack { failed_version, reason } => {
+                        Ok(UpdateResult::RolledBack { version: failed_version, reason })
+                    }
                     _ => Err(e),
                 }
             }
@@ -293,24 +235,15 @@ impl LiveUpdateManager {
 
     /// Force an immediate rollback of the current deployment.
     pub fn force_rollback(&self, reason: impl Into<String>) -> Result<UpdateResult, String> {
-        let active = self
-            .active_version
-            .read()
-            .clone()
-            .ok_or("no active version")?;
+        let active = self.active_version.read().clone().ok_or("no active version")?;
 
         self.controller.rollback(reason);
-        self.router
-            .set_route(VersionRoute::single(active));
+        self.router.set_route(VersionRoute::single(active));
 
         match self.controller.state() {
-            DeploymentState::RolledBack {
-                failed_version,
-                reason,
-            } => Ok(UpdateResult::RolledBack {
-                version: failed_version,
-                reason,
-            }),
+            DeploymentState::RolledBack { failed_version, reason } => {
+                Ok(UpdateResult::RolledBack { version: failed_version, reason })
+            }
             _ => Err("rollback failed: no deployment in progress".into()),
         }
     }
@@ -394,10 +327,8 @@ mod tests {
 
     #[test]
     fn test_live_update_immediate() {
-        let config = LiveUpdateConfig {
-            strategy: DeploymentStrategy::Immediate,
-            ..Default::default()
-        };
+        let config =
+            LiveUpdateConfig { strategy: DeploymentStrategy::Immediate, ..Default::default() };
         let manager = LiveUpdateManager::new(config);
 
         let v1 = ModuleVersion::new("v1", b"wasm-v1");
@@ -413,9 +344,7 @@ mod tests {
     #[test]
     fn test_live_update_canary_flow() {
         let config = LiveUpdateConfig {
-            strategy: DeploymentStrategy::Canary {
-                steps: vec![10, 50, 100],
-            },
+            strategy: DeploymentStrategy::Canary { steps: vec![10, 50, 100] },
             rollback_trigger: RollbackTrigger::error_rate(50.0),
             ..Default::default()
         };
@@ -440,9 +369,7 @@ mod tests {
     #[test]
     fn test_live_update_rollback_on_errors() {
         let config = LiveUpdateConfig {
-            strategy: DeploymentStrategy::Canary {
-                steps: vec![10, 50, 100],
-            },
+            strategy: DeploymentStrategy::Canary { steps: vec![10, 50, 100] },
             rollback_trigger: RollbackTrigger::error_rate(5.0).with_min_requests(5),
             ..Default::default()
         };
@@ -487,10 +414,8 @@ mod tests {
 
     #[test]
     fn test_resolve_and_acquire() {
-        let config = LiveUpdateConfig {
-            strategy: DeploymentStrategy::Immediate,
-            ..Default::default()
-        };
+        let config =
+            LiveUpdateConfig { strategy: DeploymentStrategy::Immediate, ..Default::default() };
         let manager = LiveUpdateManager::new(config);
 
         let v1 = ModuleVersion::new("v1", b"wasm-v1");
@@ -506,9 +431,7 @@ mod tests {
     #[test]
     fn test_force_rollback() {
         let config = LiveUpdateConfig {
-            strategy: DeploymentStrategy::Canary {
-                steps: vec![10, 50, 100],
-            },
+            strategy: DeploymentStrategy::Canary { steps: vec![10, 50, 100] },
             ..Default::default()
         };
         let manager = LiveUpdateManager::new(config);
@@ -526,9 +449,7 @@ mod tests {
     #[test]
     fn test_duplicate_update_rejected() {
         let config = LiveUpdateConfig {
-            strategy: DeploymentStrategy::Canary {
-                steps: vec![10, 50, 100],
-            },
+            strategy: DeploymentStrategy::Canary { steps: vec![10, 50, 100] },
             ..Default::default()
         };
         let manager = LiveUpdateManager::new(config);

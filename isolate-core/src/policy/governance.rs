@@ -182,11 +182,7 @@ impl PolicyVersionStore {
     }
 
     /// Diff two versions (returns rules added and removed).
-    pub fn diff(
-        &self,
-        from: &PolicyVersionId,
-        to: &PolicyVersionId,
-    ) -> Result<PolicyDiff, String> {
+    pub fn diff(&self, from: &PolicyVersionId, to: &PolicyVersionId) -> Result<PolicyDiff, String> {
         let from_ver = self
             .versions
             .iter()
@@ -322,11 +318,8 @@ impl TenantPolicyManager {
         rules: Vec<PolicyRule>,
     ) -> Result<(), String> {
         let tenant_id = tenant_id.into();
-        let max_rules = self
-            .tenants
-            .get(&tenant_id)
-            .map(|t| t.max_rules)
-            .unwrap_or(self.default_max_rules);
+        let max_rules =
+            self.tenants.get(&tenant_id).map(|t| t.max_rules).unwrap_or(self.default_max_rules);
 
         if rules.len() > max_rules {
             return Err(format!(
@@ -689,7 +682,8 @@ mod tests {
     fn test_version_store_commit() {
         let mut store = PolicyVersionStore::new();
         let v1 = store.commit("initial", vec![allow_rule("r1", "read")]);
-        let _v2 = store.commit("add write", vec![allow_rule("r1", "read"), allow_rule("r2", "write")]);
+        let _v2 =
+            store.commit("add write", vec![allow_rule("r1", "read"), allow_rule("r2", "write")]);
 
         assert_eq!(store.version_count(), 2);
         assert_eq!(store.active_rules().len(), 2);
@@ -801,9 +795,7 @@ mod tests {
     #[test]
     fn test_enforcer_basic() {
         let mut enforcer = PolicyEnforcer::new();
-        enforcer
-            .versions_mut()
-            .commit("initial", vec![allow_rule("allow-read", "read")]);
+        enforcer.versions_mut().commit("initial", vec![allow_rule("allow-read", "read")]);
 
         let ctx = HashMap::new();
         let result = enforcer.check("read", "*", "user1", None, &ctx);
@@ -838,9 +830,7 @@ mod tests {
     #[test]
     fn test_enforcer_stats() {
         let mut enforcer = PolicyEnforcer::new();
-        enforcer
-            .versions_mut()
-            .commit("initial", vec![allow_rule("allow-read", "read")]);
+        enforcer.versions_mut().commit("initial", vec![allow_rule("allow-read", "read")]);
 
         let ctx = HashMap::new();
         enforcer.check("read", "*", "user1", None, &ctx);

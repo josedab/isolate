@@ -662,7 +662,8 @@ mod tests {
         assert_eq!(composition.execution_order[1], "app");
 
         // Verify resolved imports.
-        let app_linked = composition.modules.iter().find(|m| m.name == "app").expect("find module app");
+        let app_linked =
+            composition.modules.iter().find(|m| m.name == "app").expect("find module app");
         assert_eq!(app_linked.resolved_imports.get("log").expect("resolve import log"), "logger");
     }
 
@@ -914,7 +915,8 @@ mod tests {
         graph.add_module(d).expect("add module d");
 
         let order = graph.topological_sort().expect("topological sort");
-        let pos = |name: &str| order.iter().position(|n| n == name).expect("find position of module");
+        let pos =
+            |name: &str| order.iter().position(|n| n == name).expect("find position of module");
 
         // "a" must come before "b" and "c", which must come before "d".
         assert!(pos("a") < pos("b"));

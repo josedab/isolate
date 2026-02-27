@@ -1,4 +1,3 @@
-
 //! Prometheus metrics exporter and Grafana dashboard configuration for
 //! production observability of the Isolate Kubernetes operator.
 
@@ -81,14 +80,9 @@ pub struct PrometheusExporter {
 impl PrometheusExporter {
     /// Create an exporter pre-loaded with the standard Isolate metrics.
     pub fn new() -> Self {
-        let buckets = vec![
-            0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
-        ];
+        let buckets = vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];
 
-        let mut exporter = Self {
-            metrics: Vec::new(),
-            histogram_buckets: buckets,
-        };
+        let mut exporter = Self { metrics: Vec::new(), histogram_buckets: buckets };
 
         // Pre-register standard metrics.
         exporter.register_metric(
@@ -127,7 +121,9 @@ impl PrometheusExporter {
             return;
         }
         let labels = match metric_type {
-            MetricType::Counter | MetricType::Gauge => vec!["tenant".to_string(), "namespace".to_string()],
+            MetricType::Counter | MetricType::Gauge => {
+                vec!["tenant".to_string(), "namespace".to_string()]
+            }
             MetricType::Histogram => vec!["tenant".to_string()],
         };
         self.metrics.push(RegisteredMetric {
@@ -167,11 +163,7 @@ impl PrometheusExporter {
 
     /// Set `isolate_sandbox_memory_usage_bytes` gauge.
     pub fn record_memory_usage(&mut self, tenant: &str, bytes: u64) {
-        self.set_gauge(
-            "isolate_sandbox_memory_usage_bytes",
-            &["tenant", tenant],
-            bytes as f64,
-        );
+        self.set_gauge("isolate_sandbox_memory_usage_bytes", &["tenant", tenant], bytes as f64);
     }
 
     /// Observe `isolate_sandbox_fuel_consumed` histogram.
@@ -187,10 +179,7 @@ impl PrometheusExporter {
             if let Some(ts) = m.series.iter_mut().find(|ts| ts.label_values == lv) {
                 ts.value += 1.0;
             } else {
-                m.series.push(TimeSeries {
-                    label_values: lv,
-                    value: 1.0,
-                });
+                m.series.push(TimeSeries { label_values: lv, value: 1.0 });
             }
         }
     }
@@ -201,10 +190,7 @@ impl PrometheusExporter {
             if let Some(ts) = m.series.iter_mut().find(|ts| ts.label_values == lv) {
                 ts.value = value;
             } else {
-                m.series.push(TimeSeries {
-                    label_values: lv,
-                    value,
-                });
+                m.series.push(TimeSeries { label_values: lv, value });
             }
         }
     }
@@ -215,10 +201,7 @@ impl PrometheusExporter {
             if let Some(hs) = m.histograms.iter_mut().find(|h| h.label_values == lv) {
                 hs.observations.push(value);
             } else {
-                m.histograms.push(HistogramSeries {
-                    label_values: lv,
-                    observations: vec![value],
-                });
+                m.histograms.push(HistogramSeries { label_values: lv, observations: vec![value] });
             }
         }
     }
@@ -264,14 +247,8 @@ impl PrometheusExporter {
                     Self::labels_inner(&m.definition.labels, &hs.label_values),
                     count,
                 ));
-                out.push_str(&format!(
-                    "{}_sum{} {}\n",
-                    m.definition.name, label_str, sum
-                ));
-                out.push_str(&format!(
-                    "{}_count{} {}\n",
-                    m.definition.name, label_str, count
-                ));
+                out.push_str(&format!("{}_sum{} {}\n", m.definition.name, label_str, sum));
+                out.push_str(&format!("{}_count{} {}\n", m.definition.name, label_str, count));
             }
         }
 
@@ -374,7 +351,9 @@ impl PrometheusOperatorMetrics {
     pub fn render(&self) -> String {
         let mut out = String::new();
 
-        out.push_str("# HELP isolate_operator_reconciliation_total Total reconciliation attempts\n");
+        out.push_str(
+            "# HELP isolate_operator_reconciliation_total Total reconciliation attempts\n",
+        );
         out.push_str("# TYPE isolate_operator_reconciliation_total counter\n");
         out.push_str(&format!(
             "isolate_operator_reconciliation_total {}\n",
@@ -390,9 +369,7 @@ impl PrometheusOperatorMetrics {
             self.reconciliation_errors
         ));
 
-        out.push_str(
-            "# HELP isolate_operator_active_sandboxes Active sandboxes by namespace\n",
-        );
+        out.push_str("# HELP isolate_operator_active_sandboxes Active sandboxes by namespace\n");
         out.push_str("# TYPE isolate_operator_active_sandboxes gauge\n");
         for (ns, count) in &self.active_sandboxes {
             out.push_str(&format!(
@@ -402,17 +379,11 @@ impl PrometheusOperatorMetrics {
 
         out.push_str("# HELP isolate_operator_pending_sandboxes Pending sandboxes\n");
         out.push_str("# TYPE isolate_operator_pending_sandboxes gauge\n");
-        out.push_str(&format!(
-            "isolate_operator_pending_sandboxes {}\n",
-            self.pending_sandboxes
-        ));
+        out.push_str(&format!("isolate_operator_pending_sandboxes {}\n", self.pending_sandboxes));
 
         out.push_str("# HELP isolate_operator_pool_utilization Pool utilization ratio\n");
         out.push_str("# TYPE isolate_operator_pool_utilization gauge\n");
-        out.push_str(&format!(
-            "isolate_operator_pool_utilization {}\n",
-            self.pool_utilization
-        ));
+        out.push_str(&format!("isolate_operator_pool_utilization {}\n", self.pool_utilization));
 
         out
     }
@@ -663,11 +634,8 @@ impl AlertRuleSet {
 
         for rule in &self.rules {
             let for_secs = rule.for_duration.as_secs();
-            let for_str = if for_secs >= 60 {
-                format!("{}m", for_secs / 60)
-            } else {
-                format!("{for_secs}s")
-            };
+            let for_str =
+                if for_secs >= 60 { format!("{}m", for_secs / 60) } else { format!("{for_secs}s") };
 
             out.push_str(&format!("      - alert: {}\n", rule.name));
             out.push_str(&format!("        expr: {}\n", rule.expression));
@@ -716,11 +684,7 @@ mod tests {
     fn test_exporter_duplicate_registration_ignored() {
         let mut exporter = PrometheusExporter::new();
         let before = exporter.metrics.len();
-        exporter.register_metric(
-            "isolate_sandbox_created_total",
-            "duplicate",
-            MetricType::Counter,
-        );
+        exporter.register_metric("isolate_sandbox_created_total", "duplicate", MetricType::Counter);
         assert_eq!(exporter.metrics.len(), before);
     }
 
@@ -730,7 +694,8 @@ mod tests {
         exporter.record_sandbox_created("acme", "default");
         exporter.record_sandbox_created("acme", "default");
         let rendered = exporter.render();
-        assert!(rendered.contains("isolate_sandbox_created_total{tenant=\"acme\",namespace=\"default\"} 2"));
+        assert!(rendered
+            .contains("isolate_sandbox_created_total{tenant=\"acme\",namespace=\"default\"} 2"));
     }
 
     #[test]

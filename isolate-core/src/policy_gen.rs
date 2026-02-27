@@ -290,19 +290,15 @@ impl ModuleAnalyzer {
                     // Read module name
                     let (mod_len, bytes_read) = read_leb128(&wasm_bytes[pos..]);
                     pos += bytes_read;
-                    let module = String::from_utf8_lossy(
-                        &wasm_bytes[pos..pos + mod_len as usize],
-                    )
-                    .to_string();
+                    let module = String::from_utf8_lossy(&wasm_bytes[pos..pos + mod_len as usize])
+                        .to_string();
                     pos += mod_len as usize;
 
                     // Read function name
                     let (name_len, bytes_read) = read_leb128(&wasm_bytes[pos..]);
                     pos += bytes_read;
-                    let name = String::from_utf8_lossy(
-                        &wasm_bytes[pos..pos + name_len as usize],
-                    )
-                    .to_string();
+                    let name = String::from_utf8_lossy(&wasm_bytes[pos..pos + name_len as usize])
+                        .to_string();
                     pos += name_len as usize;
 
                     // Skip import descriptor
@@ -332,8 +328,8 @@ impl ModuleAnalyzer {
                         }
                     }
 
-                    let is_wasi = module.starts_with("wasi_snapshot_preview1")
-                        || module.starts_with("wasi:");
+                    let is_wasi =
+                        module.starts_with("wasi_snapshot_preview1") || module.starts_with("wasi:");
 
                     imports.push(DetectedImport { module, name, is_wasi });
                 }
@@ -464,8 +460,8 @@ mod tests {
         let report = analyzer.analyze(&wasm);
 
         // Should suggest filesystem capability with high risk
-        let fs_suggestion = report.suggested_capabilities.iter()
-            .find(|s| s.capability.starts_with("fs:"));
+        let fs_suggestion =
+            report.suggested_capabilities.iter().find(|s| s.capability.starts_with("fs:"));
         assert!(fs_suggestion.is_some());
         assert_eq!(fs_suggestion.unwrap().risk, RiskLevel::High);
     }

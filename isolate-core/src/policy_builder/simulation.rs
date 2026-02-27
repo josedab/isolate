@@ -55,11 +55,7 @@ impl PolicySimulator {
             if !allowed {
                 denied += 1;
             }
-            results.push(ActionResult {
-                action: format!("{:?}", action),
-                allowed,
-                reason,
-            });
+            results.push(ActionResult { action: format!("{:?}", action), allowed, reason });
         }
 
         SimulationResult {
@@ -71,21 +67,17 @@ impl PolicySimulator {
     }
 
     fn find_capability<'a>(&self, ir: &'a PolicyIR) -> Option<&'a CapabilityBlock> {
-        ir.blocks.iter()
-            .filter(|b| b.enabled)
-            .find_map(|b| match &b.kind {
-                BlockKind::Capability(c) => Some(c),
-                _ => None,
-            })
+        ir.blocks.iter().filter(|b| b.enabled).find_map(|b| match &b.kind {
+            BlockKind::Capability(c) => Some(c),
+            _ => None,
+        })
     }
 
     fn find_network<'a>(&self, ir: &'a PolicyIR) -> Option<&'a NetworkBlock> {
-        ir.blocks.iter()
-            .filter(|b| b.enabled)
-            .find_map(|b| match &b.kind {
-                BlockKind::Network(n) => Some(n),
-                _ => None,
-            })
+        ir.blocks.iter().filter(|b| b.enabled).find_map(|b| match &b.kind {
+            BlockKind::Network(n) => Some(n),
+            _ => None,
+        })
     }
 
     fn check_action(
@@ -101,12 +93,14 @@ impl PolicySimulator {
         };
 
         match action {
-            SimulatedAction::WriteStdout => {
-                (caps.stdout, if caps.stdout { "stdout enabled" } else { "stdout not granted" }.into())
-            }
-            SimulatedAction::WriteStderr => {
-                (caps.stderr, if caps.stderr { "stderr enabled" } else { "stderr not granted" }.into())
-            }
+            SimulatedAction::WriteStdout => (
+                caps.stdout,
+                if caps.stdout { "stdout enabled" } else { "stdout not granted" }.into(),
+            ),
+            SimulatedAction::WriteStderr => (
+                caps.stderr,
+                if caps.stderr { "stderr enabled" } else { "stderr not granted" }.into(),
+            ),
             SimulatedAction::ReadStdin => {
                 (caps.stdin, if caps.stdin { "stdin enabled" } else { "stdin not granted" }.into())
             }
@@ -136,7 +130,8 @@ impl PolicySimulator {
                 if !net.allow_outbound {
                     return (false, "Outbound network disabled".into());
                 }
-                let host_ok = net.allowed_hosts.is_empty() || net.allowed_hosts.iter().any(|h| h == host);
+                let host_ok =
+                    net.allowed_hosts.is_empty() || net.allowed_hosts.iter().any(|h| h == host);
                 let port_ok = net.allowed_ports.is_empty() || net.allowed_ports.contains(port);
                 let allowed = host_ok && port_ok;
                 let reason = if allowed {
@@ -149,12 +144,10 @@ impl PolicySimulator {
                 (allowed, reason)
             }
             SimulatedAction::AllocateMemory(bytes) => {
-                let max = ir.blocks.iter()
-                    .filter(|b| b.enabled)
-                    .find_map(|b| match &b.kind {
-                        BlockKind::Resource(r) => r.max_memory_bytes,
-                        _ => None,
-                    });
+                let max = ir.blocks.iter().filter(|b| b.enabled).find_map(|b| match &b.kind {
+                    BlockKind::Resource(r) => r.max_memory_bytes,
+                    _ => None,
+                });
                 match max {
                     Some(m) if *bytes <= m => (true, format!("Within memory limit ({})", m)),
                     Some(m) => (false, format!("Exceeds memory limit ({} > {})", bytes, m)),
@@ -163,7 +156,14 @@ impl PolicySimulator {
             }
             SimulatedAction::ReadEnvVar(var) => {
                 let allowed = caps.env_vars.iter().any(|v| v == var);
-                (allowed, if allowed { "Env var access granted".into() } else { format!("Env var {} not in allowed list", var) })
+                (
+                    allowed,
+                    if allowed {
+                        "Env var access granted".into()
+                    } else {
+                        format!("Env var {} not in allowed list", var)
+                    },
+                )
             }
         }
     }
@@ -182,36 +182,48 @@ mod tests {
 
     fn web_policy() -> PolicyIR {
         PolicyIR::new("web")
-            .add_block(PolicyBlock::new("res", BlockKind::Resource(ResourceBlock {
-                max_memory_bytes: Some(64 * 1024 * 1024),
-                ..Default::default()
-            })))
-            .add_block(PolicyBlock::new("cap", BlockKind::Capability(CapabilityBlock {
-                stdout: true,
-                stderr: true,
-                stdin: false,
-                filesystem_read: vec!["/data".into()],
-                filesystem_write: vec![],
-                env_vars: vec!["API_KEY".into()],
-            })))
-            .add_block(PolicyBlock::new("net", BlockKind::Network(NetworkBlock {
-                allow_outbound: true,
-                allowed_hosts: vec!["api.example.com".into()],
-                allowed_ports: vec![443],
-                ..Default::default()
-            })))
+            .add_block(PolicyBlock::new(
+                "res",
+                BlockKind::Resource(ResourceBlock {
+                    max_memory_bytes: Some(64 * 1024 * 1024),
+                    ..Default::default()
+                }),
+            ))
+            .add_block(PolicyBlock::new(
+                "cap",
+                BlockKind::Capability(CapabilityBlock {
+                    stdout: true,
+                    stderr: true,
+                    stdin: false,
+                    filesystem_read: vec!["/data".into()],
+                    filesystem_write: vec![],
+                    env_vars: vec!["API_KEY".into()],
+                }),
+            ))
+            .add_block(PolicyBlock::new(
+                "net",
+                BlockKind::Network(NetworkBlock {
+                    allow_outbound: true,
+                    allowed_hosts: vec!["api.example.com".into()],
+                    allowed_ports: vec![443],
+                    ..Default::default()
+                }),
+            ))
     }
 
     #[test]
     fn test_simulate_allowed_actions() {
         let sim = PolicySimulator::new();
-        let result = sim.simulate(&web_policy(), &[
-            SimulatedAction::WriteStdout,
-            SimulatedAction::WriteStderr,
-            SimulatedAction::ReadFile("/data/input.json".into()),
-            SimulatedAction::NetworkConnect("api.example.com".into(), 443),
-            SimulatedAction::ReadEnvVar("API_KEY".into()),
-        ]);
+        let result = sim.simulate(
+            &web_policy(),
+            &[
+                SimulatedAction::WriteStdout,
+                SimulatedAction::WriteStderr,
+                SimulatedAction::ReadFile("/data/input.json".into()),
+                SimulatedAction::NetworkConnect("api.example.com".into(), 443),
+                SimulatedAction::ReadEnvVar("API_KEY".into()),
+            ],
+        );
         assert!(result.all_allowed);
         assert_eq!(result.denied_count, 0);
     }
@@ -219,12 +231,15 @@ mod tests {
     #[test]
     fn test_simulate_denied_actions() {
         let sim = PolicySimulator::new();
-        let result = sim.simulate(&web_policy(), &[
-            SimulatedAction::ReadStdin,
-            SimulatedAction::WriteFile("/etc/passwd".into()),
-            SimulatedAction::NetworkConnect("evil.com".into(), 443),
-            SimulatedAction::ReadEnvVar("SECRET".into()),
-        ]);
+        let result = sim.simulate(
+            &web_policy(),
+            &[
+                SimulatedAction::ReadStdin,
+                SimulatedAction::WriteFile("/etc/passwd".into()),
+                SimulatedAction::NetworkConnect("evil.com".into(), 443),
+                SimulatedAction::ReadEnvVar("SECRET".into()),
+            ],
+        );
         assert!(!result.all_allowed);
         assert_eq!(result.denied_count, 4);
     }
@@ -256,12 +271,13 @@ mod tests {
         let sim = PolicySimulator::new();
         let ir = PolicyIR::new("no-net")
             .add_block(PolicyBlock::new("cap", BlockKind::Capability(CapabilityBlock::default())))
-            .add_block(PolicyBlock::new("net", BlockKind::Network(NetworkBlock {
-                allow_outbound: false,
-                ..Default::default()
-            })));
+            .add_block(PolicyBlock::new(
+                "net",
+                BlockKind::Network(NetworkBlock { allow_outbound: false, ..Default::default() }),
+            ));
 
-        let result = sim.simulate(&ir, &[SimulatedAction::NetworkConnect("example.com".into(), 80)]);
+        let result =
+            sim.simulate(&ir, &[SimulatedAction::NetworkConnect("example.com".into(), 80)]);
         assert!(!result.all_allowed);
         assert!(result.results[0].reason.contains("disabled"));
     }

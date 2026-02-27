@@ -6,8 +6,7 @@
 #![allow(dead_code, unused_assignments)]
 
 use super::{
-    ChaosEngine, ExperimentMetrics,
-    ExperimentOutcome, FaultTarget, FaultType,
+    ChaosEngine, ExperimentMetrics, ExperimentOutcome, FaultTarget, FaultType,
     SteadyStateHypothesis,
 };
 use serde::{Deserialize, Serialize};
@@ -139,11 +138,7 @@ pub struct ExperimentRunner {
 impl ExperimentRunner {
     /// Create a new runner.
     pub fn new() -> Self {
-        Self {
-            engine: ChaosEngine::new(),
-            definitions: HashMap::new(),
-            results: Vec::new(),
-        }
+        Self { engine: ChaosEngine::new(), definitions: HashMap::new(), results: Vec::new() }
     }
 
     /// Load an experiment definition.

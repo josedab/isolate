@@ -50,7 +50,11 @@ pub struct ControlFlowGraph {
 
 impl ControlFlowGraph {
     /// Create a CFG from a list of instructions (simplified block splitting).
-    pub fn from_instructions(func_idx: u32, name: Option<String>, instructions: Vec<WasmInstruction>) -> Self {
+    pub fn from_instructions(
+        func_idx: u32,
+        name: Option<String>,
+        instructions: Vec<WasmInstruction>,
+    ) -> Self {
         if instructions.is_empty() {
             let block = BasicBlock {
                 id: 0,
@@ -78,14 +82,19 @@ impl ControlFlowGraph {
         for inst in &instructions {
             current_insts.push(inst.clone());
             match inst {
-                WasmInstruction::Br(_) | WasmInstruction::BrIf(_)
-                | WasmInstruction::Return | WasmInstruction::Unreachable => {
-                    blocks.insert(current_id, BasicBlock {
-                        id: current_id,
-                        instructions: std::mem::take(&mut current_insts),
-                        successors: Vec::new(),
-                        predecessors: Vec::new(),
-                    });
+                WasmInstruction::Br(_)
+                | WasmInstruction::BrIf(_)
+                | WasmInstruction::Return
+                | WasmInstruction::Unreachable => {
+                    blocks.insert(
+                        current_id,
+                        BasicBlock {
+                            id: current_id,
+                            instructions: std::mem::take(&mut current_insts),
+                            successors: Vec::new(),
+                            predecessors: Vec::new(),
+                        },
+                    );
                     current_id += 1;
                     block_starts.push(current_id);
                 }
@@ -95,12 +104,15 @@ impl ControlFlowGraph {
 
         // Remaining instructions form the last block
         if !current_insts.is_empty() {
-            blocks.insert(current_id, BasicBlock {
-                id: current_id,
-                instructions: current_insts,
-                successors: Vec::new(),
-                predecessors: Vec::new(),
-            });
+            blocks.insert(
+                current_id,
+                BasicBlock {
+                    id: current_id,
+                    instructions: current_insts,
+                    successors: Vec::new(),
+                    predecessors: Vec::new(),
+                },
+            );
         }
 
         // Build edges: sequential fallthrough + branch targets
@@ -147,18 +159,10 @@ impl ControlFlowGraph {
             }
         }
 
-        let exit_blocks: Vec<u32> = blocks.iter()
-            .filter(|(_, b)| b.successors.is_empty())
-            .map(|(id, _)| *id)
-            .collect();
+        let exit_blocks: Vec<u32> =
+            blocks.iter().filter(|(_, b)| b.successors.is_empty()).map(|(id, _)| *id).collect();
 
-        Self {
-            function_index: func_idx,
-            function_name: name,
-            blocks,
-            entry_block: 0,
-            exit_blocks,
-        }
+        Self { function_index: func_idx, function_name: name, blocks, entry_block: 0, exit_blocks }
     }
 
     /// Count total instructions.
@@ -176,7 +180,13 @@ impl ControlFlowGraph {
         back_edges
     }
 
-    fn dfs_find_loops(&self, node: u32, visited: &mut HashSet<u32>, in_stack: &mut HashSet<u32>, back_edges: &mut Vec<(u32, u32)>) {
+    fn dfs_find_loops(
+        &self,
+        node: u32,
+        visited: &mut HashSet<u32>,
+        in_stack: &mut HashSet<u32>,
+        back_edges: &mut Vec<(u32, u32)>,
+    ) {
         visited.insert(node);
         in_stack.insert(node);
 
@@ -237,59 +247,75 @@ mod tests {
 
     #[test]
     fn test_linear_cfg() {
-        let cfg = ControlFlowGraph::from_instructions(0, Some("add".into()), vec![
-            WasmInstruction::LocalGet(0),
-            WasmInstruction::LocalGet(1),
-            WasmInstruction::I32Add,
-            WasmInstruction::Return,
-        ]);
+        let cfg = ControlFlowGraph::from_instructions(
+            0,
+            Some("add".into()),
+            vec![
+                WasmInstruction::LocalGet(0),
+                WasmInstruction::LocalGet(1),
+                WasmInstruction::I32Add,
+                WasmInstruction::Return,
+            ],
+        );
         assert_eq!(cfg.instruction_count(), 4);
         assert_eq!(cfg.blocks.len(), 1);
     }
 
     #[test]
     fn test_branching_cfg() {
-        let cfg = ControlFlowGraph::from_instructions(0, None, vec![
-            WasmInstruction::LocalGet(0),
-            WasmInstruction::BrIf(0),
-            WasmInstruction::I32Const(1),
-            WasmInstruction::Return,
-        ]);
+        let cfg = ControlFlowGraph::from_instructions(
+            0,
+            None,
+            vec![
+                WasmInstruction::LocalGet(0),
+                WasmInstruction::BrIf(0),
+                WasmInstruction::I32Const(1),
+                WasmInstruction::Return,
+            ],
+        );
         assert!(cfg.blocks.len() >= 2);
     }
 
     #[test]
     fn test_find_calls() {
-        let cfg = ControlFlowGraph::from_instructions(0, None, vec![
-            WasmInstruction::Call(5),
-            WasmInstruction::Call(10),
-            WasmInstruction::Return,
-        ]);
+        let cfg = ControlFlowGraph::from_instructions(
+            0,
+            None,
+            vec![WasmInstruction::Call(5), WasmInstruction::Call(10), WasmInstruction::Return],
+        );
         let calls = cfg.find_calls();
         assert_eq!(calls.len(), 2);
     }
 
     #[test]
     fn test_find_memory_ops() {
-        let cfg = ControlFlowGraph::from_instructions(0, None, vec![
-            WasmInstruction::Load { offset: 0, align: 2 },
-            WasmInstruction::Store { offset: 4, align: 2 },
-            WasmInstruction::Return,
-        ]);
+        let cfg = ControlFlowGraph::from_instructions(
+            0,
+            None,
+            vec![
+                WasmInstruction::Load { offset: 0, align: 2 },
+                WasmInstruction::Store { offset: 4, align: 2 },
+                WasmInstruction::Return,
+            ],
+        );
         let ops = cfg.find_memory_ops();
         assert_eq!(ops.len(), 2);
         assert!(!ops[0].1); // load = read
-        assert!(ops[1].1);  // store = write
+        assert!(ops[1].1); // store = write
     }
 
     #[test]
     fn test_loop_detection() {
         // Create a CFG with a back edge: block 0 → block 1 → block 0
-        let cfg = ControlFlowGraph::from_instructions(0, None, vec![
-            WasmInstruction::I32Const(0),
-            WasmInstruction::BrIf(0), // back edge to block 0
-            WasmInstruction::Return,
-        ]);
+        let cfg = ControlFlowGraph::from_instructions(
+            0,
+            None,
+            vec![
+                WasmInstruction::I32Const(0),
+                WasmInstruction::BrIf(0), // back edge to block 0
+                WasmInstruction::Return,
+            ],
+        );
         // The BrIf creates a conditional branch back
         let loops = cfg.detect_loops();
         // Back edge exists if BrIf target 0 is the entry block

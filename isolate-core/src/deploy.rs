@@ -316,11 +316,7 @@ impl DeploymentPlanner {
 
         let estimated_cost = Some(Self::estimate_cost(config));
 
-        DeploymentPlan {
-            config_name: config.name.clone(),
-            steps,
-            estimated_cost,
-        }
+        DeploymentPlan { config_name: config.name.clone(), steps, estimated_cost }
     }
 
     /// Validate a deployment configuration, returning any errors found.
@@ -349,9 +345,7 @@ impl DeploymentPlanner {
 
         if let Some(ref scaling) = config.scaling {
             if scaling.min_instances > scaling.max_instances {
-                errors.push(
-                    "Scaling min_instances must be <= max_instances".to_string(),
-                );
+                errors.push("Scaling min_instances must be <= max_instances".to_string());
             }
         }
 
@@ -400,18 +394,12 @@ impl DeploymentPlanner {
             });
         }
 
-        CostEstimate {
-            monthly_usd: total,
-            breakdown,
-        }
+        CostEstimate { monthly_usd: total, breakdown }
     }
 
     fn aws_manifest(config: &DeploymentConfig) -> String {
-        let targets: Vec<&DeploymentTarget> = config
-            .targets
-            .iter()
-            .filter(|t| t.provider == CloudProvider::Aws)
-            .collect();
+        let targets: Vec<&DeploymentTarget> =
+            config.targets.iter().filter(|t| t.provider == CloudProvider::Aws).collect();
         let target = targets.first().cloned().unwrap_or_else(|| &config.targets[0]);
 
         let env_json: String = target
@@ -449,11 +437,8 @@ impl DeploymentPlanner {
     }
 
     fn gcp_manifest(config: &DeploymentConfig) -> String {
-        let targets: Vec<&DeploymentTarget> = config
-            .targets
-            .iter()
-            .filter(|t| t.provider == CloudProvider::Gcp)
-            .collect();
+        let targets: Vec<&DeploymentTarget> =
+            config.targets.iter().filter(|t| t.provider == CloudProvider::Gcp).collect();
         let target = targets.first().cloned().unwrap_or_else(|| &config.targets[0]);
 
         let env_yaml: String = target
@@ -483,11 +468,8 @@ spec:
     }
 
     fn azure_manifest(config: &DeploymentConfig) -> String {
-        let targets: Vec<&DeploymentTarget> = config
-            .targets
-            .iter()
-            .filter(|t| t.provider == CloudProvider::Azure)
-            .collect();
+        let targets: Vec<&DeploymentTarget> =
+            config.targets.iter().filter(|t| t.provider == CloudProvider::Azure).collect();
         let target = targets.first().cloned().unwrap_or_else(|| &config.targets[0]);
 
         let env_yaml: String = target
@@ -518,11 +500,8 @@ spec:
     }
 
     fn cloudflare_manifest(config: &DeploymentConfig) -> String {
-        let targets: Vec<&DeploymentTarget> = config
-            .targets
-            .iter()
-            .filter(|t| t.provider == CloudProvider::Cloudflare)
-            .collect();
+        let targets: Vec<&DeploymentTarget> =
+            config.targets.iter().filter(|t| t.provider == CloudProvider::Cloudflare).collect();
         let target = targets.first().cloned().unwrap_or_else(|| &config.targets[0]);
 
         let vars: String = target
@@ -547,11 +526,8 @@ compatibility_date = "2024-01-01"
     }
 
     fn fly_manifest(config: &DeploymentConfig) -> String {
-        let targets: Vec<&DeploymentTarget> = config
-            .targets
-            .iter()
-            .filter(|t| t.provider == CloudProvider::Fly)
-            .collect();
+        let targets: Vec<&DeploymentTarget> =
+            config.targets.iter().filter(|t| t.provider == CloudProvider::Fly).collect();
         let target = targets.first().cloned().unwrap_or_else(|| &config.targets[0]);
 
         let env_lines: String = target
@@ -606,14 +582,8 @@ mod tests {
     fn test_cloud_provider_from_str() {
         assert_eq!("aws".parse::<CloudProvider>().unwrap(), CloudProvider::Aws);
         assert_eq!("GCP".parse::<CloudProvider>().unwrap(), CloudProvider::Gcp);
-        assert_eq!(
-            "Azure".parse::<CloudProvider>().unwrap(),
-            CloudProvider::Azure
-        );
-        assert_eq!(
-            "CLOUDFLARE".parse::<CloudProvider>().unwrap(),
-            CloudProvider::Cloudflare
-        );
+        assert_eq!("Azure".parse::<CloudProvider>().unwrap(), CloudProvider::Azure);
+        assert_eq!("CLOUDFLARE".parse::<CloudProvider>().unwrap(), CloudProvider::Cloudflare);
         assert_eq!("fly".parse::<CloudProvider>().unwrap(), CloudProvider::Fly);
         assert!("unknown".parse::<CloudProvider>().is_err());
     }
@@ -761,8 +731,7 @@ mod tests {
             scaling: None,
         };
 
-        let manifest =
-            DeploymentPlanner::generate_manifest(&config, CloudProvider::Cloudflare);
+        let manifest = DeploymentPlanner::generate_manifest(&config, CloudProvider::Cloudflare);
         assert!(manifest.contains("compatibility_date"));
         assert!(manifest.contains("edge-worker"));
         assert!(manifest.contains("app.wasm"));
@@ -798,10 +767,7 @@ mod tests {
         assert_eq!(DeployAction::CreateService.to_string(), "CreateService");
         assert_eq!(DeployAction::UpdateService.to_string(), "UpdateService");
         assert_eq!(DeployAction::ScaleService.to_string(), "ScaleService");
-        assert_eq!(
-            DeployAction::ConfigureHealthCheck.to_string(),
-            "ConfigureHealthCheck"
-        );
+        assert_eq!(DeployAction::ConfigureHealthCheck.to_string(), "ConfigureHealthCheck");
         assert_eq!(DeployAction::SetEnvironment.to_string(), "SetEnvironment");
         assert_eq!(DeployAction::DestroyService.to_string(), "DestroyService");
     }

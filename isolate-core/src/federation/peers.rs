@@ -76,11 +76,7 @@ struct PeerRegistryInner {
 
 impl PeerRegistry {
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(PeerRegistryInner {
-                peers: RwLock::new(HashMap::new()),
-            }),
-        }
+        Self { inner: Arc::new(PeerRegistryInner { peers: RwLock::new(HashMap::new()) }) }
     }
 
     /// Register a new peer.
@@ -122,11 +118,11 @@ impl PeerRegistry {
     /// Get all active peers sorted by bandwidth score.
     pub fn active_peers(&self) -> Vec<PeerInfo> {
         let peers = self.inner.peers.read();
-        let mut active: Vec<PeerInfo> = peers.values()
-            .filter(|p| p.status == PeerStatus::Active)
-            .cloned()
-            .collect();
-        active.sort_by(|a, b| b.bandwidth_score.partial_cmp(&a.bandwidth_score).unwrap_or(std::cmp::Ordering::Equal));
+        let mut active: Vec<PeerInfo> =
+            peers.values().filter(|p| p.status == PeerStatus::Active).cloned().collect();
+        active.sort_by(|a, b| {
+            b.bandwidth_score.partial_cmp(&a.bandwidth_score).unwrap_or(std::cmp::Ordering::Equal)
+        });
         active
     }
 

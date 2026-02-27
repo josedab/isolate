@@ -71,9 +71,8 @@ impl RecommendationEngine {
     }
 
     fn check_memory_usage(&self, metrics: &[ExecutionMetrics], recs: &mut Vec<Recommendation>) {
-        let avg_memory_mb = metrics.iter()
-            .map(|m| m.memory_mb())
-            .sum::<f64>() / metrics.len() as f64;
+        let avg_memory_mb =
+            metrics.iter().map(|m| m.memory_mb()).sum::<f64>() / metrics.len() as f64;
 
         if avg_memory_mb > self.high_memory_threshold_mb {
             recs.push(Recommendation {
@@ -85,7 +84,10 @@ impl RecommendationEngine {
                     avg_memory_mb, self.high_memory_threshold_mb
                 ),
                 priority: 2,
-                estimated_impact: format!("Could save ~{:.0} MB per execution", avg_memory_mb - self.high_memory_threshold_mb),
+                estimated_impact: format!(
+                    "Could save ~{:.0} MB per execution",
+                    avg_memory_mb - self.high_memory_threshold_mb
+                ),
             });
         }
     }
@@ -101,16 +103,22 @@ impl RecommendationEngine {
                 description: format!(
                     "Error rate is {:.1}% ({} failures out of {} executions). \
                      Investigate failing modules for root cause.",
-                    rate * 100.0, errors, metrics.len()
+                    rate * 100.0,
+                    errors,
+                    metrics.len()
                 ),
                 priority: 1,
-                estimated_impact: format!("Reduce failures by {:.0}%", (rate - self.high_error_rate_threshold) * 100.0),
+                estimated_impact: format!(
+                    "Reduce failures by {:.0}%",
+                    (rate - self.high_error_rate_threshold) * 100.0
+                ),
             });
         }
     }
 
     fn check_io_efficiency(&self, metrics: &[ExecutionMetrics], recs: &mut Vec<Recommendation>) {
-        let high_io_count = metrics.iter()
+        let high_io_count = metrics
+            .iter()
             .filter(|m| m.total_io() > 10 * 1024 * 1024) // >10MB
             .count();
 
@@ -121,7 +129,8 @@ impl RecommendationEngine {
                 description: format!(
                     "{} out of {} executions had >10 MB of I/O. \
                      Consider caching or batching I/O operations.",
-                    high_io_count, metrics.len()
+                    high_io_count,
+                    metrics.len()
                 ),
                 priority: 3,
                 estimated_impact: "Potential 2-5x throughput improvement".into(),
@@ -130,9 +139,7 @@ impl RecommendationEngine {
     }
 
     fn check_fuel_usage(&self, metrics: &[ExecutionMetrics], recs: &mut Vec<Recommendation>) {
-        let high_fuel = metrics.iter()
-            .filter(|m| m.fuel_consumed > 10_000_000)
-            .count();
+        let high_fuel = metrics.iter().filter(|m| m.fuel_consumed > 10_000_000).count();
 
         let ratio = high_fuel as f64 / metrics.len() as f64;
         if ratio > self.low_fuel_efficiency_threshold {
@@ -201,9 +208,7 @@ mod tests {
     #[test]
     fn test_no_recommendations_for_healthy_system() {
         let engine = RecommendationEngine::new();
-        let metrics: Vec<_> = (0..10)
-            .map(|_| make_metrics(1024 * 1024, 0, 1024, 1000))
-            .collect();
+        let metrics: Vec<_> = (0..10).map(|_| make_metrics(1024 * 1024, 0, 1024, 1000)).collect();
         let recs = engine.analyze(&metrics);
         assert!(recs.is_empty());
     }
@@ -218,9 +223,7 @@ mod tests {
     fn test_priority_ordering() {
         let engine = RecommendationEngine::new().with_memory_threshold(1.0);
         // High errors + high memory to trigger multiple recommendations
-        let metrics: Vec<_> = (0..5)
-            .map(|_| make_metrics(64 * 1024 * 1024, 1, 0, 0))
-            .collect();
+        let metrics: Vec<_> = (0..5).map(|_| make_metrics(64 * 1024 * 1024, 1, 0, 0)).collect();
         let recs = engine.analyze(&metrics);
         assert!(recs.len() >= 2);
         // Check sorted by priority

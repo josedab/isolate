@@ -26,9 +26,7 @@ use crate::config::{ModuleHash, SandboxConfig};
 use crate::error::{Error, Result};
 use crate::resource::ResourceMeter;
 
-use super::capture::{
-    new_capture_buffer, BufferedStdin, CaptureStream, EmptyStdin, NullStream,
-};
+use super::capture::{new_capture_buffer, BufferedStdin, CaptureStream, EmptyStdin, NullStream};
 use super::host::HostState;
 use super::wasm::{SandboxWasiState, WasmEngine, WasmInstance};
 
@@ -51,10 +49,7 @@ pub struct PreInitConfig {
 
 impl Default for PreInitConfig {
     fn default() -> Self {
-        Self {
-            max_entries: 64,
-            ttl_secs: 600,
-        }
+        Self { max_entries: 64, ttl_secs: 600 }
     }
 }
 
@@ -112,10 +107,8 @@ impl PreInitializedPool {
 
         // Create a linker and add WASI
         let mut linker: Linker<SandboxWasiState> = Linker::new(self.engine.engine());
-        preview1::add_to_linker_sync(&mut linker, |state: &mut SandboxWasiState| {
-            state.wasi_ctx()
-        })
-        .map_err(|e| Error::Instantiation(e.to_string()))?;
+        preview1::add_to_linker_sync(&mut linker, |state: &mut SandboxWasiState| state.wasi_ctx())
+            .map_err(|e| Error::Instantiation(e.to_string()))?;
 
         // Pre-instantiate
         let instance_pre = linker
@@ -127,13 +120,7 @@ impl PreInitializedPool {
             self.evict_oldest();
         }
 
-        self.entries.insert(
-            hash,
-            PreLinkedEntry {
-                instance_pre,
-                created_at: Instant::now(),
-            },
-        );
+        self.entries.insert(hash, PreLinkedEntry { instance_pre, created_at: Instant::now() });
 
         Ok(())
     }
@@ -190,7 +177,8 @@ impl PreInitializedPool {
 
         if enforcer.check_stdout().is_ok() {
             if sandbox_config.resources.io.is_limited() {
-                wasi_builder.stdout(CaptureStream::with_meter(stdout_buffer.clone(), meter.clone()));
+                wasi_builder
+                    .stdout(CaptureStream::with_meter(stdout_buffer.clone(), meter.clone()));
             } else {
                 wasi_builder.stdout(CaptureStream::new(stdout_buffer.clone()));
             }
@@ -200,7 +188,8 @@ impl PreInitializedPool {
 
         if enforcer.check_stderr().is_ok() {
             if sandbox_config.resources.io.is_limited() {
-                wasi_builder.stderr(CaptureStream::with_meter(stderr_buffer.clone(), meter.clone()));
+                wasi_builder
+                    .stderr(CaptureStream::with_meter(stderr_buffer.clone(), meter.clone()));
             } else {
                 wasi_builder.stderr(CaptureStream::new(stderr_buffer.clone()));
             }
@@ -267,11 +256,8 @@ impl PreInitializedPool {
     }
 
     fn evict_oldest(&self) {
-        let oldest = self
-            .entries
-            .iter()
-            .min_by_key(|e| e.value().created_at)
-            .map(|e| e.key().clone());
+        let oldest =
+            self.entries.iter().min_by_key(|e| e.value().created_at).map(|e| e.key().clone());
         if let Some(key) = oldest {
             self.entries.remove(&key);
         }

@@ -131,11 +131,7 @@ impl SpanContext {
 
 impl fmt::Display for SpanContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "trace_id={} span_id={} flags={}",
-            self.trace_id, self.span_id, self.trace_flags
-        )
+        write!(f, "trace_id={} span_id={} flags={}", self.trace_id, self.span_id, self.trace_flags)
     }
 }
 

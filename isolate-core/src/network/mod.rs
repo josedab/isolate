@@ -34,8 +34,6 @@
 //! assert!(!policy.allows_http_host("evil.com"));
 //! ```
 
-
-
 #![allow(missing_docs)]
 pub mod dns;
 pub mod policy;

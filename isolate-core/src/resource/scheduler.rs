@@ -30,7 +30,11 @@ pub struct ResourceRequest {
 
 impl ResourceRequest {
     /// Create a request from resource limits with a priority and owner.
-    pub fn from_limits(limits: &ResourceLimits, priority: Priority, owner: impl Into<String>) -> Self {
+    pub fn from_limits(
+        limits: &ResourceLimits,
+        priority: Priority,
+        owner: impl Into<String>,
+    ) -> Self {
         Self {
             memory_bytes: limits.memory.total_max as u64,
             cpu_millicores: 1000, // default 1 core
@@ -183,7 +187,7 @@ impl FairShareQuota {
             owner: owner.into(),
             max_concurrent: 10,
             max_memory: 4 * 1024 * 1024 * 1024, // 4GB
-            max_cpu: 4000,                        // 4 cores
+            max_cpu: 4000,                      // 4 cores
             weight: 100,
         }
     }
@@ -201,20 +205,11 @@ struct OwnerUsage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ScheduleResult {
     /// Request was placed on a node.
-    Placed {
-        node_id: NodeId,
-        request_id: String,
-    },
+    Placed { node_id: NodeId, request_id: String },
     /// Request was queued (no capacity available now).
-    Queued {
-        request_id: String,
-        queue_position: usize,
-    },
+    Queued { request_id: String, queue_position: usize },
     /// Request was rejected (exceeds quota or invalid).
-    Rejected {
-        request_id: String,
-        reason: String,
-    },
+    Rejected { request_id: String, reason: String },
 }
 
 /// Resource-aware scheduler with bin-packing and fair-share enforcement.
@@ -256,7 +251,11 @@ impl ResourceScheduler {
     }
 
     /// Schedule a resource request, returning placement or queue position.
-    pub fn schedule(&self, request_id: impl Into<String>, request: ResourceRequest) -> ScheduleResult {
+    pub fn schedule(
+        &self,
+        request_id: impl Into<String>,
+        request: ResourceRequest,
+    ) -> ScheduleResult {
         let request_id = request_id.into();
 
         // Check fair-share quota
@@ -267,24 +266,14 @@ impl ResourceScheduler {
         // Try to place immediately
         if let Some(node_id) = self.find_placement(&request) {
             self.commit_placement(&request_id, &node_id, &request);
-            return ScheduleResult::Placed {
-                node_id,
-                request_id,
-            };
+            return ScheduleResult::Placed { node_id, request_id };
         }
 
         // Queue the request
         let mut queue = self.queue.lock();
-        queue.push(QueuedRequest {
-            id: request_id.clone(),
-            request,
-            enqueued_at: Instant::now(),
-        });
+        queue.push(QueuedRequest { id: request_id.clone(), request, enqueued_at: Instant::now() });
         let position = queue.len();
-        ScheduleResult::Queued {
-            request_id,
-            queue_position: position,
-        }
+        ScheduleResult::Queued { request_id, queue_position: position }
     }
 
     /// Release resources for a completed sandbox.
@@ -311,10 +300,7 @@ impl ResourceScheduler {
         while let Some(queued) = queue.pop() {
             if let Some(node_id) = self.find_placement(&queued.request) {
                 self.commit_placement(&queued.id, &node_id, &queued.request);
-                results.push(ScheduleResult::Placed {
-                    node_id,
-                    request_id: queued.id,
-                });
+                results.push(ScheduleResult::Placed { node_id, request_id: queued.id });
             } else {
                 remaining.push(queued);
             }
@@ -372,19 +358,13 @@ impl ResourceScheduler {
             if current.memory_bytes + request.memory_bytes > quota.max_memory {
                 return Some(ScheduleResult::Rejected {
                     request_id: request_id.to_string(),
-                    reason: format!(
-                        "owner '{}' memory quota exceeded",
-                        request.owner
-                    ),
+                    reason: format!("owner '{}' memory quota exceeded", request.owner),
                 });
             }
             if current.cpu_millicores + request.cpu_millicores > quota.max_cpu {
                 return Some(ScheduleResult::Rejected {
                     request_id: request_id.to_string(),
-                    reason: format!(
-                        "owner '{}' CPU quota exceeded",
-                        request.owner
-                    ),
+                    reason: format!("owner '{}' CPU quota exceeded", request.owner),
                 });
             }
         }
@@ -393,10 +373,7 @@ impl ResourceScheduler {
 
     fn find_placement(&self, request: &ResourceRequest) -> Option<NodeId> {
         let nodes = self.nodes.read();
-        let mut candidates: Vec<_> = nodes
-            .values()
-            .filter(|n| n.can_fit(request))
-            .collect();
+        let mut candidates: Vec<_> = nodes.values().filter(|n| n.can_fit(request)).collect();
 
         if candidates.is_empty() {
             return None;
@@ -424,9 +401,7 @@ impl ResourceScheduler {
                 candidates.sort_by(|a, b| {
                     let a_util = (a.memory_utilization() + a.cpu_utilization()) / 2.0;
                     let b_util = (b.memory_utilization() + b.cpu_utilization()) / 2.0;
-                    a_util
-                        .partial_cmp(&b_util)
-                        .unwrap_or(std::cmp::Ordering::Equal)
+                    a_util.partial_cmp(&b_util).unwrap_or(std::cmp::Ordering::Equal)
                 });
             }
         }
@@ -445,10 +420,7 @@ impl ResourceScheduler {
         u.memory_bytes += request.memory_bytes;
         u.cpu_millicores += request.cpu_millicores;
 
-        self.placements.write().insert(
-            request_id.to_string(),
-            (node_id.clone(), request.clone()),
-        );
+        self.placements.write().insert(request_id.to_string(), (node_id.clone(), request.clone()));
     }
 }
 
@@ -541,7 +513,11 @@ mod tests {
         let r2 = sched.schedule("r2", make_request(512, "alice", Priority::Normal));
 
         // Spread should place on different nodes
-        let (ScheduleResult::Placed { node_id: n1, .. }, ScheduleResult::Placed { node_id: n2, .. }) = (r1, r2) else {
+        let (
+            ScheduleResult::Placed { node_id: n1, .. },
+            ScheduleResult::Placed { node_id: n2, .. },
+        ) = (r1, r2)
+        else {
             unreachable!("expected both placed");
         };
         assert_ne!(n1, n2);

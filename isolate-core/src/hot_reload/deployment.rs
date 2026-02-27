@@ -15,9 +15,7 @@ pub enum DeploymentStrategy {
 
 impl Default for DeploymentStrategy {
     fn default() -> Self {
-        Self::Canary {
-            steps: vec![1, 5, 10, 25, 50, 100],
-        }
+        Self::Canary { steps: vec![1, 5, 10, 25, 50, 100] }
     }
 }
 
@@ -31,11 +29,7 @@ pub struct RollbackTrigger {
 
 impl RollbackTrigger {
     pub fn error_rate(pct: f64) -> Self {
-        Self {
-            max_error_rate_pct: pct,
-            max_latency_ms: None,
-            min_requests_before_eval: 10,
-        }
+        Self { max_error_rate_pct: pct, max_latency_ms: None, min_requests_before_eval: 10 }
     }
 
     pub fn with_latency(mut self, max_ms: u64) -> Self {
@@ -53,18 +47,9 @@ impl RollbackTrigger {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DeploymentState {
     Idle,
-    InProgress {
-        target_version: VersionId,
-        current_step: usize,
-        canary_pct: u8,
-    },
-    RolledBack {
-        failed_version: VersionId,
-        reason: String,
-    },
-    Completed {
-        version: VersionId,
-    },
+    InProgress { target_version: VersionId, current_step: usize, canary_pct: u8 },
+    RolledBack { failed_version: VersionId, reason: String },
+    Completed { version: VersionId },
 }
 
 /// Event emitted during deployment lifecycle.
@@ -112,14 +97,10 @@ impl DeploymentController {
             canary_pct: initial_pct,
         };
 
-        self.emit(DeploymentEvent::Started {
-            version: version.clone(),
-        });
+        self.emit(DeploymentEvent::Started { version: version.clone() });
 
         if initial_pct == 100 {
-            *self.state.write() = DeploymentState::Completed {
-                version: version.clone(),
-            };
+            *self.state.write() = DeploymentState::Completed { version: version.clone() };
             self.emit(DeploymentEvent::Completed { version });
         }
     }
@@ -128,11 +109,7 @@ impl DeploymentController {
     pub fn advance_step(&self, health: &HealthTracker) -> Result<u8, String> {
         let mut state = self.state.write();
         match &*state {
-            DeploymentState::InProgress {
-                target_version,
-                current_step,
-                ..
-            } => {
+            DeploymentState::InProgress { target_version, current_step, .. } => {
                 // Check health before advancing
                 if let Some(health_data) = health.get_health(target_version) {
                     if health_data.total_requests >= self.trigger.min_requests_before_eval
@@ -178,18 +155,12 @@ impl DeploymentController {
                     _ => vec![100],
                 };
 
-                let next_pct = if next_step < steps.len() {
-                    steps[next_step]
-                } else {
-                    100
-                };
+                let next_pct = if next_step < steps.len() { steps[next_step] } else { 100 };
 
                 let version = target_version.clone();
 
                 if next_pct >= 100 {
-                    *state = DeploymentState::Completed {
-                        version: version.clone(),
-                    };
+                    *state = DeploymentState::Completed { version: version.clone() };
                     drop(state);
                     self.emit(DeploymentEvent::Completed { version });
                     Ok(100)
@@ -200,10 +171,7 @@ impl DeploymentController {
                         canary_pct: next_pct,
                     };
                     drop(state);
-                    self.emit(DeploymentEvent::StepAdvanced {
-                        version,
-                        pct: next_pct,
-                    });
+                    self.emit(DeploymentEvent::StepAdvanced { version, pct: next_pct });
                     Ok(next_pct)
                 }
             }
@@ -214,10 +182,7 @@ impl DeploymentController {
     /// Force rollback to previous version.
     pub fn rollback(&self, reason: impl Into<String>) {
         let mut state = self.state.write();
-        if let DeploymentState::InProgress {
-            target_version, ..
-        } = &*state
-        {
+        if let DeploymentState::InProgress { target_version, .. } = &*state {
             let version = target_version.clone();
             let reason = reason.into();
             *state = DeploymentState::RolledBack {
@@ -245,8 +210,10 @@ mod tests {
 
     #[test]
     fn test_immediate_deployment() {
-        let ctrl =
-            DeploymentController::new(DeploymentStrategy::Immediate, RollbackTrigger::error_rate(5.0));
+        let ctrl = DeploymentController::new(
+            DeploymentStrategy::Immediate,
+            RollbackTrigger::error_rate(5.0),
+        );
 
         ctrl.start_deployment(VersionId::new("v2"));
         assert!(matches!(ctrl.state(), DeploymentState::Completed { .. }));
@@ -255,9 +222,7 @@ mod tests {
     #[test]
     fn test_canary_deployment_steps() {
         let ctrl = DeploymentController::new(
-            DeploymentStrategy::Canary {
-                steps: vec![1, 10, 50, 100],
-            },
+            DeploymentStrategy::Canary { steps: vec![1, 10, 50, 100] },
             RollbackTrigger::error_rate(50.0),
         );
 
@@ -279,9 +244,7 @@ mod tests {
     #[test]
     fn test_canary_rollback_on_errors() {
         let ctrl = DeploymentController::new(
-            DeploymentStrategy::Canary {
-                steps: vec![1, 10, 50, 100],
-            },
+            DeploymentStrategy::Canary { steps: vec![1, 10, 50, 100] },
             RollbackTrigger::error_rate(5.0).with_min_requests(5),
         );
 
@@ -302,9 +265,7 @@ mod tests {
     #[test]
     fn test_manual_rollback() {
         let ctrl = DeploymentController::new(
-            DeploymentStrategy::Canary {
-                steps: vec![1, 50, 100],
-            },
+            DeploymentStrategy::Canary { steps: vec![1, 50, 100] },
             RollbackTrigger::error_rate(5.0),
         );
 
@@ -319,7 +280,10 @@ mod tests {
 
     #[test]
     fn test_deployment_events() {
-        let ctrl = DeploymentController::new(DeploymentStrategy::Immediate, RollbackTrigger::error_rate(5.0));
+        let ctrl = DeploymentController::new(
+            DeploymentStrategy::Immediate,
+            RollbackTrigger::error_rate(5.0),
+        );
 
         ctrl.start_deployment(VersionId::new("v2"));
         let events = ctrl.events();
@@ -329,12 +293,8 @@ mod tests {
     #[test]
     fn test_latency_rollback() {
         let ctrl = DeploymentController::new(
-            DeploymentStrategy::Canary {
-                steps: vec![10, 50, 100],
-            },
-            RollbackTrigger::error_rate(50.0)
-                .with_latency(100)
-                .with_min_requests(3),
+            DeploymentStrategy::Canary { steps: vec![10, 50, 100] },
+            RollbackTrigger::error_rate(50.0).with_latency(100).with_min_requests(3),
         );
 
         ctrl.start_deployment(VersionId::new("v2"));

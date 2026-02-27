@@ -47,12 +47,8 @@ impl Checkpoint {
     /// Create a checkpoint from a snapshot.
     pub fn from_snapshot(snapshot: &Snapshot, node_id: &str) -> Self {
         let engine_version = env!("CARGO_PKG_VERSION").to_string();
-        let compat_hash = format!(
-            "{}-{}-{}",
-            std::env::consts::ARCH,
-            std::env::consts::OS,
-            engine_version
-        );
+        let compat_hash =
+            format!("{}-{}-{}", std::env::consts::ARCH, std::env::consts::OS, engine_version);
 
         Self {
             id: snapshot.id,
@@ -107,11 +103,7 @@ impl Checkpoint {
             );
         }
 
-        RestoreValidation {
-            can_restore: issues.is_empty(),
-            issues,
-            warnings,
-        }
+        RestoreValidation { can_restore: issues.is_empty(), issues, warnings }
     }
 }
 
@@ -157,10 +149,7 @@ pub struct CloneTimingStats {
 
 impl CloneTimingStats {
     fn new() -> Self {
-        Self {
-            target: Duration::from_micros(100),
-            ..Default::default()
-        }
+        Self { target: Duration::from_micros(100), ..Default::default() }
     }
 
     /// Record a clone operation timing.
@@ -172,12 +161,8 @@ impl CloneTimingStats {
             self.clones_under_target += 1;
         }
 
-        self.min_clone_time = Some(
-            self.min_clone_time.map_or(duration, |min| min.min(duration)),
-        );
-        self.max_clone_time = Some(
-            self.max_clone_time.map_or(duration, |max| max.max(duration)),
-        );
+        self.min_clone_time = Some(self.min_clone_time.map_or(duration, |min| min.min(duration)));
+        self.max_clone_time = Some(self.max_clone_time.map_or(duration, |max| max.max(duration)));
     }
 
     /// Average clone time.
@@ -231,7 +216,10 @@ impl CheckpointManager {
     }
 
     /// Restore a snapshot from a checkpoint, recording timing.
-    pub async fn restore_from_checkpoint(&mut self, id: SnapshotId) -> Result<(Snapshot, Duration)> {
+    pub async fn restore_from_checkpoint(
+        &mut self,
+        id: SnapshotId,
+    ) -> Result<(Snapshot, Duration)> {
         // Validate if we have metadata
         if let Some(checkpoint) = self.checkpoints.get(&id) {
             let validation = checkpoint.validate_for_restore();
@@ -271,9 +259,7 @@ impl CheckpointManager {
 
     /// List checkpoints for a specific module.
     pub fn checkpoints_for_module(&self, module_hash: &ModuleHash) -> Vec<&Checkpoint> {
-        self.checkpoints.values()
-            .filter(|c| c.module_hash == *module_hash)
-            .collect()
+        self.checkpoints.values().filter(|c| c.module_hash == *module_hash).collect()
     }
 
     /// Get clone timing statistics.

@@ -1,5 +1,3 @@
-
-
 //! Cedar/Rego-inspired policy decision engine with decision tree compilation.
 //!
 //! Compiles [`PolicySet`]s into [`DecisionTree`]s for fast evaluation of
@@ -233,11 +231,7 @@ impl DecisionTree {
             PolicyEffect::Deny
         };
 
-        PolicyDecision {
-            effect,
-            matched_statements: matched,
-            evaluation_time: start.elapsed(),
-        }
+        PolicyDecision { effect, matched_statements: matched, evaluation_time: start.elapsed() }
     }
 }
 
@@ -302,7 +296,8 @@ fn json_to_condition_value(v: &serde_json::Value) -> Option<ConditionValue> {
         serde_json::Value::Number(n) => n.as_f64().map(ConditionValue::Number),
         serde_json::Value::Bool(b) => Some(ConditionValue::Bool(*b)),
         serde_json::Value::Array(arr) => {
-            let items: Vec<ConditionValue> = arr.iter().filter_map(json_to_condition_value).collect();
+            let items: Vec<ConditionValue> =
+                arr.iter().filter_map(json_to_condition_value).collect();
             Some(ConditionValue::List(items))
         }
         _ => None,
@@ -356,23 +351,14 @@ impl PolicyCompiler {
         for stmt in &policy_set.statements {
             match &stmt.action {
                 ActionMatch::Any => {
-                    action_groups
-                        .entry("*".to_string())
-                        .or_default()
-                        .push(stmt.clone());
+                    action_groups.entry("*".to_string()).or_default().push(stmt.clone());
                 }
                 ActionMatch::Specific(action) => {
-                    action_groups
-                        .entry(action.clone())
-                        .or_default()
-                        .push(stmt.clone());
+                    action_groups.entry(action.clone()).or_default().push(stmt.clone());
                 }
                 ActionMatch::OneOf(actions) => {
                     for action in actions {
-                        action_groups
-                            .entry(action.clone())
-                            .or_default()
-                            .push(stmt.clone());
+                        action_groups.entry(action.clone()).or_default().push(stmt.clone());
                     }
                 }
             }
@@ -380,10 +366,7 @@ impl PolicyCompiler {
 
         let root = Self::build_tree(&policy_set.statements);
 
-        DecisionTree {
-            action_groups,
-            root,
-        }
+        DecisionTree { action_groups, root }
     }
 
     /// Build a simple decision tree from statements.
@@ -392,10 +375,7 @@ impl PolicyCompiler {
     /// space (i.e., fewer than two statements or no actionable split field).
     fn build_tree(statements: &[PolicyStatement]) -> DecisionNode {
         if statements.is_empty() {
-            return DecisionNode::Leaf {
-                effect: PolicyEffect::Deny,
-                statement_ids: vec![],
-            };
+            return DecisionNode::Leaf { effect: PolicyEffect::Deny, statement_ids: vec![] };
         }
 
         if statements.len() == 1 {
@@ -438,10 +418,7 @@ impl PolicyCompiler {
         } else {
             PolicyEffect::Allow
         };
-        DecisionNode::Leaf {
-            effect,
-            statement_ids: ids,
-        }
+        DecisionNode::Leaf { effect, statement_ids: ids }
     }
 }
 
@@ -460,10 +437,7 @@ pub struct PolicyStore {
 impl PolicyStore {
     /// Create a new empty store.
     pub fn new() -> Self {
-        Self {
-            current: HashMap::new(),
-            versions: HashMap::new(),
-        }
+        Self { current: HashMap::new(), versions: HashMap::new() }
     }
 
     /// Insert a new policy set. Returns the assigned id.
@@ -479,8 +453,7 @@ impl PolicyStore {
         policy_set.created_at = now;
         policy_set.updated_at = now;
         let id = policy_set.id.clone();
-        self.versions
-            .insert((id.clone(), 1), policy_set.clone());
+        self.versions.insert((id.clone(), 1), policy_set.clone());
         self.current.insert(id.clone(), policy_set);
         Ok(id)
     }
@@ -493,17 +466,14 @@ impl PolicyStore {
     /// Update an existing policy set, bumping the version. Returns the new
     /// version number.
     pub fn update(&mut self, id: &str, mut policy_set: PolicySet) -> Result<u64, String> {
-        let existing = self
-            .current
-            .get(id)
-            .ok_or_else(|| format!("policy set '{}' not found", id))?;
+        let existing =
+            self.current.get(id).ok_or_else(|| format!("policy set '{}' not found", id))?;
         let new_version = existing.version + 1;
         policy_set.id = id.to_string();
         policy_set.version = new_version;
         policy_set.created_at = existing.created_at;
         policy_set.updated_at = Utc::now();
-        self.versions
-            .insert((id.to_string(), new_version), policy_set.clone());
+        self.versions.insert((id.to_string(), new_version), policy_set.clone());
         self.current.insert(id.to_string(), policy_set);
         Ok(new_version)
     }
@@ -529,12 +499,8 @@ impl PolicyStore {
 
     /// List all available version numbers for a policy set.
     pub fn list_versions(&self, id: &str) -> Vec<u64> {
-        let mut versions: Vec<u64> = self
-            .versions
-            .keys()
-            .filter(|(k, _)| k == id)
-            .map(|(_, v)| *v)
-            .collect();
+        let mut versions: Vec<u64> =
+            self.versions.keys().filter(|(k, _)| k == id).map(|(_, v)| *v).collect();
         versions.sort();
         versions
     }
@@ -940,11 +906,7 @@ mod tests {
         let ps = make_policy_set(vec![]);
         let id = store.create(ps).unwrap();
 
-        let updated = make_policy_set(vec![allow_stmt(
-            "s1",
-            ActionMatch::Any,
-            ResourceMatch::Any,
-        )]);
+        let updated = make_policy_set(vec![allow_stmt("s1", ActionMatch::Any, ResourceMatch::Any)]);
         let new_version = store.update(&id, updated).unwrap();
         assert_eq!(new_version, 2);
 
@@ -1033,11 +995,7 @@ mod tests {
 
     #[test]
     fn test_evaluation_time_is_recorded() {
-        let ps = make_policy_set(vec![allow_stmt(
-            "s1",
-            ActionMatch::Any,
-            ResourceMatch::Any,
-        )]);
+        let ps = make_policy_set(vec![allow_stmt("s1", ActionMatch::Any, ResourceMatch::Any)]);
         let tree = PolicyCompiler::compile(&ps);
         let decision = tree.evaluate(&make_request("execute", "sandbox", "admin"));
         // Just verify it's a valid duration (not panicking)

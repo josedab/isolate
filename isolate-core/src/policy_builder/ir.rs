@@ -12,11 +12,7 @@ pub struct PolicyIR {
 
 impl PolicyIR {
     pub fn new(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            description: None,
-            blocks: Vec::new(),
-        }
+        Self { name: name.into(), description: None, blocks: Vec::new() }
     }
 
     pub fn with_description(mut self, desc: impl Into<String>) -> Self {
@@ -44,11 +40,7 @@ pub struct PolicyBlock {
 
 impl PolicyBlock {
     pub fn new(id: impl Into<String>, kind: BlockKind) -> Self {
-        Self {
-            id: id.into(),
-            kind,
-            enabled: true,
-        }
+        Self { id: id.into(), kind, enabled: true }
     }
 
     pub fn disabled(mut self) -> Self {

@@ -397,14 +397,10 @@ impl ClusterManager {
     /// continues operating; the minority partition is fenced (sandboxes paused).
     pub fn detect_partition(&mut self) -> Option<PartitionResolution> {
         let all = self.gossip.all_members();
-        let alive: Vec<NodeId> = all.iter()
-            .filter(|m| m.state == MemberState::Alive)
-            .map(|m| m.id())
-            .collect();
-        let suspect: Vec<NodeId> = all.iter()
-            .filter(|m| m.state == MemberState::Suspect)
-            .map(|m| m.id())
-            .collect();
+        let alive: Vec<NodeId> =
+            all.iter().filter(|m| m.state == MemberState::Alive).map(|m| m.id()).collect();
+        let suspect: Vec<NodeId> =
+            all.iter().filter(|m| m.state == MemberState::Suspect).map(|m| m.id()).collect();
 
         // If we have suspects and the reachable set is < majority, we may be in minority
         let total_known = all.len();
@@ -422,9 +418,8 @@ impl ClusterManager {
                 partition_a: alive.clone(),
                 partition_b: suspect.clone(),
             });
-            self.events.push(ClusterManagerEvent::SplitBrainResolved {
-                fenced_nodes: fenced.clone(),
-            });
+            self.events
+                .push(ClusterManagerEvent::SplitBrainResolved { fenced_nodes: fenced.clone() });
             return Some(PartitionResolution {
                 in_majority: false,
                 reachable_nodes: alive,
@@ -439,9 +434,8 @@ impl ClusterManager {
                 partition_a: alive.clone(),
                 partition_b: suspect.clone(),
             });
-            self.events.push(ClusterManagerEvent::SplitBrainResolved {
-                fenced_nodes: suspect.clone(),
-            });
+            self.events
+                .push(ClusterManagerEvent::SplitBrainResolved { fenced_nodes: suspect.clone() });
             return Some(PartitionResolution {
                 in_majority: true,
                 reachable_nodes: alive,

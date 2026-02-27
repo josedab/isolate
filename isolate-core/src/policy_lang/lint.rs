@@ -120,7 +120,10 @@ impl PolicyLinter {
                         findings.push(LintFinding {
                             rule: "resource/memory-too-high".to_string(),
                             severity: LintSeverity::Warning,
-                            message: format!("Memory limit {} exceeds recommended maximum", mem_str),
+                            message: format!(
+                                "Memory limit {} exceeds recommended maximum",
+                                mem_str
+                            ),
                             policy_name: name.clone(),
                             suggestion: Some("Consider reducing memory limit".to_string()),
                         });
@@ -215,7 +218,8 @@ impl PolicyLinter {
                         findings.push(LintFinding {
                             rule: "network/wildcard-http".to_string(),
                             severity: LintSeverity::Warning,
-                            message: "Wildcard HTTP access allows connecting to any host".to_string(),
+                            message: "Wildcard HTTP access allows connecting to any host"
+                                .to_string(),
                             policy_name: name.clone(),
                             suggestion: Some("Restrict to specific hostnames".to_string()),
                         });
@@ -288,66 +292,64 @@ pub struct TestResult {
 }
 
 /// Run policy tests against resolved policies.
-pub fn run_policy_tests(
-    tests: &[PolicyTest],
-    policies: &[SandboxPolicy],
-) -> Vec<TestResult> {
+pub fn run_policy_tests(tests: &[PolicyTest], policies: &[SandboxPolicy]) -> Vec<TestResult> {
     let evaluator = super::eval::PolicyEvaluator::new();
     let linter = PolicyLinter::new();
 
-    tests.iter().map(|test| {
-        let policy = policies.iter().find(|p| p.name == test.policy_name);
-        let mut assertion_results = Vec::new();
+    tests
+        .iter()
+        .map(|test| {
+            let policy = policies.iter().find(|p| p.name == test.policy_name);
+            let mut assertion_results = Vec::new();
 
-        if let Some(policy) = policy {
-            let resolved = evaluator.resolve(policy);
-            let lint = linter.lint(policy);
+            if let Some(policy) = policy {
+                let resolved = evaluator.resolve(policy);
+                let lint = linter.lint(policy);
 
-            for assertion in &test.assertions {
-                let (desc, passed) = match assertion {
-                    PolicyAssertion::MemoryLimitAtMost(max) => {
-                        let mem = resolved.as_ref().map(|r| r.memory_limit_bytes).unwrap_or(0);
-                        (format!("memory <= {}", max), mem <= *max)
-                    }
-                    PolicyAssertion::FuelIsSet => {
-                        let has = resolved.as_ref().map(|r| r.fuel.is_some()).unwrap_or(false);
-                        ("fuel is set".to_string(), has)
-                    }
-                    PolicyAssertion::TimeoutIsSet => {
-                        let has = resolved.as_ref().map(|r| r.timeout.is_some()).unwrap_or(false);
-                        ("timeout is set".to_string(), has)
-                    }
-                    PolicyAssertion::StdoutAllowed => {
-                        let allowed = resolved.as_ref().map(|r| r.allow_stdout).unwrap_or(false);
-                        ("stdout allowed".to_string(), allowed)
-                    }
-                    PolicyAssertion::FsReadIncludes(path) => {
-                        let has = resolved.as_ref()
-                            .map(|r| r.fs_read_paths.contains(path))
-                            .unwrap_or(false);
-                        (format!("fs_read includes {}", path), has)
-                    }
-                    PolicyAssertion::NetworkDenied => {
-                        let denied = resolved.as_ref().map(|r| r.network_deny_all).unwrap_or(true);
-                        ("network denied".to_string(), denied)
-                    }
-                    PolicyAssertion::LintPasses => {
-                        ("lint passes".to_string(), lint.passed())
-                    }
-                };
-                assertion_results.push((desc, passed));
+                for assertion in &test.assertions {
+                    let (desc, passed) = match assertion {
+                        PolicyAssertion::MemoryLimitAtMost(max) => {
+                            let mem = resolved.as_ref().map(|r| r.memory_limit_bytes).unwrap_or(0);
+                            (format!("memory <= {}", max), mem <= *max)
+                        }
+                        PolicyAssertion::FuelIsSet => {
+                            let has = resolved.as_ref().map(|r| r.fuel.is_some()).unwrap_or(false);
+                            ("fuel is set".to_string(), has)
+                        }
+                        PolicyAssertion::TimeoutIsSet => {
+                            let has =
+                                resolved.as_ref().map(|r| r.timeout.is_some()).unwrap_or(false);
+                            ("timeout is set".to_string(), has)
+                        }
+                        PolicyAssertion::StdoutAllowed => {
+                            let allowed =
+                                resolved.as_ref().map(|r| r.allow_stdout).unwrap_or(false);
+                            ("stdout allowed".to_string(), allowed)
+                        }
+                        PolicyAssertion::FsReadIncludes(path) => {
+                            let has = resolved
+                                .as_ref()
+                                .map(|r| r.fs_read_paths.contains(path))
+                                .unwrap_or(false);
+                            (format!("fs_read includes {}", path), has)
+                        }
+                        PolicyAssertion::NetworkDenied => {
+                            let denied =
+                                resolved.as_ref().map(|r| r.network_deny_all).unwrap_or(true);
+                            ("network denied".to_string(), denied)
+                        }
+                        PolicyAssertion::LintPasses => ("lint passes".to_string(), lint.passed()),
+                    };
+                    assertion_results.push((desc, passed));
+                }
+            } else {
+                assertion_results.push(("policy found".to_string(), false));
             }
-        } else {
-            assertion_results.push(("policy found".to_string(), false));
-        }
 
-        let passed = assertion_results.iter().all(|(_, p)| *p);
-        TestResult {
-            name: test.name.clone(),
-            passed,
-            assertion_results,
-        }
-    }).collect()
+            let passed = assertion_results.iter().all(|(_, p)| *p);
+            TestResult { name: test.name.clone(), passed, assertion_results }
+        })
+        .collect()
 }
 
 #[cfg(test)]

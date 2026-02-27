@@ -3,8 +3,8 @@
 //! Provides machine-readable compliance check output suitable for
 //! CI/CD pipelines, with exit codes, JSON output, and drift detection.
 
-use super::evidence::EvidenceCollector;
 use super::audit_trail::AuditTrail;
+use super::evidence::EvidenceCollector;
 use super::frameworks::FrameworkTemplate;
 use super::reports::{ComplianceReport, ReportGenerator};
 use serde::{Deserialize, Serialize};
@@ -137,24 +137,19 @@ pub fn run_ci_check(
     };
 
     let summary = if exit_code == 0 {
-        format!(
-            "All {} framework(s) passing",
-            framework_results.len()
-        )
+        format!("All {} framework(s) passing", framework_results.len())
     } else if drift_detected {
         "Compliance drift detected".to_string()
     } else {
-        let failed: Vec<_> = framework_results.iter()
+        let failed: Vec<_> = framework_results
+            .iter()
             .filter(|r| !r.passing)
             .map(|r| r.framework_name.clone())
             .collect();
         format!("Failed: {}", failed.join(", "))
     };
 
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
 
     CiCheckResult {
         passed: exit_code == 0,
@@ -167,12 +162,14 @@ pub fn run_ci_check(
 }
 
 fn check_framework(report: &ComplianceReport, config: &CiConfig) -> FrameworkCheckResult {
-    let critical_failures: Vec<String> = report.critical_failures()
+    let critical_failures: Vec<String> = report
+        .critical_failures()
         .iter()
         .map(|c| format!("{}: {}", c.control_id, c.control_name))
         .collect();
 
-    let needs_attention: Vec<String> = report.untested_controls()
+    let needs_attention: Vec<String> = report
+        .untested_controls()
         .iter()
         .take(10)
         .map(|c| format!("{}: {}", c.control_id, c.control_name))

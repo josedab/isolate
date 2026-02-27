@@ -14,7 +14,6 @@
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 
-
 //! # Example
 //!
 //! ```rust,ignore

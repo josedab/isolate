@@ -55,9 +55,7 @@ pub struct PolicyEvaluator {
 
 impl PolicyEvaluator {
     pub fn new() -> Self {
-        Self {
-            defaults: ResolvedPolicy::default(),
-        }
+        Self { defaults: ResolvedPolicy::default() }
     }
 
     pub fn with_defaults(mut self, defaults: ResolvedPolicy) -> Self {
@@ -348,7 +346,8 @@ pub fn check_soc2_compliance(policy: &ResolvedPolicy) -> ComplianceReport {
         findings.push(ComplianceFinding {
             severity: FindingSeverity::Warning,
             rule: "CC6.1".to_string(),
-            message: "Memory limit exceeds 4GB; consider restricting for multi-tenant isolation".to_string(),
+            message: "Memory limit exceeds 4GB; consider restricting for multi-tenant isolation"
+                .to_string(),
         });
     }
 
@@ -357,7 +356,8 @@ pub fn check_soc2_compliance(policy: &ResolvedPolicy) -> ComplianceReport {
         findings.push(ComplianceFinding {
             severity: FindingSeverity::Error,
             rule: "CC7.2".to_string(),
-            message: "No execution timeout set; required for denial-of-service protection".to_string(),
+            message: "No execution timeout set; required for denial-of-service protection"
+                .to_string(),
         });
     }
 
@@ -407,7 +407,8 @@ pub fn check_hipaa_compliance(policy: &ResolvedPolicy) -> ComplianceReport {
         findings.push(ComplianceFinding {
             severity: FindingSeverity::Warning,
             rule: "164.312(a)(2)(iv)".to_string(),
-            message: "Stdout with network access may leak PHI; consider output filtering".to_string(),
+            message: "Stdout with network access may leak PHI; consider output filtering"
+                .to_string(),
         });
     }
 
@@ -430,7 +431,9 @@ pub fn check_hipaa_compliance(policy: &ResolvedPolicy) -> ComplianceReport {
     }
 
     // HIPAA §164.312(e)(1) - Transmission security
-    if !policy.fs_write_paths.is_empty() && policy.fs_write_paths.iter().any(|p| p == "/" || p == "/tmp") {
+    if !policy.fs_write_paths.is_empty()
+        && policy.fs_write_paths.iter().any(|p| p == "/" || p == "/tmp")
+    {
         findings.push(ComplianceFinding {
             severity: FindingSeverity::Warning,
             rule: "164.312(e)(1)".to_string(),
@@ -486,11 +489,8 @@ mod tests {
 
     #[test]
     fn test_resolve_with_custom_defaults() {
-        let defaults = ResolvedPolicy {
-            allow_stdout: true,
-            allow_stderr: true,
-            ..Default::default()
-        };
+        let defaults =
+            ResolvedPolicy { allow_stdout: true, allow_stderr: true, ..Default::default() };
         let evaluator = PolicyEvaluator::new().with_defaults(defaults);
         let input = r#"sandbox "x" {}"#;
         let doc = PolicyParser::parse(input).unwrap();

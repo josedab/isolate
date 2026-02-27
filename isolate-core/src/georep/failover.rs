@@ -14,29 +14,16 @@ pub struct FailoverPolicy {
 
 impl Default for FailoverPolicy {
     fn default() -> Self {
-        Self {
-            failure_threshold: 3,
-            auto_failover: true,
-            auto_failback: false,
-        }
+        Self { failure_threshold: 3, auto_failover: true, auto_failback: false }
     }
 }
 
 /// Event emitted during failover operations.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FailoverEvent {
-    FailoverTriggered {
-        from: RegionId,
-        to: RegionId,
-        reason: String,
-    },
-    FailbackCompleted {
-        from: RegionId,
-        to: RegionId,
-    },
-    ManualOverride {
-        new_primary: RegionId,
-    },
+    FailoverTriggered { from: RegionId, to: RegionId, reason: String },
+    FailbackCompleted { from: RegionId, to: RegionId },
+    ManualOverride { new_primary: RegionId },
 }
 
 /// Controller for managing failover between regions.
@@ -101,9 +88,7 @@ impl FailoverController {
     /// Manually force failover to a specific region.
     pub fn force_failover(&self, new_primary: RegionId) {
         *self.current_primary.write() = Some(new_primary.clone());
-        self.events.lock().push(FailoverEvent::ManualOverride {
-            new_primary,
-        });
+        self.events.lock().push(FailoverEvent::ManualOverride { new_primary });
     }
 
     /// Get all failover events.
@@ -178,10 +163,8 @@ mod tests {
     #[test]
     fn test_disabled_auto_failover() {
         let reg = setup_registry();
-        let ctrl = FailoverController::new(FailoverPolicy {
-            auto_failover: false,
-            ..Default::default()
-        });
+        let ctrl =
+            FailoverController::new(FailoverPolicy { auto_failover: false, ..Default::default() });
         ctrl.set_primary(RegionId::new("us-east-1"));
 
         let id = RegionId::new("us-east-1");

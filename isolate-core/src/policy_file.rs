@@ -235,13 +235,11 @@ pub struct IoPolicy {
 impl PolicyFile {
     /// Parse from a YAML string.
     pub fn from_yaml(yaml: &str) -> Result<Self, PolicyError> {
-        let policy: PolicyFile =
-            serde_json::from_str(yaml).or_else(|_| {
-                // serde_yaml is optional; fall back to JSON-compat subset
-                serde_json::from_value(
-                    yaml_to_json_value(yaml)?
-                ).map_err(|e| PolicyError::Yaml(e.to_string()))
-            })?;
+        let policy: PolicyFile = serde_json::from_str(yaml).or_else(|_| {
+            // serde_yaml is optional; fall back to JSON-compat subset
+            serde_json::from_value(yaml_to_json_value(yaml)?)
+                .map_err(|e| PolicyError::Yaml(e.to_string()))
+        })?;
         policy.validate()?;
         Ok(policy)
     }
@@ -452,10 +450,7 @@ pub fn parse_size(s: &str) -> Result<usize, PolicyError> {
         // Assume raw bytes
         (s, 1)
     };
-    let num: usize = num_str
-        .trim()
-        .parse()
-        .map_err(|_| PolicyError::InvalidSize(s.to_string()))?;
+    let num: usize = num_str.trim().parse().map_err(|_| PolicyError::InvalidSize(s.to_string()))?;
     Ok(num * multiplier)
 }
 
@@ -474,10 +469,8 @@ pub fn parse_duration(s: &str) -> Result<std::time::Duration, PolicyError> {
         // Assume seconds
         (s, 1000)
     };
-    let num: u64 = num_str
-        .trim()
-        .parse()
-        .map_err(|_| PolicyError::InvalidDuration(s.to_string()))?;
+    let num: u64 =
+        num_str.trim().parse().map_err(|_| PolicyError::InvalidDuration(s.to_string()))?;
     Ok(std::time::Duration::from_millis(num * factor))
 }
 
@@ -504,22 +497,10 @@ mod tests {
 
     #[test]
     fn test_parse_duration() {
-        assert_eq!(
-            parse_duration("30s").unwrap(),
-            std::time::Duration::from_secs(30)
-        );
-        assert_eq!(
-            parse_duration("5m").unwrap(),
-            std::time::Duration::from_secs(300)
-        );
-        assert_eq!(
-            parse_duration("100ms").unwrap(),
-            std::time::Duration::from_millis(100)
-        );
-        assert_eq!(
-            parse_duration("1h").unwrap(),
-            std::time::Duration::from_secs(3600)
-        );
+        assert_eq!(parse_duration("30s").unwrap(), std::time::Duration::from_secs(30));
+        assert_eq!(parse_duration("5m").unwrap(), std::time::Duration::from_secs(300));
+        assert_eq!(parse_duration("100ms").unwrap(), std::time::Duration::from_millis(100));
+        assert_eq!(parse_duration("1h").unwrap(), std::time::Duration::from_secs(3600));
     }
 
     #[test]

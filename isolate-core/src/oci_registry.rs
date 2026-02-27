@@ -13,8 +13,6 @@
 //! └── verify(reference) → VerificationResult
 //! ```
 
-
-
 #![allow(missing_docs)]
 use crate::module_registry::{content_hash, ModuleMetadata};
 
@@ -36,15 +34,9 @@ impl ImageReference {
     /// Parse an image reference string.
     pub fn parse(reference: &str) -> Option<Self> {
         if let Some((repo, tag)) = reference.split_once(':') {
-            Some(Self {
-                repository: repo.to_string(),
-                tag: tag.to_string(),
-            })
+            Some(Self { repository: repo.to_string(), tag: tag.to_string() })
         } else {
-            Some(Self {
-                repository: reference.to_string(),
-                tag: "latest".to_string(),
-            })
+            Some(Self { repository: reference.to_string(), tag: "latest".to_string() })
         }
     }
 
@@ -151,10 +143,7 @@ pub struct OciRegistry {
 impl OciRegistry {
     /// Create a new OCI registry.
     pub fn new() -> Self {
-        Self {
-            repositories: RwLock::new(HashMap::new()),
-            default_max_size: 100 * 1024 * 1024,
-        }
+        Self { repositories: RwLock::new(HashMap::new()), default_max_size: 100 * 1024 * 1024 }
     }
 
     /// Push a WASM module to the registry.
@@ -180,13 +169,20 @@ impl OciRegistry {
 
         let mut annotations = config.annotations;
         if !config.metadata.name.is_empty() {
-            annotations.insert("org.opencontainers.image.title".to_string(), config.metadata.name.clone());
+            annotations
+                .insert("org.opencontainers.image.title".to_string(), config.metadata.name.clone());
         }
         if !config.metadata.version.is_empty() {
-            annotations.insert("org.opencontainers.image.version".to_string(), config.metadata.version.clone());
+            annotations.insert(
+                "org.opencontainers.image.version".to_string(),
+                config.metadata.version.clone(),
+            );
         }
         if !config.metadata.author.is_empty() {
-            annotations.insert("org.opencontainers.image.authors".to_string(), config.metadata.author.clone());
+            annotations.insert(
+                "org.opencontainers.image.authors".to_string(),
+                config.metadata.author.clone(),
+            );
         }
 
         let manifest = OciManifest {
@@ -213,7 +209,9 @@ impl OciRegistry {
             pushed_at: SystemTime::now(),
         };
 
-        let mut repos = self.repositories.write()
+        let mut repos = self
+            .repositories
+            .write()
             .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         repos
             .entry(reference.repository.clone())
@@ -225,34 +223,40 @@ impl OciRegistry {
 
     /// Pull a WASM module from the registry.
     pub fn pull(&self, reference: &ImageReference) -> Result<(OciManifest, Vec<u8>), OciError> {
-        let repos = self.repositories.read()
+        let repos = self
+            .repositories
+            .read()
             .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         let tags = repos
             .get(&reference.repository)
             .ok_or_else(|| OciError::RepositoryNotFound(reference.repository.clone()))?;
-        let stored = tags
-            .get(&reference.tag)
-            .ok_or_else(|| OciError::TagNotFound(reference.repository.clone(), reference.tag.clone()))?;
+        let stored = tags.get(&reference.tag).ok_or_else(|| {
+            OciError::TagNotFound(reference.repository.clone(), reference.tag.clone())
+        })?;
 
         Ok((stored.manifest.clone(), stored.wasm_bytes.clone()))
     }
 
     /// Get manifest without pulling the WASM bytes.
     pub fn get_manifest(&self, reference: &ImageReference) -> Result<OciManifest, OciError> {
-        let repos = self.repositories.read()
+        let repos = self
+            .repositories
+            .read()
             .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         let tags = repos
             .get(&reference.repository)
             .ok_or_else(|| OciError::RepositoryNotFound(reference.repository.clone()))?;
-        let stored = tags
-            .get(&reference.tag)
-            .ok_or_else(|| OciError::TagNotFound(reference.repository.clone(), reference.tag.clone()))?;
+        let stored = tags.get(&reference.tag).ok_or_else(|| {
+            OciError::TagNotFound(reference.repository.clone(), reference.tag.clone())
+        })?;
         Ok(stored.manifest.clone())
     }
 
     /// List tags for a repository.
     pub fn list_tags(&self, repository: &str) -> Result<Vec<String>, OciError> {
-        let repos = self.repositories.read()
+        let repos = self
+            .repositories
+            .read()
             .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         let tags = repos
             .get(repository)
@@ -271,7 +275,9 @@ impl OciRegistry {
 
     /// Delete a specific tag.
     pub fn delete(&self, reference: &ImageReference) -> Result<bool, OciError> {
-        let mut repos = self.repositories.write()
+        let mut repos = self
+            .repositories
+            .write()
             .map_err(|e| OciError::Internal(format!("lock poisoned: {e}")))?;
         let tags = repos
             .get_mut(&reference.repository)
@@ -289,23 +295,23 @@ impl OciRegistry {
         checks.push(VerificationCheck {
             name: "wasm_magic".to_string(),
             passed: magic_ok,
-            detail: if magic_ok { "Valid WASM magic number" } else { "Invalid WASM magic" }.to_string(),
+            detail: if magic_ok { "Valid WASM magic number" } else { "Invalid WASM magic" }
+                .to_string(),
         });
 
         // Check 2: Content hash matches manifest
         let hash = content_hash(&wasm_bytes);
         let expected_digest = format!("sha256:{}", hash.0);
-        let digest_ok = manifest.layers.first()
-            .map_or(false, |l| l.digest == expected_digest);
+        let digest_ok = manifest.layers.first().map_or(false, |l| l.digest == expected_digest);
         checks.push(VerificationCheck {
             name: "content_integrity".to_string(),
             passed: digest_ok,
-            detail: if digest_ok { "Content hash matches manifest" } else { "Hash mismatch" }.to_string(),
+            detail: if digest_ok { "Content hash matches manifest" } else { "Hash mismatch" }
+                .to_string(),
         });
 
         // Check 3: Size matches
-        let size_ok = manifest.layers.first()
-            .map_or(false, |l| l.size == wasm_bytes.len() as u64);
+        let size_ok = manifest.layers.first().map_or(false, |l| l.size == wasm_bytes.len() as u64);
         checks.push(VerificationCheck {
             name: "size_check".to_string(),
             passed: size_ok,
@@ -335,9 +341,7 @@ impl Default for OciRegistry {
 mod tests {
     use super::*;
 
-    const MINIMAL_WASM: &[u8] = &[
-        0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
-    ];
+    const MINIMAL_WASM: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
 
     fn test_reference() -> ImageReference {
         ImageReference::parse("myorg/hello:v1.0.0").unwrap()
@@ -386,20 +390,14 @@ mod tests {
         };
 
         let manifest = registry.push(&reference, MINIMAL_WASM, config).unwrap();
-        assert_eq!(
-            manifest.annotations.get("org.opencontainers.image.title").unwrap(),
-            "hello"
-        );
+        assert_eq!(manifest.annotations.get("org.opencontainers.image.title").unwrap(), "hello");
     }
 
     #[test]
     fn test_pull_not_found() {
         let registry = OciRegistry::new();
         let reference = test_reference();
-        assert!(matches!(
-            registry.pull(&reference),
-            Err(OciError::RepositoryNotFound(_))
-        ));
+        assert!(matches!(registry.pull(&reference), Err(OciError::RepositoryNotFound(_))));
     }
 
     #[test]
@@ -417,10 +415,7 @@ mod tests {
     fn test_module_too_large() {
         let registry = OciRegistry::new();
         let reference = test_reference();
-        let config = PushConfig {
-            max_size: Some(4),
-            ..Default::default()
-        };
+        let config = PushConfig { max_size: Some(4), ..Default::default() };
         assert!(matches!(
             registry.push(&reference, MINIMAL_WASM, config),
             Err(OciError::ModuleTooLarge { .. })

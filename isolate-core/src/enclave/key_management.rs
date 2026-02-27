@@ -266,10 +266,7 @@ impl KeyManager {
 
     /// Encrypt data with a managed key (simplified XOR for simulation).
     pub fn encrypt(&self, key_id: &KeyId, plaintext: &[u8]) -> Result<Vec<u8>, String> {
-        let key = self
-            .keys
-            .get(key_id)
-            .ok_or_else(|| format!("Key '{}' not found", key_id))?;
+        let key = self.keys.get(key_id).ok_or_else(|| format!("Key '{}' not found", key_id))?;
 
         if !key.metadata.active {
             return Err("Key is not active".to_string());
@@ -293,10 +290,8 @@ impl KeyManager {
     pub fn rotate_key(&mut self, key_id: &KeyId) -> Result<KeyId, String> {
         // Extract old key info before mutating
         let (level, parent_id, entity_id, old_version, tee_type) = {
-            let old_key = self
-                .keys
-                .get(key_id)
-                .ok_or_else(|| format!("Key '{}' not found", key_id))?;
+            let old_key =
+                self.keys.get(key_id).ok_or_else(|| format!("Key '{}' not found", key_id))?;
             (
                 old_key.metadata.level,
                 old_key.metadata.parent_id.clone(),
@@ -336,10 +331,7 @@ impl KeyManager {
 
     /// Deactivate a key.
     pub fn deactivate_key(&mut self, key_id: &KeyId) -> Result<(), String> {
-        let key = self
-            .keys
-            .get_mut(key_id)
-            .ok_or_else(|| format!("Key '{}' not found", key_id))?;
+        let key = self.keys.get_mut(key_id).ok_or_else(|| format!("Key '{}' not found", key_id))?;
         key.metadata.active = false;
         Ok(())
     }
@@ -360,11 +352,7 @@ impl KeyManager {
 
     /// List all keys for a given level.
     pub fn list_keys(&self, level: KeyLevel) -> Vec<&KeyMetadata> {
-        self.keys
-            .values()
-            .filter(|k| k.metadata.level == level)
-            .map(|k| &k.metadata)
-            .collect()
+        self.keys.values().filter(|k| k.metadata.level == level).map(|k| &k.metadata).collect()
     }
 
     /// Get keys that need rotation.
@@ -382,7 +370,8 @@ impl KeyManager {
         let active = self.keys.values().filter(|k| k.metadata.active).count();
         let masters = self.keys.values().filter(|k| k.metadata.level == KeyLevel::Master).count();
         let tenants = self.keys.values().filter(|k| k.metadata.level == KeyLevel::Tenant).count();
-        let sandboxes = self.keys.values().filter(|k| k.metadata.level == KeyLevel::Sandbox).count();
+        let sandboxes =
+            self.keys.values().filter(|k| k.metadata.level == KeyLevel::Sandbox).count();
         let needs_rotation = self.keys_needing_rotation().len();
 
         KeyManagerStats { total, active, masters, tenants, sandboxes, needs_rotation }
@@ -396,7 +385,7 @@ impl KeyManager {
 
     fn generate_key_material(&self, len: usize) -> Vec<u8> {
         // In production, use TEE hardware RNG
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(format!("{:?}:{}", SystemTime::now(), self.next_id).as_bytes());
         let hash = hasher.finalize();
@@ -404,7 +393,7 @@ impl KeyManager {
     }
 
     fn derive_material(&self, parent: &[u8], context: &[u8]) -> Vec<u8> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(parent);
         hasher.update(context);

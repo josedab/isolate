@@ -83,11 +83,7 @@ impl Drop for CheckoutHandle {
             let module_hash = slot.module_hash.clone();
 
             // Return to available slots.
-            self.pool
-                .available
-                .entry(module_hash)
-                .or_default()
-                .push(slot);
+            self.pool.available.entry(module_hash).or_default().push(slot);
             self.pool.checked_out.fetch_sub(1, Ordering::Relaxed);
             self.pool.returns.fetch_add(1, Ordering::Relaxed);
             self.pool.semaphore.add_permits(1);
@@ -131,17 +127,12 @@ impl CheckoutPool {
     pub fn prewarm(&self, module_hash: ModuleHash, count: usize) -> Result<usize> {
         let inner = &self.inner;
         let current = inner.available.get(&module_hash).map(|v| v.len()).unwrap_or(0);
-        let checked = inner
-            .available
-            .iter()
-            .map(|e| e.value().len())
-            .sum::<usize>()
+        let checked = inner.available.iter().map(|e| e.value().len()).sum::<usize>()
             + inner.checked_out.load(Ordering::Relaxed) as usize;
 
         let mut added = 0;
         for _ in 0..count {
-            let per_module =
-                inner.available.get(&module_hash).map(|v| v.len()).unwrap_or(0);
+            let per_module = inner.available.get(&module_hash).map(|v| v.len()).unwrap_or(0);
             if per_module >= inner.config.max_per_module {
                 break;
             }
@@ -184,10 +175,7 @@ impl CheckoutPool {
     pub fn checkout(&self, module_hash: &ModuleHash) -> Result<CheckoutHandle> {
         let inner = &self.inner;
 
-        let slot = inner
-            .available
-            .get_mut(module_hash)
-            .and_then(|mut slots| slots.pop());
+        let slot = inner.available.get_mut(module_hash).and_then(|mut slots| slots.pop());
 
         match slot {
             Some(s) => {
@@ -250,10 +238,7 @@ mod tests {
 
     #[test]
     fn test_prewarm_and_checkout() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 5,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 5, max_total: 20 });
 
         let hash = module_hash("mod-1");
         let added = pool.prewarm(hash.clone(), 3).unwrap();
@@ -278,10 +263,7 @@ mod tests {
 
     #[test]
     fn test_handle_drop_returns_slot() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 5,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 5, max_total: 20 });
 
         let hash = module_hash("mod-1");
         pool.prewarm(hash.clone(), 1).unwrap();
@@ -300,10 +282,7 @@ mod tests {
 
     #[test]
     fn test_explicit_return() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 5,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 5, max_total: 20 });
 
         let hash = module_hash("mod-1");
         pool.prewarm(hash.clone(), 1).unwrap();
@@ -317,10 +296,7 @@ mod tests {
 
     #[test]
     fn test_checkout_count_increments() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 5,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 5, max_total: 20 });
 
         let hash = module_hash("mod-1");
         pool.prewarm(hash.clone(), 1).unwrap();
@@ -338,10 +314,7 @@ mod tests {
 
     #[test]
     fn test_per_module_limit() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 3,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 3, max_total: 20 });
 
         let hash = module_hash("mod-1");
         let added = pool.prewarm(hash.clone(), 10).unwrap();
@@ -350,10 +323,7 @@ mod tests {
 
     #[test]
     fn test_total_limit() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 10,
-            max_total: 5,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 10, max_total: 5 });
 
         let h1 = module_hash("mod-1");
         let h2 = module_hash("mod-2");
@@ -366,10 +336,7 @@ mod tests {
 
     #[test]
     fn test_drain() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 10,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 10, max_total: 20 });
 
         let h1 = module_hash("mod-1");
         let h2 = module_hash("mod-2");
@@ -402,10 +369,7 @@ mod tests {
 
     #[test]
     fn test_multiple_modules() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 5,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 5, max_total: 20 });
 
         let h1 = module_hash("mod-1");
         let h2 = module_hash("mod-2");
@@ -425,10 +389,7 @@ mod tests {
 
     #[test]
     fn test_prewarm_returns_error_when_full_per_module() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 2,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 2, max_total: 20 });
 
         let hash = module_hash("mod-1");
         pool.prewarm(hash.clone(), 2).unwrap();
@@ -439,10 +400,7 @@ mod tests {
 
     #[test]
     fn test_slot_has_unique_snapshot_id() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 5,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 5, max_total: 20 });
 
         let hash = module_hash("mod-1");
         pool.prewarm(hash.clone(), 3).unwrap();
@@ -457,10 +415,7 @@ mod tests {
 
     #[test]
     fn test_drain_then_prewarm() {
-        let pool = CheckoutPool::new(CheckoutPoolConfig {
-            max_per_module: 5,
-            max_total: 20,
-        });
+        let pool = CheckoutPool::new(CheckoutPoolConfig { max_per_module: 5, max_total: 20 });
 
         let hash = module_hash("mod-1");
         pool.prewarm(hash.clone(), 3).unwrap();

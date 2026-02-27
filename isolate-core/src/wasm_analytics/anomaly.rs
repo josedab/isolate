@@ -68,11 +68,14 @@ impl AnomalyDetector {
             let z = (point.value - mean) / stddev;
             if z.abs() > self.z_threshold {
                 let (anomaly_type, severity) = if z > 0.0 {
-                    (AnomalyType::Spike, if z > self.z_threshold * 1.5 {
-                        AnomalySeverity::Critical
-                    } else {
-                        AnomalySeverity::Warning
-                    })
+                    (
+                        AnomalyType::Spike,
+                        if z > self.z_threshold * 1.5 {
+                            AnomalySeverity::Critical
+                        } else {
+                            AnomalySeverity::Warning
+                        },
+                    )
                 } else {
                     (AnomalyType::Degradation, AnomalySeverity::Info)
                 };
@@ -124,7 +127,8 @@ impl AnomalyDetector {
                 metric_name: String::new(),
                 message: format!(
                     "Monotonic increase detected: {:.1}% growth over {} points",
-                    growth, points.len()
+                    growth,
+                    points.len()
                 ),
                 value: last,
                 threshold: first * 2.0,
@@ -147,10 +151,11 @@ mod tests {
     use super::*;
 
     fn points(values: &[f64]) -> Vec<MetricPoint> {
-        values.iter().enumerate().map(|(i, &v)| MetricPoint {
-            value: v,
-            timestamp: i as u64 * 1000,
-        }).collect()
+        values
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| MetricPoint { value: v, timestamp: i as u64 * 1000 })
+            .collect()
     }
 
     #[test]

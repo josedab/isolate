@@ -107,11 +107,7 @@ impl ChannelHub {
         self.create_channel(config)?;
 
         // Channel was just inserted above; use expect for clarity
-        Ok(self
-            .channels
-            .get(&id)
-            .expect("channel was just inserted")
-            .clone())
+        Ok(self.channels.get(&id).expect("channel was just inserted").clone())
     }
 
     /// Get a channel by ID.

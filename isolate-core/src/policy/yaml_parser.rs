@@ -169,7 +169,9 @@ pub fn validate_policy(policy: &PolicyFile) -> ValidationResult {
             if cond.field.is_empty() {
                 errors.push(format!("Rule '{}', condition {}: field is required", rule.id, i));
             }
-            if !["eq", "ne", "lt", "gt", "le", "ge", "contains", "in", "matches"].contains(&cond.operator.as_str()) {
+            if !["eq", "ne", "lt", "gt", "le", "ge", "contains", "in", "matches"]
+                .contains(&cond.operator.as_str())
+            {
                 errors.push(format!(
                     "Rule '{}', condition {}: unknown operator '{}'",
                     rule.id, i, cond.operator
@@ -194,12 +196,7 @@ pub fn validate_policy(policy: &PolicyFile) -> ValidationResult {
         ));
     }
 
-    ValidationResult {
-        valid: errors.is_empty(),
-        errors,
-        warnings,
-        rule_count: policy.rules.len(),
-    }
+    ValidationResult { valid: errors.is_empty(), errors, warnings, rule_count: policy.rules.len() }
 }
 
 /// Convert a PolicyFile into a PolicySet usable by the PolicyEngine.
@@ -213,9 +210,8 @@ pub fn compile_policy(policy: &PolicyFile) -> Result<PolicySet> {
             other => return Err(Error::Policy(format!("Invalid effect: {}", other))),
         };
 
-        let mut builder = PolicyRule::builder(&yaml_rule.id)
-            .effect(effect)
-            .priority(yaml_rule.priority);
+        let mut builder =
+            PolicyRule::builder(&yaml_rule.id).effect(effect).priority(yaml_rule.priority);
 
         for action in &yaml_rule.actions {
             builder = builder.action(action);
@@ -265,21 +261,23 @@ fn json_to_value(json: &serde_json::Value) -> Value {
             }
         }
         serde_json::Value::Bool(b) => Value::Bool(*b),
-        serde_json::Value::Array(arr) => {
-            Value::List(arr.iter().map(json_to_value).collect())
-        }
+        serde_json::Value::Array(arr) => Value::List(arr.iter().map(json_to_value).collect()),
         _ => Value::String(json.to_string()),
     }
 }
 
 /// Perform a dry-run evaluation of a policy against a test action.
-pub fn dry_run(policy: &PolicyFile, action: &str, context_attrs: &HashMap<String, serde_json::Value>) -> PolicyDryRunResult {
+pub fn dry_run(
+    policy: &PolicyFile,
+    action: &str,
+    context_attrs: &HashMap<String, serde_json::Value>,
+) -> PolicyDryRunResult {
     let mut matching_rules = Vec::new();
     let mut non_matching_rules = Vec::new();
 
     for rule in &policy.rules {
         let action_matches = rule.actions.iter().any(|a| {
-            a == action || a == "*" || (a.ends_with('*') && action.starts_with(&a[..a.len()-1]))
+            a == action || a == "*" || (a.ends_with('*') && action.starts_with(&a[..a.len() - 1]))
         });
 
         if !action_matches {
@@ -288,16 +286,14 @@ pub fn dry_run(policy: &PolicyFile, action: &str, context_attrs: &HashMap<String
         }
 
         let conditions_met = rule.conditions.iter().all(|cond| {
-            context_attrs.get(&cond.field).is_some_and(|ctx_val| {
-                match cond.operator.as_str() {
-                    "eq" => ctx_val == &cond.value,
-                    "ne" => ctx_val != &cond.value,
-                    "lt" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a < b),
-                    "gt" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a > b),
-                    "le" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a <= b),
-                    "ge" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a >= b),
-                    _ => false,
-                }
+            context_attrs.get(&cond.field).is_some_and(|ctx_val| match cond.operator.as_str() {
+                "eq" => ctx_val == &cond.value,
+                "ne" => ctx_val != &cond.value,
+                "lt" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a < b),
+                "gt" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a > b),
+                "le" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a <= b),
+                "ge" => ctx_val.as_i64().zip(cond.value.as_i64()).is_some_and(|(a, b)| a >= b),
+                _ => false,
             })
         });
 
@@ -314,18 +310,15 @@ pub fn dry_run(policy: &PolicyFile, action: &str, context_attrs: &HashMap<String
     } else {
         // Last matching rule wins (or could use priority-based)
         let last_match_id = matching_rules.last().unwrap();
-        policy.rules.iter()
+        policy
+            .rules
+            .iter()
             .find(|r| r.id == *last_match_id)
             .map(|r| r.effect.clone())
             .unwrap_or_else(|| policy.default_effect.clone())
     };
 
-    PolicyDryRunResult {
-        action: action.to_string(),
-        effect,
-        matching_rules,
-        non_matching_rules,
-    }
+    PolicyDryRunResult { action: action.to_string(), effect, matching_rules, non_matching_rules }
 }
 
 #[cfg(test)]

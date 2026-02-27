@@ -63,19 +63,14 @@ pub struct RotationManager {
 
 impl RotationManager {
     pub fn new(policy: RotationPolicy) -> Self {
-        Self {
-            policy,
-            records: parking_lot::RwLock::new(HashMap::new()),
-        }
+        Self { policy, records: parking_lot::RwLock::new(HashMap::new()) }
     }
 
     /// Register a secret for rotation tracking.
     pub fn register(&self, secret_path: impl Into<String>, version: impl Into<String>) {
         let path = secret_path.into();
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        let now =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
 
         self.records.write().insert(
             path.clone(),
@@ -92,10 +87,8 @@ impl RotationManager {
 
     /// Record that a secret has been rotated to a new version.
     pub fn record_rotation(&self, secret_path: &str, new_version: impl Into<String>) {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        let now =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
 
         if let Some(record) = self.records.write().get_mut(secret_path) {
             record.version = new_version.into();
@@ -107,10 +100,8 @@ impl RotationManager {
 
     /// Check and update rotation status for all tracked secrets.
     pub fn check_rotation_status(&self) -> Vec<RotationRecord> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        let now =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
 
         let max_age_ms = self.policy.max_age.as_millis() as u64;
         let warning_ms = self.policy.warning_before.as_millis() as u64;
@@ -130,7 +121,9 @@ impl RotationManager {
                 RotationStatus::Overdue
             } else if effective_age > max_age_ms.saturating_sub(warning_ms) {
                 RotationStatus::PendingRotation
-            } else if record.last_rotated_epoch_ms.is_some() && record.status == RotationStatus::Rotated {
+            } else if record.last_rotated_epoch_ms.is_some()
+                && record.status == RotationStatus::Rotated
+            {
                 RotationStatus::Current
             } else {
                 RotationStatus::Current
@@ -146,7 +139,9 @@ impl RotationManager {
     pub fn overdue_secrets(&self) -> Vec<RotationRecord> {
         self.check_rotation_status()
             .into_iter()
-            .filter(|r| matches!(r.status, RotationStatus::Overdue | RotationStatus::PendingRotation))
+            .filter(|r| {
+                matches!(r.status, RotationStatus::Overdue | RotationStatus::PendingRotation)
+            })
             .collect()
     }
 

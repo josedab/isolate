@@ -54,8 +54,7 @@ pub struct InterfaceRegistry {
 impl InterfaceRegistry {
     /// Create a registry pre-populated with standard WASI interfaces.
     pub fn new() -> Self {
-        let mut registry =
-            Self { worlds: HashMap::new(), interface_caps: HashMap::new() };
+        let mut registry = Self { worlds: HashMap::new(), interface_caps: HashMap::new() };
         registry.register_standard_interfaces();
         registry
     }
@@ -210,16 +209,46 @@ impl InterfaceRegistry {
 
     fn capability_set_satisfies(caps: &CapabilitySet, cap_ref: &CapabilityRef) -> bool {
         caps.iter().any(|cap| match (cap, cap_ref) {
-            (Capability::Stdio(crate::capability::StdioCapability::Stdout), CapabilityRef::Stdout) => true,
-            (Capability::Stdio(crate::capability::StdioCapability::Stderr), CapabilityRef::Stderr) => true,
-            (Capability::Stdio(crate::capability::StdioCapability::Stdin), CapabilityRef::Stdin) => true,
-            (Capability::Filesystem(crate::capability::FilesystemCapability::ReadOnly(_)), CapabilityRef::FilesystemRead) => true,
-            (Capability::Filesystem(crate::capability::FilesystemCapability::ReadWrite(_)), CapabilityRef::FilesystemRead | CapabilityRef::FilesystemWrite) => true,
-            (Capability::Network(crate::capability::NetworkCapability::HttpClient(_)), CapabilityRef::HttpClient) => true,
-            (Capability::Network(crate::capability::NetworkCapability::DnsResolve), CapabilityRef::DnsResolve) => true,
-            (Capability::Time(crate::capability::TimeCapability::SystemClock), CapabilityRef::SystemClock) => true,
-            (Capability::Time(crate::capability::TimeCapability::MonotonicClock), CapabilityRef::MonotonicClock) => true,
-            (Capability::Random(crate::capability::RandomCapability::Secure), CapabilityRef::SecureRandom) => true,
+            (
+                Capability::Stdio(crate::capability::StdioCapability::Stdout),
+                CapabilityRef::Stdout,
+            ) => true,
+            (
+                Capability::Stdio(crate::capability::StdioCapability::Stderr),
+                CapabilityRef::Stderr,
+            ) => true,
+            (
+                Capability::Stdio(crate::capability::StdioCapability::Stdin),
+                CapabilityRef::Stdin,
+            ) => true,
+            (
+                Capability::Filesystem(crate::capability::FilesystemCapability::ReadOnly(_)),
+                CapabilityRef::FilesystemRead,
+            ) => true,
+            (
+                Capability::Filesystem(crate::capability::FilesystemCapability::ReadWrite(_)),
+                CapabilityRef::FilesystemRead | CapabilityRef::FilesystemWrite,
+            ) => true,
+            (
+                Capability::Network(crate::capability::NetworkCapability::HttpClient(_)),
+                CapabilityRef::HttpClient,
+            ) => true,
+            (
+                Capability::Network(crate::capability::NetworkCapability::DnsResolve),
+                CapabilityRef::DnsResolve,
+            ) => true,
+            (
+                Capability::Time(crate::capability::TimeCapability::SystemClock),
+                CapabilityRef::SystemClock,
+            ) => true,
+            (
+                Capability::Time(crate::capability::TimeCapability::MonotonicClock),
+                CapabilityRef::MonotonicClock,
+            ) => true,
+            (
+                Capability::Random(crate::capability::RandomCapability::Secure),
+                CapabilityRef::SecureRandom,
+            ) => true,
             (Capability::Environment(_), CapabilityRef::EnvironmentVars) => true,
             _ => false,
         })

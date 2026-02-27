@@ -370,10 +370,10 @@ mod tests {
         let alerts = default_alerts();
         let severities: Vec<_> = alerts.rules.iter().map(|r| &r.severity).collect();
         assert_eq!(severities[0], &AlertSeverity::Critical); // HighErrorRate
-        assert_eq!(severities[1], &AlertSeverity::Warning);  // HighLatency
-        assert_eq!(severities[2], &AlertSeverity::Warning);  // MemoryPressure
+        assert_eq!(severities[1], &AlertSeverity::Warning); // HighLatency
+        assert_eq!(severities[2], &AlertSeverity::Warning); // MemoryPressure
         assert_eq!(severities[3], &AlertSeverity::Critical); // SandboxCreationFailures
-        assert_eq!(severities[4], &AlertSeverity::Info);     // LowFuel
+        assert_eq!(severities[4], &AlertSeverity::Info); // LowFuel
     }
 
     #[test]
@@ -426,11 +426,8 @@ mod tests {
 
     #[test]
     fn test_threshold_creation() {
-        let t = Threshold {
-            value: 42.0,
-            color: "red".to_string(),
-            label: Some("danger".to_string()),
-        };
+        let t =
+            Threshold { value: 42.0, color: "red".to_string(), label: Some("danger".to_string()) };
         assert_eq!(t.value, 42.0);
         assert_eq!(t.color, "red");
         assert_eq!(t.label, Some("danger".to_string()));
@@ -481,12 +478,17 @@ mod tests {
             id: 99,
             title: "Full Panel".to_string(),
             panel_type: PanelType::Heatmap,
-            query: "histogram_quantile(0.5, rate(isolate_sandbox_run_duration_seconds_bucket[5m]))".to_string(),
+            query: "histogram_quantile(0.5, rate(isolate_sandbox_run_duration_seconds_bucket[5m]))"
+                .to_string(),
             description: Some("A heatmap panel with all fields populated".to_string()),
             unit: Some("s".to_string()),
             thresholds: vec![
                 Threshold { value: 0.0, color: "green".to_string(), label: None },
-                Threshold { value: 1.0, color: "orange".to_string(), label: Some("warn".to_string()) },
+                Threshold {
+                    value: 1.0,
+                    color: "orange".to_string(),
+                    label: Some("warn".to_string()),
+                },
                 Threshold { value: 5.0, color: "red".to_string(), label: Some("crit".to_string()) },
             ],
         };

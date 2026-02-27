@@ -23,8 +23,6 @@
 //! - **Rollback Support**: Automatic rollback if migration fails mid-flight
 //! - **Health Verification**: Post-migration integrity checks
 
-
-
 use crate::config::ModuleHash;
 use crate::error::{Error, Result};
 use crate::sandbox::SandboxId;
@@ -386,9 +384,7 @@ impl LiveMigration {
 
     /// Begin the freeze phase.
     pub fn begin_freeze(&mut self) -> Result<()> {
-        if self.state != LiveMigrationState::Running
-            && self.state != LiveMigrationState::PreCopy
-        {
+        if self.state != LiveMigrationState::Running && self.state != LiveMigrationState::PreCopy {
             return Err(Error::InvalidState {
                 expected: "Running or PreCopy".to_string(),
                 actual: format!("{:?}", self.state),
@@ -414,9 +410,7 @@ impl LiveMigration {
 
     /// Begin pre-copy transfer (pages transferred while sandbox still runs).
     pub fn begin_pre_copy(&mut self) -> Result<()> {
-        if self.state != LiveMigrationState::Frozen
-            && self.state != LiveMigrationState::Running
-        {
+        if self.state != LiveMigrationState::Frozen && self.state != LiveMigrationState::Running {
             return Err(Error::InvalidState {
                 expected: "Frozen or Running".to_string(),
                 actual: format!("{:?}", self.state),
@@ -439,17 +433,14 @@ impl LiveMigration {
             if rate > 0.0 {
                 let remaining_pages = dirty_remaining as f64;
                 let estimated_secs = remaining_pages / rate;
-                self.progress.estimated_remaining =
-                    Some(Duration::from_secs_f64(estimated_secs));
+                self.progress.estimated_remaining = Some(Duration::from_secs_f64(estimated_secs));
             }
         }
     }
 
     /// Begin final transfer after freeze.
     pub fn begin_final_transfer(&mut self) -> Result<()> {
-        if self.state != LiveMigrationState::Frozen
-            && self.state != LiveMigrationState::PreCopy
-        {
+        if self.state != LiveMigrationState::Frozen && self.state != LiveMigrationState::PreCopy {
             return Err(Error::InvalidState {
                 expected: "Frozen or PreCopy".to_string(),
                 actual: format!("{:?}", self.state),
@@ -480,16 +471,12 @@ impl LiveMigration {
 
     /// Verify the transferred state matches.
     pub fn verify_state(&self, target_checksum: &str) -> bool {
-        self.frozen_state
-            .as_ref()
-            .map(|s| s.state_checksum == target_checksum)
-            .unwrap_or(false)
+        self.frozen_state.as_ref().map(|s| s.state_checksum == target_checksum).unwrap_or(false)
     }
 
     /// Complete migration (resume on target).
     pub fn complete(&mut self) -> Result<()> {
-        if self.state != LiveMigrationState::Verifying
-            && self.state != LiveMigrationState::Resuming
+        if self.state != LiveMigrationState::Verifying && self.state != LiveMigrationState::Resuming
         {
             return Err(Error::InvalidState {
                 expected: "Verifying or Resuming".to_string(),
@@ -534,7 +521,9 @@ impl LiveMigration {
             .transitions
             .iter()
             .rev()
-            .find(|(s, _)| *s == LiveMigrationState::Completed || *s == LiveMigrationState::Resuming)
+            .find(|(s, _)| {
+                *s == LiveMigrationState::Completed || *s == LiveMigrationState::Resuming
+            })
             .map(|(_, t)| *t);
 
         match (freeze_start, resume_end) {
@@ -652,20 +641,16 @@ impl FailoverRegistry {
             status: RegistrationStatus::Active,
         };
 
-        let mut registry = self
-            .registry
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut registry =
+            self.registry.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         registry.insert(sandbox_id, registration);
         Ok(())
     }
 
     /// Update heartbeat for a sandbox.
     pub fn heartbeat(&self, sandbox_id: &SandboxId) -> Result<()> {
-        let mut registry = self
-            .registry
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut registry =
+            self.registry.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
         if let Some(reg) = registry.get_mut(sandbox_id) {
             reg.last_heartbeat = chrono::Utc::now();
@@ -677,19 +662,15 @@ impl FailoverRegistry {
 
     /// Look up where a sandbox is running.
     pub fn lookup(&self, sandbox_id: &SandboxId) -> Result<Option<NodeRegistration>> {
-        let registry = self
-            .registry
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let registry =
+            self.registry.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(registry.get(sandbox_id).cloned())
     }
 
     /// Get all sandboxes on a specific node.
     pub fn sandboxes_on_node(&self, node_id: &str) -> Result<Vec<SandboxId>> {
-        let registry = self
-            .registry
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let registry =
+            self.registry.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
         Ok(registry
             .iter()
@@ -700,22 +681,18 @@ impl FailoverRegistry {
 
     /// Detect failed nodes based on heartbeat policy.
     pub fn detect_failures(&self, policy: &FailoverPolicy) -> Result<Vec<SandboxId>> {
-        let registry = self
-            .registry
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let registry =
+            self.registry.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
         let now = chrono::Utc::now();
-        let timeout = chrono::Duration::from_std(
-            policy.heartbeat_interval * policy.heartbeat_miss_threshold,
-        )
-        .unwrap_or(chrono::Duration::seconds(30));
+        let timeout =
+            chrono::Duration::from_std(policy.heartbeat_interval * policy.heartbeat_miss_threshold)
+                .unwrap_or(chrono::Duration::seconds(30));
 
         Ok(registry
             .iter()
             .filter(|(_, reg)| {
-                reg.status == RegistrationStatus::Active
-                    && (now - reg.last_heartbeat) > timeout
+                reg.status == RegistrationStatus::Active && (now - reg.last_heartbeat) > timeout
             })
             .map(|(id, _)| *id)
             .collect())
@@ -723,34 +700,24 @@ impl FailoverRegistry {
 
     /// Record a migration.
     pub fn record_migration(&self, record: MigrationRecord) -> Result<()> {
-        let mut migrations = self
-            .migrations
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut migrations =
+            self.migrations.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         migrations.insert(record.id.clone(), record);
         Ok(())
     }
 
     /// Get migration history for a sandbox.
     pub fn migration_history(&self, sandbox_id: &SandboxId) -> Result<Vec<MigrationRecord>> {
-        let migrations = self
-            .migrations
-            .read()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let migrations =
+            self.migrations.read().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
 
-        Ok(migrations
-            .values()
-            .filter(|m| m.sandbox_id == *sandbox_id)
-            .cloned()
-            .collect())
+        Ok(migrations.values().filter(|m| m.sandbox_id == *sandbox_id).cloned().collect())
     }
 
     /// Add a failover policy.
     pub fn add_policy(&self, policy: FailoverPolicy) -> Result<()> {
-        let mut policies = self
-            .policies
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut policies =
+            self.policies.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         policies.insert(policy.name.clone(), policy);
         Ok(())
     }
@@ -762,10 +729,8 @@ impl FailoverRegistry {
 
     /// Deregister a sandbox.
     pub fn deregister(&self, sandbox_id: &SandboxId) -> Result<bool> {
-        let mut registry = self
-            .registry
-            .write()
-            .map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
+        let mut registry =
+            self.registry.write().map_err(|e| Error::Engine(format!("Lock error: {}", e)))?;
         Ok(registry.remove(sandbox_id).is_some())
     }
 }
@@ -868,8 +833,7 @@ mod tests {
         let module_hash = test_module_hash();
         let config = LiveMigrationConfig::default();
 
-        let mut migration =
-            LiveMigration::new(sandbox_id, "node-target".to_string(), config);
+        let mut migration = LiveMigration::new(sandbox_id, "node-target".to_string(), config);
 
         assert_eq!(migration.state(), LiveMigrationState::Running);
 
@@ -900,8 +864,7 @@ mod tests {
         let sandbox_id = test_sandbox_id();
         let config = LiveMigrationConfig::default();
 
-        let mut migration =
-            LiveMigration::new(sandbox_id, "node-target".to_string(), config);
+        let mut migration = LiveMigration::new(sandbox_id, "node-target".to_string(), config);
 
         migration.begin_freeze().unwrap();
         migration.rollback("Target node unreachable");
@@ -915,8 +878,7 @@ mod tests {
         let sandbox_id = test_sandbox_id();
         let config = LiveMigrationConfig::default();
 
-        let mut migration =
-            LiveMigration::new(sandbox_id, "target".to_string(), config);
+        let mut migration = LiveMigration::new(sandbox_id, "target".to_string(), config);
 
         // Can't verify without freezing first
         assert!(migration.begin_verification().is_err());
@@ -961,9 +923,7 @@ mod tests {
         let sandbox_id = test_sandbox_id();
         let module_hash = test_module_hash();
 
-        registry
-            .register(sandbox_id, "node-1".to_string(), module_hash, None)
-            .unwrap();
+        registry.register(sandbox_id, "node-1".to_string(), module_hash, None).unwrap();
 
         registry.heartbeat(&sandbox_id).unwrap();
     }

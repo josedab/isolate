@@ -54,8 +54,8 @@ pub struct StreamConfig {
 impl Default for StreamConfig {
     fn default() -> Self {
         Self {
-            max_chunk_size: 64 * 1024,  // 64KB
-            buffer_size: 256 * 1024,     // 256KB
+            max_chunk_size: 64 * 1024, // 64KB
+            buffer_size: 256 * 1024,   // 256KB
             flush_interval: Duration::from_millis(100),
             max_streams_per_node: 1000,
             compression_threshold: 4096,
@@ -109,12 +109,7 @@ pub struct StreamStats {
 impl OutputStreamManager {
     /// Create a new output stream manager.
     pub fn new(local_node: NodeId, config: StreamConfig) -> Self {
-        Self {
-            config,
-            local_node,
-            streams: HashMap::new(),
-            stats: StreamStats::default(),
-        }
+        Self { config, local_node, streams: HashMap::new(), stats: StreamStats::default() }
     }
 
     /// Start a new output stream for a sandbox execution.
@@ -123,24 +118,32 @@ impl OutputStreamManager {
             return false;
         }
 
-        self.streams.insert(execution_id, StreamState {
+        self.streams.insert(
             execution_id,
-            source_node,
-            stdout_buffer: Vec::new(),
-            stderr_buffer: Vec::new(),
-            sequence: 0,
-            started_at: Instant::now(),
-            total_bytes: 0,
-            chunk_count: 0,
-            completed: false,
-        });
+            StreamState {
+                execution_id,
+                source_node,
+                stdout_buffer: Vec::new(),
+                stderr_buffer: Vec::new(),
+                sequence: 0,
+                started_at: Instant::now(),
+                total_bytes: 0,
+                chunk_count: 0,
+                completed: false,
+            },
+        );
 
         self.stats.active_streams = self.streams.len();
         true
     }
 
     /// Write data to a stream's buffer.
-    pub fn write(&mut self, execution_id: &Uuid, stream: OutputStream, data: &[u8]) -> Vec<OutputChunk> {
+    pub fn write(
+        &mut self,
+        execution_id: &Uuid,
+        stream: OutputStream,
+        data: &[u8],
+    ) -> Vec<OutputChunk> {
         let mut chunks = Vec::new();
         let Some(state) = self.streams.get_mut(execution_id) else {
             return chunks;
@@ -241,9 +244,7 @@ impl OutputStreamManager {
 
     /// Remove completed streams older than the given duration.
     pub fn cleanup(&mut self, max_age: Duration) {
-        self.streams.retain(|_, state| {
-            !state.completed || state.started_at.elapsed() < max_age
-        });
+        self.streams.retain(|_, state| !state.completed || state.started_at.elapsed() < max_age);
         self.stats.active_streams = self.streams.values().filter(|s| !s.completed).count();
     }
 
@@ -299,7 +300,8 @@ mod tests {
         manager.start_stream(exec_id, test_node());
 
         // Write more than chunk size
-        let chunks = manager.write(&exec_id, OutputStream::Stdout, b"hello world this is a long message");
+        let chunks =
+            manager.write(&exec_id, OutputStream::Stdout, b"hello world this is a long message");
         assert!(!chunks.is_empty());
 
         for chunk in &chunks {

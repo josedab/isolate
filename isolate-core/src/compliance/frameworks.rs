@@ -93,34 +93,56 @@ impl FrameworkTemplate {
             version: "2024".to_string(),
             controls: vec![
                 Control {
-                    id: "CC1.1".into(), name: "COSO Principle 1".into(),
-                    description: "The entity demonstrates commitment to integrity and ethical values".into(),
-                    category: "Control Environment".into(), severity: ControlSeverity::High, automated: false,
+                    id: "CC1.1".into(),
+                    name: "COSO Principle 1".into(),
+                    description:
+                        "The entity demonstrates commitment to integrity and ethical values".into(),
+                    category: "Control Environment".into(),
+                    severity: ControlSeverity::High,
+                    automated: false,
                 },
                 Control {
-                    id: "CC6.1".into(), name: "Logical Access Security".into(),
-                    description: "Logical access security restricts access to information assets".into(),
-                    category: "Logical and Physical Access Controls".into(), severity: ControlSeverity::Critical, automated: true,
+                    id: "CC6.1".into(),
+                    name: "Logical Access Security".into(),
+                    description: "Logical access security restricts access to information assets"
+                        .into(),
+                    category: "Logical and Physical Access Controls".into(),
+                    severity: ControlSeverity::Critical,
+                    automated: true,
                 },
                 Control {
-                    id: "CC6.3".into(), name: "Access Revocation".into(),
-                    description: "Access to information assets is revoked when no longer required".into(),
-                    category: "Logical and Physical Access Controls".into(), severity: ControlSeverity::High, automated: true,
+                    id: "CC6.3".into(),
+                    name: "Access Revocation".into(),
+                    description: "Access to information assets is revoked when no longer required"
+                        .into(),
+                    category: "Logical and Physical Access Controls".into(),
+                    severity: ControlSeverity::High,
+                    automated: true,
                 },
                 Control {
-                    id: "CC7.1".into(), name: "Monitoring Activities".into(),
+                    id: "CC7.1".into(),
+                    name: "Monitoring Activities".into(),
                     description: "The entity monitors system components for anomalies".into(),
-                    category: "System Operations".into(), severity: ControlSeverity::High, automated: true,
+                    category: "System Operations".into(),
+                    severity: ControlSeverity::High,
+                    automated: true,
                 },
                 Control {
-                    id: "CC7.2".into(), name: "Incident Response".into(),
-                    description: "The entity monitors anomalies indicative of security incidents".into(),
-                    category: "System Operations".into(), severity: ControlSeverity::Critical, automated: true,
+                    id: "CC7.2".into(),
+                    name: "Incident Response".into(),
+                    description: "The entity monitors anomalies indicative of security incidents"
+                        .into(),
+                    category: "System Operations".into(),
+                    severity: ControlSeverity::Critical,
+                    automated: true,
                 },
                 Control {
-                    id: "CC8.1".into(), name: "Change Management".into(),
+                    id: "CC8.1".into(),
+                    name: "Change Management".into(),
                     description: "Changes to infrastructure and software are managed".into(),
-                    category: "Change Management".into(), severity: ControlSeverity::High, automated: true,
+                    category: "Change Management".into(),
+                    severity: ControlSeverity::High,
+                    automated: true,
                 },
             ],
         }
@@ -172,24 +194,39 @@ impl FrameworkTemplate {
             version: "2024".to_string(),
             controls: vec![
                 Control {
-                    id: "Art5.1(f)".into(), name: "Integrity and Confidentiality".into(),
-                    description: "Personal data processed in a manner ensuring appropriate security".into(),
-                    category: "Data Processing Principles".into(), severity: ControlSeverity::Critical, automated: true,
+                    id: "Art5.1(f)".into(),
+                    name: "Integrity and Confidentiality".into(),
+                    description:
+                        "Personal data processed in a manner ensuring appropriate security".into(),
+                    category: "Data Processing Principles".into(),
+                    severity: ControlSeverity::Critical,
+                    automated: true,
                 },
                 Control {
-                    id: "Art25.1".into(), name: "Data Protection by Design".into(),
-                    description: "Implement data protection principles in processing activities".into(),
-                    category: "Data Protection by Design".into(), severity: ControlSeverity::High, automated: false,
+                    id: "Art25.1".into(),
+                    name: "Data Protection by Design".into(),
+                    description: "Implement data protection principles in processing activities"
+                        .into(),
+                    category: "Data Protection by Design".into(),
+                    severity: ControlSeverity::High,
+                    automated: false,
                 },
                 Control {
-                    id: "Art30.1".into(), name: "Records of Processing".into(),
+                    id: "Art30.1".into(),
+                    name: "Records of Processing".into(),
                     description: "Maintain a record of processing activities".into(),
-                    category: "Record Keeping".into(), severity: ControlSeverity::High, automated: true,
+                    category: "Record Keeping".into(),
+                    severity: ControlSeverity::High,
+                    automated: true,
                 },
                 Control {
-                    id: "Art32.1".into(), name: "Security of Processing".into(),
-                    description: "Implement appropriate technical and organisational measures".into(),
-                    category: "Security".into(), severity: ControlSeverity::Critical, automated: true,
+                    id: "Art32.1".into(),
+                    name: "Security of Processing".into(),
+                    description: "Implement appropriate technical and organisational measures"
+                        .into(),
+                    category: "Security".into(),
+                    severity: ControlSeverity::Critical,
+                    automated: true,
                 },
             ],
         }
@@ -204,24 +241,36 @@ impl FrameworkTemplate {
             version: "4.0".to_string(),
             controls: vec![
                 Control {
-                    id: "Req1.1".into(), name: "Network Security Controls".into(),
+                    id: "Req1.1".into(),
+                    name: "Network Security Controls".into(),
                     description: "Install and maintain network security controls".into(),
-                    category: "Build and Maintain a Secure Network".into(), severity: ControlSeverity::Critical, automated: true,
+                    category: "Build and Maintain a Secure Network".into(),
+                    severity: ControlSeverity::Critical,
+                    automated: true,
                 },
                 Control {
-                    id: "Req3.1".into(), name: "Protect Stored Account Data".into(),
+                    id: "Req3.1".into(),
+                    name: "Protect Stored Account Data".into(),
                     description: "Account data storage is kept to a minimum".into(),
-                    category: "Protect Account Data".into(), severity: ControlSeverity::Critical, automated: true,
+                    category: "Protect Account Data".into(),
+                    severity: ControlSeverity::Critical,
+                    automated: true,
                 },
                 Control {
-                    id: "Req6.1".into(), name: "Secure Development".into(),
+                    id: "Req6.1".into(),
+                    name: "Secure Development".into(),
                     description: "Develop and maintain secure systems and software".into(),
-                    category: "Secure Systems and Software".into(), severity: ControlSeverity::High, automated: true,
+                    category: "Secure Systems and Software".into(),
+                    severity: ControlSeverity::High,
+                    automated: true,
                 },
                 Control {
-                    id: "Req10.1".into(), name: "Log and Monitor Access".into(),
+                    id: "Req10.1".into(),
+                    name: "Log and Monitor Access".into(),
                     description: "Log and monitor all access to system components".into(),
-                    category: "Logging and Monitoring".into(), severity: ControlSeverity::High, automated: true,
+                    category: "Logging and Monitoring".into(),
+                    severity: ControlSeverity::High,
+                    automated: true,
                 },
             ],
         }
@@ -283,7 +332,8 @@ mod tests {
     #[test]
     fn test_control_severity_critical() {
         let soc2 = FrameworkTemplate::soc2();
-        let critical: Vec<_> = soc2.controls.iter().filter(|c| c.severity == ControlSeverity::Critical).collect();
+        let critical: Vec<_> =
+            soc2.controls.iter().filter(|c| c.severity == ControlSeverity::Critical).collect();
         assert!(critical.len() >= 2);
     }
 }

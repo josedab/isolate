@@ -87,12 +87,7 @@ pub struct BenchmarkSuiteBuilder {
 
 impl BenchmarkSuiteBuilder {
     fn new(name: String) -> Self {
-        Self {
-            name,
-            scenarios: Vec::new(),
-            warmup_iterations: 3,
-            measure_iterations: 10,
-        }
+        Self { name, scenarios: Vec::new(), warmup_iterations: 3, measure_iterations: 10 }
     }
 
     /// Set the number of warmup iterations.
@@ -167,12 +162,7 @@ impl BenchmarkSuite {
         let total_duration = suite_start.elapsed();
         let timestamp = chrono::Utc::now().to_rfc3339();
 
-        Ok(BenchmarkReport {
-            suite_name: self.name.clone(),
-            results,
-            total_duration,
-            timestamp,
-        })
+        Ok(BenchmarkReport { suite_name: self.name.clone(), results, total_duration, timestamp })
     }
 
     fn build_config(scenario: &BenchmarkScenario) -> Result<SandboxConfig> {
@@ -200,11 +190,8 @@ impl BenchmarkSuite {
         let p99_time = calculate_percentile(&sorted, 99.0);
         let std_dev = calculate_std_dev(times, mean_time);
 
-        let throughput = if mean_time.as_secs_f64() > 0.0 {
-            1.0 / mean_time.as_secs_f64()
-        } else {
-            0.0
-        };
+        let throughput =
+            if mean_time.as_secs_f64() > 0.0 { 1.0 / mean_time.as_secs_f64() } else { 0.0 };
 
         BenchmarkResult {
             scenario_name: name.to_string(),
@@ -345,13 +332,8 @@ impl BenchmarkReport {
             return String::from("No results to compare.\n");
         }
 
-        let name_width = self
-            .results
-            .iter()
-            .map(|r| r.scenario_name.len())
-            .max()
-            .unwrap_or(8)
-            .max(8);
+        let name_width =
+            self.results.iter().map(|r| r.scenario_name.len()).max().unwrap_or(8).max(8);
 
         let mut out = String::new();
         out.push_str(&format!(
@@ -389,9 +371,7 @@ pub fn calculate_percentile(sorted_times: &[Duration], percentile: f64) -> Durat
     if sorted_times.is_empty() {
         return Duration::ZERO;
     }
-    let idx = ((percentile / 100.0) * (sorted_times.len() as f64 - 1.0))
-        .round()
-        .max(0.0) as usize;
+    let idx = ((percentile / 100.0) * (sorted_times.len() as f64 - 1.0)).round().max(0.0) as usize;
     sorted_times[idx.min(sorted_times.len() - 1)]
 }
 
@@ -467,9 +447,7 @@ mod tests {
 
     #[test]
     fn test_percentile_calculation() {
-        let times: Vec<Duration> = (1..=100)
-            .map(|i| Duration::from_millis(i))
-            .collect();
+        let times: Vec<Duration> = (1..=100).map(|i| Duration::from_millis(i)).collect();
 
         assert_eq!(calculate_percentile(&times, 0.0), Duration::from_millis(1));
         // 50th percentile of 1..=100: index = round(0.5 * 99) = 50 → value 51
@@ -500,11 +478,8 @@ mod tests {
 
     #[test]
     fn test_std_dev_varied() {
-        let times = vec![
-            Duration::from_millis(10),
-            Duration::from_millis(20),
-            Duration::from_millis(30),
-        ];
+        let times =
+            vec![Duration::from_millis(10), Duration::from_millis(20), Duration::from_millis(30)];
         let mean = Duration::from_millis(20);
         let sd = calculate_std_dev(&times, mean);
         // sample std dev of [10,20,30] = 10ms
@@ -514,10 +489,7 @@ mod tests {
     #[test]
     fn test_std_dev_single_element() {
         let times = vec![Duration::from_millis(5)];
-        assert_eq!(
-            calculate_std_dev(&times, Duration::from_millis(5)),
-            Duration::ZERO
-        );
+        assert_eq!(calculate_std_dev(&times, Duration::from_millis(5)), Duration::ZERO);
     }
 
     #[test]

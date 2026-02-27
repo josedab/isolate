@@ -73,7 +73,12 @@ impl GossipProtocol {
     }
 
     /// Create a module announcement.
-    pub fn create_announcement(&self, name: &str, cid: &ContentId, size: usize) -> ModuleAnnouncement {
+    pub fn create_announcement(
+        &self,
+        name: &str,
+        cid: &ContentId,
+        size: usize,
+    ) -> ModuleAnnouncement {
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -217,9 +222,16 @@ mod tests {
     #[test]
     fn test_message_types() {
         assert_eq!(GossipMessage::Ping { peer_id: "p".into() }.message_type(), "ping");
-        assert_eq!(GossipMessage::Pong { peer_id: "p".into(), modules_count: 5 }.message_type(), "pong");
+        assert_eq!(
+            GossipMessage::Pong { peer_id: "p".into(), modules_count: 5 }.message_type(),
+            "pong"
+        );
         assert_eq!(GossipMessage::Request { cid: ContentId::new("cid") }.message_type(), "request");
-        assert_eq!(GossipMessage::Withdraw { cid: ContentId::new("cid"), reason: "".into() }.message_type(), "withdraw");
+        assert_eq!(
+            GossipMessage::Withdraw { cid: ContentId::new("cid"), reason: "".into() }
+                .message_type(),
+            "withdraw"
+        );
     }
 
     #[test]

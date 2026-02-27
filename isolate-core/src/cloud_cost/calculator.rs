@@ -34,7 +34,12 @@ impl CostCalculator {
     }
 
     /// Estimate cost for an execution.
-    pub fn estimate(&self, provider_id: &str, region_id: &str, data_mb: f64) -> Option<CostEstimate> {
+    pub fn estimate(
+        &self,
+        provider_id: &str,
+        region_id: &str,
+        data_mb: f64,
+    ) -> Option<CostEstimate> {
         let price = self.tracker.get_price(provider_id, region_id)?;
         let exec_cost = price.price_per_execution * 100.0; // convert to cents
         let transfer_cost = data_mb * self.data_transfer_rate;
@@ -51,7 +56,8 @@ impl CostCalculator {
     /// Estimate costs across all tracked providers/regions.
     pub fn estimate_all(&self, data_mb: f64) -> Vec<CostEstimate> {
         let options = self.tracker.cheapest_options();
-        options.iter()
+        options
+            .iter()
             .filter_map(|p| self.estimate(&p.provider_id, &p.region_id, data_mb))
             .collect()
     }
@@ -59,7 +65,9 @@ impl CostCalculator {
     /// Find cheapest option.
     pub fn cheapest(&self, data_mb: f64) -> Option<CostEstimate> {
         let mut all = self.estimate_all(data_mb);
-        all.sort_by(|a, b| a.total_cents.partial_cmp(&b.total_cents).unwrap_or(std::cmp::Ordering::Equal));
+        all.sort_by(|a, b| {
+            a.total_cents.partial_cmp(&b.total_cents).unwrap_or(std::cmp::Ordering::Equal)
+        });
         all.into_iter().next()
     }
 
@@ -112,8 +120,7 @@ mod tests {
 
     #[test]
     fn test_custom_data_rate() {
-        let calc = CostCalculator::new(setup_tracker())
-            .with_data_rate(0.5);
+        let calc = CostCalculator::new(setup_tracker()).with_data_rate(0.5);
         let est = calc.estimate("aws", "us-east-1", 10.0).unwrap();
         assert!((est.data_transfer_cents - 5.0).abs() < 0.01);
     }

@@ -96,10 +96,8 @@ impl WorkflowExecutor {
         }
 
         // Final output is from the last executed node
-        let final_output = order.last()
-            .and_then(|id| outputs.get(id))
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
+        let final_output =
+            order.last().and_then(|id| outputs.get(id)).cloned().unwrap_or(serde_json::Value::Null);
 
         let status = if has_failure && nodes_executed == 0 {
             ExecutionStatus::Failed
@@ -125,7 +123,8 @@ impl WorkflowExecutor {
         outputs: &HashMap<String, serde_json::Value>,
     ) -> serde_json::Value {
         if incoming.len() == 1 {
-            return outputs.get(incoming[0].from.as_str())
+            return outputs
+                .get(incoming[0].from.as_str())
                 .cloned()
                 .unwrap_or(serde_json::Value::Null);
         }
@@ -149,12 +148,7 @@ impl WorkflowExecutor {
         match kind {
             NodeKind::Transform { transform } => {
                 let data = transform.apply(input);
-                NodeOutput {
-                    node_id: node_id.to_string(),
-                    data,
-                    success: true,
-                    error: None,
-                }
+                NodeOutput { node_id: node_id.to_string(), data, success: true, error: None }
             }
             NodeKind::Condition { condition } => {
                 let passed = condition.evaluate(input);
@@ -165,24 +159,18 @@ impl WorkflowExecutor {
                     error: None,
                 }
             }
-            NodeKind::Passthrough => {
-                NodeOutput {
-                    node_id: node_id.to_string(),
-                    data: input.clone(),
-                    success: true,
-                    error: None,
-                }
-            }
+            NodeKind::Passthrough => NodeOutput {
+                node_id: node_id.to_string(),
+                data: input.clone(),
+                success: true,
+                error: None,
+            },
             NodeKind::FanOut { split_path } => {
-                let items = input.get(split_path.as_str())
+                let items = input
+                    .get(split_path.as_str())
                     .cloned()
                     .unwrap_or(serde_json::Value::Array(vec![]));
-                NodeOutput {
-                    node_id: node_id.to_string(),
-                    data: items,
-                    success: true,
-                    error: None,
-                }
+                NodeOutput { node_id: node_id.to_string(), data: items, success: true, error: None }
             }
             NodeKind::FanIn { merge_strategy } => {
                 let data = match merge_strategy {
@@ -202,7 +190,8 @@ impl WorkflowExecutor {
                     }
                     MergeStrategy::Concat => {
                         if let Some(obj) = input.as_object() {
-                            let s: String = obj.values()
+                            let s: String = obj
+                                .values()
                                 .filter_map(|v| v.as_str())
                                 .collect::<Vec<_>>()
                                 .join("");
@@ -212,12 +201,7 @@ impl WorkflowExecutor {
                         }
                     }
                 };
-                NodeOutput {
-                    node_id: node_id.to_string(),
-                    data,
-                    success: true,
-                    error: None,
-                }
+                NodeOutput { node_id: node_id.to_string(), data, success: true, error: None }
             }
             NodeKind::Sandbox { module_name, .. } => {
                 // Simulate sandbox execution (actual WASM execution requires runtime)
@@ -265,7 +249,8 @@ mod tests {
     fn test_execute_passthrough() {
         let wf = WorkflowBuilder::new("pass")
             .add_node(Node::new("n1", NodeKind::Passthrough))
-            .build().unwrap();
+            .build()
+            .unwrap();
 
         let exec = WorkflowExecutor::new();
         let result = exec.execute(&wf, serde_json::json!({"key": "value"}));
@@ -276,14 +261,18 @@ mod tests {
     #[test]
     fn test_execute_transform_chain() {
         let wf = WorkflowBuilder::new("chain")
-            .add_node(Node::new("extract", NodeKind::Transform {
-                transform: TransformFn::JsonPath("$.name".into()),
-            }))
-            .add_node(Node::new("format", NodeKind::Transform {
-                transform: TransformFn::Template("Hello {{value}}!".into()),
-            }))
-            .add_edge("extract", "format").unwrap()
-            .build().unwrap();
+            .add_node(Node::new(
+                "extract",
+                NodeKind::Transform { transform: TransformFn::JsonPath("$.name".into()) },
+            ))
+            .add_node(Node::new(
+                "format",
+                NodeKind::Transform { transform: TransformFn::Template("Hello {{value}}!".into()) },
+            ))
+            .add_edge("extract", "format")
+            .unwrap()
+            .build()
+            .unwrap();
 
         let exec = WorkflowExecutor::new();
         let result = exec.execute(&wf, serde_json::json!({"name": "world"}));
@@ -294,13 +283,17 @@ mod tests {
     #[test]
     fn test_execute_condition() {
         let wf = WorkflowBuilder::new("cond")
-            .add_node(Node::new("check", NodeKind::Condition {
-                condition: ConditionFn::Equals {
-                    field: "status".into(),
-                    value: serde_json::json!("ok"),
+            .add_node(Node::new(
+                "check",
+                NodeKind::Condition {
+                    condition: ConditionFn::Equals {
+                        field: "status".into(),
+                        value: serde_json::json!("ok"),
+                    },
                 },
-            }))
-            .build().unwrap();
+            ))
+            .build()
+            .unwrap();
 
         let exec = WorkflowExecutor::new();
         let result = exec.execute(&wf, serde_json::json!({"status": "ok"}));
@@ -311,10 +304,9 @@ mod tests {
     #[test]
     fn test_execute_fan_out() {
         let wf = WorkflowBuilder::new("fan")
-            .add_node(Node::new("split", NodeKind::FanOut {
-                split_path: "items".into(),
-            }))
-            .build().unwrap();
+            .add_node(Node::new("split", NodeKind::FanOut { split_path: "items".into() }))
+            .build()
+            .unwrap();
 
         let exec = WorkflowExecutor::new();
         let result = exec.execute(&wf, serde_json::json!({"items": [1, 2, 3]}));
@@ -324,11 +316,12 @@ mod tests {
     #[test]
     fn test_execute_sandbox_node() {
         let wf = WorkflowBuilder::new("sandbox")
-            .add_node(Node::new("run", NodeKind::Sandbox {
-                module_name: "test.wasm".into(),
-                fuel_limit: 100000,
-            }))
-            .build().unwrap();
+            .add_node(Node::new(
+                "run",
+                NodeKind::Sandbox { module_name: "test.wasm".into(), fuel_limit: 100000 },
+            ))
+            .build()
+            .unwrap();
 
         let exec = WorkflowExecutor::new();
         let result = exec.execute(&wf, serde_json::json!({"data": "test"}));
@@ -339,11 +332,15 @@ mod tests {
     #[test]
     fn test_execute_http_node() {
         let wf = WorkflowBuilder::new("http")
-            .add_node(Node::new("fetch", NodeKind::Http {
-                method: "GET".into(),
-                url_template: "https://api.example.com/data".into(),
-            }))
-            .build().unwrap();
+            .add_node(Node::new(
+                "fetch",
+                NodeKind::Http {
+                    method: "GET".into(),
+                    url_template: "https://api.example.com/data".into(),
+                },
+            ))
+            .build()
+            .unwrap();
 
         let exec = WorkflowExecutor::new();
         let result = exec.execute(&wf, serde_json::json!({}));
@@ -355,20 +352,28 @@ mod tests {
     fn test_diamond_execution() {
         let wf = WorkflowBuilder::new("diamond")
             .add_node(Node::new("start", NodeKind::Passthrough))
-            .add_node(Node::new("left", NodeKind::Transform {
-                transform: TransformFn::JsonPath("$.a".into()),
-            }))
-            .add_node(Node::new("right", NodeKind::Transform {
-                transform: TransformFn::JsonPath("$.b".into()),
-            }))
-            .add_node(Node::new("merge", NodeKind::FanIn {
-                merge_strategy: MergeStrategy::Collect,
-            }))
-            .add_edge("start", "left").unwrap()
-            .add_edge("start", "right").unwrap()
-            .add_edge("left", "merge").unwrap()
-            .add_edge("right", "merge").unwrap()
-            .build().unwrap();
+            .add_node(Node::new(
+                "left",
+                NodeKind::Transform { transform: TransformFn::JsonPath("$.a".into()) },
+            ))
+            .add_node(Node::new(
+                "right",
+                NodeKind::Transform { transform: TransformFn::JsonPath("$.b".into()) },
+            ))
+            .add_node(Node::new(
+                "merge",
+                NodeKind::FanIn { merge_strategy: MergeStrategy::Collect },
+            ))
+            .add_edge("start", "left")
+            .unwrap()
+            .add_edge("start", "right")
+            .unwrap()
+            .add_edge("left", "merge")
+            .unwrap()
+            .add_edge("right", "merge")
+            .unwrap()
+            .build()
+            .unwrap();
 
         let exec = WorkflowExecutor::new();
         let result = exec.execute(&wf, serde_json::json!({"a": 1, "b": 2}));
@@ -380,7 +385,8 @@ mod tests {
     fn test_execution_result_metadata() {
         let wf = WorkflowBuilder::new("meta-test")
             .add_node(Node::new("n1", NodeKind::Passthrough))
-            .build().unwrap();
+            .build()
+            .unwrap();
 
         let exec = WorkflowExecutor::new();
         let result = exec.execute(&wf, serde_json::json!(null));

@@ -120,12 +120,7 @@ impl UsageMeter {
 
     /// Get recent records for a tenant.
     pub fn recent_records(&self, tenant_id: &str, limit: usize) -> Vec<&UsageRecord> {
-        self.records
-            .iter()
-            .rev()
-            .filter(|r| r.tenant_id == tenant_id)
-            .take(limit)
-            .collect()
+        self.records.iter().rev().filter(|r| r.tenant_id == tenant_id).take(limit).collect()
     }
 
     /// Reset all counters (e.g., at the start of a new billing period).
@@ -183,28 +178,30 @@ impl FairScheduler {
     /// Register or update a tenant's priority.
     pub fn set_tenant_priority(&mut self, tenant_id: impl Into<String>, priority: u32) {
         let tenant_id = tenant_id.into();
-        self.tenants.entry(tenant_id).or_insert_with(|| SchedulerTenantState {
-            priority,
-            pending_requests: 0,
-            completed_requests: 0,
-            virtual_time: 0.0,
-            last_scheduled: None,
-        }).priority = priority;
+        self.tenants
+            .entry(tenant_id)
+            .or_insert_with(|| SchedulerTenantState {
+                priority,
+                pending_requests: 0,
+                completed_requests: 0,
+                virtual_time: 0.0,
+                last_scheduled: None,
+            })
+            .priority = priority;
     }
 
     /// Submit a request for scheduling.
     pub fn submit(&mut self, tenant_id: &str, max_pending: u64) -> ScheduleDecision {
         self.total_requests += 1;
 
-        let state = self.tenants.entry(tenant_id.to_string()).or_insert_with(|| {
-            SchedulerTenantState {
+        let state =
+            self.tenants.entry(tenant_id.to_string()).or_insert_with(|| SchedulerTenantState {
                 priority: 5,
                 pending_requests: 0,
                 completed_requests: 0,
                 virtual_time: 0.0,
                 last_scheduled: None,
-            }
-        });
+            });
 
         // Apply backpressure if tenant has too many pending requests
         if state.pending_requests >= max_pending {

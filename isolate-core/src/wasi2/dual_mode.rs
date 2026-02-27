@@ -413,8 +413,7 @@ impl DualModeSandbox {
     pub async fn run(&self, input: &[u8]) -> Result<crate::sandbox::Output> {
         match self.version {
             WasiVersion::Preview1 => {
-                let mut builder = crate::SandboxConfig::builder()
-                    .module(&self.wasm_bytes)?;
+                let mut builder = crate::SandboxConfig::builder().module(&self.wasm_bytes)?;
                 for cap in self.capabilities.iter() {
                     builder = builder.capability(cap.clone());
                 }
@@ -430,9 +429,9 @@ impl DualModeSandbox {
                 let mut sb = super::component::ComponentSandbox::create(config).await?;
                 sb.run(input).await
             }
-            WasiVersion::Unknown => Err(Error::ModuleValidation(
-                "Cannot run: unknown WASI version".to_string(),
-            )),
+            WasiVersion::Unknown => {
+                Err(Error::ModuleValidation("Cannot run: unknown WASI version".to_string()))
+            }
         }
     }
 }

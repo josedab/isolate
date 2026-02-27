@@ -53,7 +53,11 @@ impl RoutingOptimizer {
     }
 
     /// Make a routing decision with specific data size.
-    pub fn route_with_data(&self, constraints: &RoutingConstraints, data_mb: f64) -> RoutingDecision {
+    pub fn route_with_data(
+        &self,
+        constraints: &RoutingConstraints,
+        data_mb: f64,
+    ) -> RoutingDecision {
         let all_options = self.calculator.estimate_all(data_mb);
 
         if all_options.is_empty() {
@@ -68,15 +72,14 @@ impl RoutingOptimizer {
         }
 
         // Filter by constraints
-        let filtered: Vec<&CostEstimate> = all_options.iter()
+        let filtered: Vec<&CostEstimate> = all_options
+            .iter()
             .filter(|e| !constraints.excluded_providers.contains(&e.provider_id))
             .filter(|e| {
                 constraints.required_regions.is_empty()
-                || constraints.required_regions.iter().any(|r| e.region_id.contains(r))
+                    || constraints.required_regions.iter().any(|r| e.region_id.contains(r))
             })
-            .filter(|e| {
-                constraints.max_cost_cents.map_or(true, |max| e.total_cents <= max)
-            })
+            .filter(|e| constraints.max_cost_cents.map_or(true, |max| e.total_cents <= max))
             .collect();
 
         let total_considered = all_options.len();
@@ -93,8 +96,11 @@ impl RoutingOptimizer {
         }
 
         // Select cheapest from filtered options
-        let best = filtered.iter()
-            .min_by(|a, b| a.total_cents.partial_cmp(&b.total_cents).unwrap_or(std::cmp::Ordering::Equal))
+        let best = filtered
+            .iter()
+            .min_by(|a, b| {
+                a.total_cents.partial_cmp(&b.total_cents).unwrap_or(std::cmp::Ordering::Equal)
+            })
             .unwrap();
 
         RoutingDecision {
@@ -103,7 +109,10 @@ impl RoutingOptimizer {
             estimated_cost: Some((*best).clone()),
             reason: format!(
                 "Selected {} ({}) at {:.4}¢ — cheapest of {} options",
-                best.provider_id, best.region_id, best.total_cents, filtered.len()
+                best.provider_id,
+                best.region_id,
+                best.total_cents,
+                filtered.len()
             ),
             alternatives_considered: total_considered,
             constraints_satisfied: true,
@@ -113,7 +122,9 @@ impl RoutingOptimizer {
     /// Compare costs across all providers for a given workload.
     pub fn compare(&self, data_mb: f64) -> Vec<CostEstimate> {
         let mut all = self.calculator.estimate_all(data_mb);
-        all.sort_by(|a, b| a.total_cents.partial_cmp(&b.total_cents).unwrap_or(std::cmp::Ordering::Equal));
+        all.sort_by(|a, b| {
+            a.total_cents.partial_cmp(&b.total_cents).unwrap_or(std::cmp::Ordering::Equal)
+        });
         all
     }
 

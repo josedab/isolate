@@ -64,23 +64,32 @@ impl TemplateLibrary {
             description: "Standard web request handler with stdout and network access".into(),
             category: "web".into(),
             blocks: vec![
-                PolicyBlock::new("resource", BlockKind::Resource(ResourceBlock {
-                    max_memory_bytes: Some(128 * 1024 * 1024),
-                    max_fuel: Some(10_000_000),
-                    timeout_ms: Some(30_000),
-                    max_io_bytes: Some(50 * 1024 * 1024),
-                })),
-                PolicyBlock::new("capability", BlockKind::Capability(CapabilityBlock {
-                    stdout: true,
-                    stderr: true,
-                    stdin: true,
-                    ..Default::default()
-                })),
-                PolicyBlock::new("network", BlockKind::Network(NetworkBlock {
-                    allow_outbound: true,
-                    allowed_ports: vec![80, 443],
-                    ..Default::default()
-                })),
+                PolicyBlock::new(
+                    "resource",
+                    BlockKind::Resource(ResourceBlock {
+                        max_memory_bytes: Some(128 * 1024 * 1024),
+                        max_fuel: Some(10_000_000),
+                        timeout_ms: Some(30_000),
+                        max_io_bytes: Some(50 * 1024 * 1024),
+                    }),
+                ),
+                PolicyBlock::new(
+                    "capability",
+                    BlockKind::Capability(CapabilityBlock {
+                        stdout: true,
+                        stderr: true,
+                        stdin: true,
+                        ..Default::default()
+                    }),
+                ),
+                PolicyBlock::new(
+                    "network",
+                    BlockKind::Network(NetworkBlock {
+                        allow_outbound: true,
+                        allowed_ports: vec![80, 443],
+                        ..Default::default()
+                    }),
+                ),
             ],
         }
     }
@@ -92,19 +101,25 @@ impl TemplateLibrary {
             description: "Long-running batch processing with filesystem access".into(),
             category: "processing".into(),
             blocks: vec![
-                PolicyBlock::new("resource", BlockKind::Resource(ResourceBlock {
-                    max_memory_bytes: Some(256 * 1024 * 1024),
-                    max_fuel: Some(100_000_000),
-                    timeout_ms: Some(300_000), // 5 minutes
-                    max_io_bytes: Some(500 * 1024 * 1024),
-                })),
-                PolicyBlock::new("capability", BlockKind::Capability(CapabilityBlock {
-                    stdout: true,
-                    stderr: true,
-                    filesystem_read: vec!["/data/input".into()],
-                    filesystem_write: vec!["/data/output".into()],
-                    ..Default::default()
-                })),
+                PolicyBlock::new(
+                    "resource",
+                    BlockKind::Resource(ResourceBlock {
+                        max_memory_bytes: Some(256 * 1024 * 1024),
+                        max_fuel: Some(100_000_000),
+                        timeout_ms: Some(300_000), // 5 minutes
+                        max_io_bytes: Some(500 * 1024 * 1024),
+                    }),
+                ),
+                PolicyBlock::new(
+                    "capability",
+                    BlockKind::Capability(CapabilityBlock {
+                        stdout: true,
+                        stderr: true,
+                        filesystem_read: vec!["/data/input".into()],
+                        filesystem_write: vec!["/data/output".into()],
+                        ..Default::default()
+                    }),
+                ),
             ],
         }
     }
@@ -116,18 +131,24 @@ impl TemplateLibrary {
             description: "GPU-friendly ML inference with model file access".into(),
             category: "ml".into(),
             blocks: vec![
-                PolicyBlock::new("resource", BlockKind::Resource(ResourceBlock {
-                    max_memory_bytes: Some(512 * 1024 * 1024),
-                    max_fuel: Some(50_000_000),
-                    timeout_ms: Some(60_000),
-                    max_io_bytes: Some(100 * 1024 * 1024),
-                })),
-                PolicyBlock::new("capability", BlockKind::Capability(CapabilityBlock {
-                    stdout: true,
-                    stderr: true,
-                    filesystem_read: vec!["/models".into()],
-                    ..Default::default()
-                })),
+                PolicyBlock::new(
+                    "resource",
+                    BlockKind::Resource(ResourceBlock {
+                        max_memory_bytes: Some(512 * 1024 * 1024),
+                        max_fuel: Some(50_000_000),
+                        timeout_ms: Some(60_000),
+                        max_io_bytes: Some(100 * 1024 * 1024),
+                    }),
+                ),
+                PolicyBlock::new(
+                    "capability",
+                    BlockKind::Capability(CapabilityBlock {
+                        stdout: true,
+                        stderr: true,
+                        filesystem_read: vec!["/models".into()],
+                        ..Default::default()
+                    }),
+                ),
             ],
         }
     }
@@ -139,17 +160,23 @@ impl TemplateLibrary {
             description: "Minimal sandbox for untrusted third-party plugins".into(),
             category: "plugin".into(),
             blocks: vec![
-                PolicyBlock::new("resource", BlockKind::Resource(ResourceBlock {
-                    max_memory_bytes: Some(16 * 1024 * 1024),
-                    max_fuel: Some(500_000),
-                    timeout_ms: Some(5_000),
-                    max_io_bytes: Some(1024 * 1024),
-                })),
-                PolicyBlock::new("capability", BlockKind::Capability(CapabilityBlock {
-                    stdout: true,
-                    stderr: true,
-                    ..Default::default()
-                })),
+                PolicyBlock::new(
+                    "resource",
+                    BlockKind::Resource(ResourceBlock {
+                        max_memory_bytes: Some(16 * 1024 * 1024),
+                        max_fuel: Some(500_000),
+                        timeout_ms: Some(5_000),
+                        max_io_bytes: Some(1024 * 1024),
+                    }),
+                ),
+                PolicyBlock::new(
+                    "capability",
+                    BlockKind::Capability(CapabilityBlock {
+                        stdout: true,
+                        stderr: true,
+                        ..Default::default()
+                    }),
+                ),
             ],
         }
     }
@@ -207,7 +234,8 @@ mod tests {
         let lib = TemplateLibrary::default();
         let t = lib.get("restricted-plugin").unwrap();
         let ir = t.to_ir();
-        let res_block = ir.blocks.iter().find(|b| matches!(b.kind, BlockKind::Resource(_))).unwrap();
+        let res_block =
+            ir.blocks.iter().find(|b| matches!(b.kind, BlockKind::Resource(_))).unwrap();
         if let BlockKind::Resource(r) = &res_block.kind {
             assert!(r.max_memory_bytes.unwrap() <= 16 * 1024 * 1024);
             assert!(r.max_fuel.unwrap() <= 500_000);

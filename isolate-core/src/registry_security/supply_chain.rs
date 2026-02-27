@@ -97,9 +97,7 @@ pub struct SupplyChainReport {
 impl ProvenanceStore {
     /// Create an empty store.
     pub fn new() -> Self {
-        Self {
-            records: HashMap::new(),
-        }
+        Self { records: HashMap::new() }
     }
 
     /// Record provenance for a module.
@@ -107,8 +105,7 @@ impl ProvenanceStore {
         if provenance.module_hash.is_empty() {
             return Err("module_hash must not be empty".into());
         }
-        self.records
-            .insert(provenance.module_hash.clone(), provenance);
+        self.records.insert(provenance.module_hash.clone(), provenance);
         Ok(())
     }
 
@@ -121,9 +118,8 @@ impl ProvenanceStore {
     pub fn verify_supply_chain(&self, module_hash: &str) -> SupplyChainReport {
         match self.records.get(module_hash) {
             Some(record) => {
-                let all_deps_verified =
-                    !record.dependencies.is_empty()
-                        && record.dependencies.iter().all(|d| !d.hash.is_empty());
+                let all_deps_verified = !record.dependencies.is_empty()
+                    && record.dependencies.iter().all(|d| !d.hash.is_empty());
                 SupplyChainReport {
                     module_hash: module_hash.to_string(),
                     has_provenance: true,
@@ -240,9 +236,7 @@ pub struct VulnerabilityScanner {
 impl VulnerabilityScanner {
     /// Create a scanner pre-loaded with built-in rules.
     pub fn new() -> Self {
-        Self {
-            rules: Self::builtin_rules(),
-        }
+        Self { rules: Self::builtin_rules() }
     }
 
     /// Add a custom scan rule.

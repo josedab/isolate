@@ -156,7 +156,10 @@ mod tests {
     fn test_interface_stability_levels() {
         assert_eq!(InterfaceStability::level("wasi:cli/stdout"), StabilityLevel::Stable);
         assert_eq!(InterfaceStability::level("wasi:sockets/tcp"), StabilityLevel::Preview);
-        assert_eq!(InterfaceStability::level("wasi:http/incoming-handler"), StabilityLevel::Experimental);
+        assert_eq!(
+            InterfaceStability::level("wasi:http/incoming-handler"),
+            StabilityLevel::Experimental
+        );
         assert_eq!(InterfaceStability::level("unknown:interface"), StabilityLevel::Experimental);
     }
 
@@ -175,10 +178,7 @@ mod tests {
 
     #[test]
     fn test_readiness_assessment_preview() {
-        let interfaces = vec![
-            "wasi:cli/stdout".to_string(),
-            "wasi:sockets/tcp".to_string(),
-        ];
+        let interfaces = vec!["wasi:cli/stdout".to_string(), "wasi:sockets/tcp".to_string()];
         let assessment = ReadinessAssessment::evaluate(&interfaces);
         assert!(assessment.is_production_ready);
         assert_eq!(assessment.minimum_stability, StabilityLevel::Preview);
@@ -187,10 +187,7 @@ mod tests {
 
     #[test]
     fn test_readiness_assessment_experimental() {
-        let interfaces = vec![
-            "wasi:cli/stdout".to_string(),
-            "wasi:keyvalue/store".to_string(),
-        ];
+        let interfaces = vec!["wasi:cli/stdout".to_string(), "wasi:keyvalue/store".to_string()];
         let assessment = ReadinessAssessment::evaluate(&interfaces);
         assert!(!assessment.is_production_ready);
         assert_eq!(assessment.minimum_stability, StabilityLevel::Experimental);

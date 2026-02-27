@@ -66,9 +66,7 @@ impl CompatibilityReport {
                     steps.push(MigrationStep::TruncateMemory);
                 }
                 MemoryChange::LayoutChange { description } => {
-                    steps.push(MigrationStep::RemapMemory {
-                        description: description.clone(),
-                    });
+                    steps.push(MigrationStep::RemapMemory { description: description.clone() });
                 }
             }
         }
@@ -288,7 +286,9 @@ impl MigrationPlan {
 
     /// Check if this plan has any destructive steps.
     pub fn has_destructive_steps(&self) -> bool {
-        self.steps.iter().any(|s| matches!(s, MigrationStep::TruncateMemory | MigrationStep::RemoveGlobal { .. }))
+        self.steps.iter().any(|s| {
+            matches!(s, MigrationStep::TruncateMemory | MigrationStep::RemoveGlobal { .. })
+        })
     }
 }
 
@@ -373,9 +373,7 @@ impl CompatibilityAnalyzer {
                     default_value: vec![0; 8],
                 });
             } else {
-                global_changes.push(GlobalChange::Removed {
-                    index: new_global_data.len() as u32,
-                });
+                global_changes.push(GlobalChange::Removed { index: new_global_data.len() as u32 });
             }
         } else if old_global_data != new_global_data {
             global_changes.push(GlobalChange::TypeChanged {
@@ -410,23 +408,17 @@ impl CompatibilityAnalyzer {
 
         for (module, name) in &old_imports {
             if !new_imports.contains(&(module.clone(), name.clone())) {
-                import_changes.push(ImportChange::Removed {
-                    module: module.clone(),
-                    name: name.clone(),
-                });
+                import_changes
+                    .push(ImportChange::Removed { module: module.clone(), name: name.clone() });
             }
         }
         for (module, name) in &new_imports {
             if !old_imports.contains(&(module.clone(), name.clone())) {
-                import_changes.push(ImportChange::Added {
-                    module: module.clone(),
-                    name: name.clone(),
-                });
+                import_changes
+                    .push(ImportChange::Added { module: module.clone(), name: name.clone() });
                 if self.strict_imports {
-                    blockers.push(format!(
-                        "New import '{}::{}' requires host support",
-                        module, name
-                    ));
+                    blockers
+                        .push(format!("New import '{}::{}' requires host support", module, name));
                 }
             }
         }
@@ -581,9 +573,7 @@ fn extract_import_names(section: Option<&Vec<u8>>) -> Vec<(String, String)> {
         if pos + mod_len > data.len() {
             break;
         }
-        let module = std::str::from_utf8(&data[pos..pos + mod_len])
-            .unwrap_or("")
-            .to_string();
+        let module = std::str::from_utf8(&data[pos..pos + mod_len]).unwrap_or("").to_string();
         pos += mod_len;
         // Read field name
         if pos >= data.len() {
@@ -594,9 +584,7 @@ fn extract_import_names(section: Option<&Vec<u8>>) -> Vec<(String, String)> {
         if pos + name_len > data.len() {
             break;
         }
-        let name = std::str::from_utf8(&data[pos..pos + name_len])
-            .unwrap_or("")
-            .to_string();
+        let name = std::str::from_utf8(&data[pos..pos + name_len]).unwrap_or("").to_string();
         pos += name_len;
         imports.push((module, name));
         // Skip import description (kind byte + type-specific data)
@@ -610,7 +598,8 @@ fn extract_import_names(section: Option<&Vec<u8>>) -> Vec<(String, String)> {
                 if pos < data.len() {
                     let (_, n) = read_leb128(&data[pos..]);
                     pos += n;
-                    if pos < data.len() && data.get(pos.wrapping_sub(n)).copied().unwrap_or(0) == 1 {
+                    if pos < data.len() && data.get(pos.wrapping_sub(n)).copied().unwrap_or(0) == 1
+                    {
                         let (_, n) = read_leb128(&data[pos..]);
                         pos += n;
                     }
@@ -660,11 +649,7 @@ impl StateMigrator {
                         .insert("__remap_log".to_string(), description.as_bytes().to_vec());
                 }
                 MigrationStep::ConvertGlobal { index } => {
-                    if let Some(global) = new_state
-                        .globals
-                        .iter_mut()
-                        .find(|g| g.index == *index)
-                    {
+                    if let Some(global) = new_state.globals.iter_mut().find(|g| g.index == *index) {
                         // Type conversion: widen to 8 bytes (i32→i64 safe, truncate for narrowing)
                         match global.value.len() {
                             4 => {
@@ -805,7 +790,9 @@ mod tests {
         let report = analyzer.check(&old, &new);
         assert!(report.is_compatible());
         assert_eq!(report.export_changes.len(), 1);
-        assert!(matches!(&report.export_changes[0], ExportChange::Added { name } if name == "helper"));
+        assert!(
+            matches!(&report.export_changes[0], ExportChange::Added { name } if name == "helper")
+        );
     }
 
     #[test]
@@ -909,8 +896,16 @@ mod tests {
     #[test]
     fn test_state_migrator_remove_global() {
         let mut state = CapturedState::empty();
-        state.globals.push(GlobalValue { index: 0, value_type: ValueType::I32, value: vec![1, 0, 0, 0] });
-        state.globals.push(GlobalValue { index: 1, value_type: ValueType::I32, value: vec![2, 0, 0, 0] });
+        state.globals.push(GlobalValue {
+            index: 0,
+            value_type: ValueType::I32,
+            value: vec![1, 0, 0, 0],
+        });
+        state.globals.push(GlobalValue {
+            index: 1,
+            value_type: ValueType::I32,
+            value: vec![2, 0, 0, 0],
+        });
 
         let plan = MigrationPlan {
             steps: vec![MigrationStep::RemoveGlobal { index: 0 }, MigrationStep::VerifyIntegrity],
@@ -925,7 +920,11 @@ mod tests {
     #[test]
     fn test_state_migrator_convert_global_i32_to_i64() {
         let mut state = CapturedState::empty();
-        state.globals.push(GlobalValue { index: 0, value_type: ValueType::I32, value: 42i32.to_le_bytes().to_vec() });
+        state.globals.push(GlobalValue {
+            index: 0,
+            value_type: ValueType::I32,
+            value: 42i32.to_le_bytes().to_vec(),
+        });
 
         let plan = MigrationPlan {
             steps: vec![MigrationStep::ConvertGlobal { index: 0 }, MigrationStep::VerifyIntegrity],

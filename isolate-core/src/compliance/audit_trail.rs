@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// A single entry in the audit trail.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,11 +46,7 @@ pub struct AuditChain {
 
 impl AuditTrail {
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(AuditTrailInner {
-                entries: RwLock::new(Vec::new()),
-            }),
-        }
+        Self { inner: Arc::new(AuditTrailInner { entries: RwLock::new(Vec::new()) }) }
     }
 
     /// Record a new event in the audit trail.
@@ -62,12 +58,10 @@ impl AuditTrail {
             .unwrap_or_default()
             .as_secs();
 
-        let prev_hash = entries
-            .last()
-            .map(|e| e.hash.clone())
-            .unwrap_or_else(|| "0".repeat(64));
+        let prev_hash = entries.last().map(|e| e.hash.clone()).unwrap_or_else(|| "0".repeat(64));
 
-        let hash = Self::compute_hash(sequence, event_type, description, actor, timestamp, &prev_hash);
+        let hash =
+            Self::compute_hash(sequence, event_type, description, actor, timestamp, &prev_hash);
 
         entries.push(AuditEntry {
             sequence,
@@ -83,16 +77,20 @@ impl AuditTrail {
     }
 
     /// Record with an explicit timestamp (for testing/replay).
-    pub fn record_at(&self, event_type: &str, description: &str, actor: &str, timestamp: u64) -> u64 {
+    pub fn record_at(
+        &self,
+        event_type: &str,
+        description: &str,
+        actor: &str,
+        timestamp: u64,
+    ) -> u64 {
         let mut entries = self.inner.entries.write();
         let sequence = entries.len() as u64;
 
-        let prev_hash = entries
-            .last()
-            .map(|e| e.hash.clone())
-            .unwrap_or_else(|| "0".repeat(64));
+        let prev_hash = entries.last().map(|e| e.hash.clone()).unwrap_or_else(|| "0".repeat(64));
 
-        let hash = Self::compute_hash(sequence, event_type, description, actor, timestamp, &prev_hash);
+        let hash =
+            Self::compute_hash(sequence, event_type, description, actor, timestamp, &prev_hash);
 
         entries.push(AuditEntry {
             sequence,
@@ -107,7 +105,14 @@ impl AuditTrail {
         sequence
     }
 
-    fn compute_hash(seq: u64, event_type: &str, desc: &str, actor: &str, ts: u64, prev: &str) -> String {
+    fn compute_hash(
+        seq: u64,
+        event_type: &str,
+        desc: &str,
+        actor: &str,
+        ts: u64,
+        prev: &str,
+    ) -> String {
         let mut hasher = Sha256::new();
         hasher.update(seq.to_le_bytes());
         hasher.update(event_type.as_bytes());
@@ -124,23 +129,31 @@ impl AuditTrail {
         let mut checked = 0u64;
 
         for (i, entry) in entries.iter().enumerate() {
-            let expected_prev = if i == 0 {
-                "0".repeat(64)
-            } else {
-                entries[i - 1].hash.clone()
-            };
+            let expected_prev = if i == 0 { "0".repeat(64) } else { entries[i - 1].hash.clone() };
 
             if entry.prev_hash != expected_prev {
-                return ChainVerification { valid: false, entries_checked: checked, first_invalid: Some(entry.sequence) };
+                return ChainVerification {
+                    valid: false,
+                    entries_checked: checked,
+                    first_invalid: Some(entry.sequence),
+                };
             }
 
             let recomputed = Self::compute_hash(
-                entry.sequence, &entry.event_type, &entry.description,
-                &entry.actor, entry.timestamp, &entry.prev_hash,
+                entry.sequence,
+                &entry.event_type,
+                &entry.description,
+                &entry.actor,
+                entry.timestamp,
+                &entry.prev_hash,
             );
 
             if entry.hash != recomputed {
-                return ChainVerification { valid: false, entries_checked: checked, first_invalid: Some(entry.sequence) };
+                return ChainVerification {
+                    valid: false,
+                    entries_checked: checked,
+                    first_invalid: Some(entry.sequence),
+                };
             }
 
             checked += 1;
@@ -152,24 +165,19 @@ impl AuditTrail {
     /// Get all entries.
     pub fn chain(&self) -> AuditChain {
         let entries = self.inner.entries.read();
-        AuditChain {
-            length: entries.len() as u64,
-            entries: entries.clone(),
-        }
+        AuditChain { length: entries.len() as u64, entries: entries.clone() }
     }
 
     /// Get entries filtered by event type.
     pub fn entries_by_type(&self, event_type: &str) -> Vec<AuditEntry> {
-        self.inner.entries.read()
-            .iter()
-            .filter(|e| e.event_type == event_type)
-            .cloned()
-            .collect()
+        self.inner.entries.read().iter().filter(|e| e.event_type == event_type).cloned().collect()
     }
 
     /// Get entries for a time range.
     pub fn entries_in_range(&self, start: u64, end: u64) -> Vec<AuditEntry> {
-        self.inner.entries.read()
+        self.inner
+            .entries
+            .read()
             .iter()
             .filter(|e| e.timestamp >= start && e.timestamp <= end)
             .cloned()

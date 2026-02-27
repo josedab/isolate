@@ -73,16 +73,13 @@ impl DdosProtection {
 
     /// Check if a request from an IP should be allowed.
     pub fn check_ip(&self, ip: &str) -> bool {
-        let mut entry = self
-            .ips
-            .entry(ip.to_string())
-            .or_insert_with(|| IpState {
-                score: self.config.initial_score,
-                total_requests: 0,
-                blocked_requests: 0,
-                banned_until: None,
-                last_seen: Instant::now(),
-            });
+        let mut entry = self.ips.entry(ip.to_string()).or_insert_with(|| IpState {
+            score: self.config.initial_score,
+            total_requests: 0,
+            blocked_requests: 0,
+            banned_until: None,
+            last_seen: Instant::now(),
+        });
 
         let state = entry.value_mut();
         state.total_requests += 1;
@@ -152,16 +149,13 @@ impl DdosProtection {
 
     /// Manually blacklist an IP (set score to 0 and ban).
     pub fn blacklist(&self, ip: &str) {
-        let mut entry = self
-            .ips
-            .entry(ip.to_string())
-            .or_insert_with(|| IpState {
-                score: 0,
-                total_requests: 0,
-                blocked_requests: 0,
-                banned_until: None,
-                last_seen: Instant::now(),
-            });
+        let mut entry = self.ips.entry(ip.to_string()).or_insert_with(|| IpState {
+            score: 0,
+            total_requests: 0,
+            blocked_requests: 0,
+            banned_until: None,
+            last_seen: Instant::now(),
+        });
         entry.score = 0;
         entry.banned_until = Some(Instant::now() + self.config.ban_duration);
     }

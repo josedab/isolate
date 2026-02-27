@@ -86,9 +86,7 @@ pub struct NodeRegistry {
 impl NodeRegistry {
     /// Create an empty registry.
     pub fn new() -> Self {
-        Self {
-            nodes: DashMap::new(),
-        }
+        Self { nodes: DashMap::new() }
     }
 
     /// Register (or re-register) a node.
@@ -201,11 +199,7 @@ pub struct Scheduler {
 impl Scheduler {
     /// Create a new scheduler with the given strategy and node registry.
     pub fn new(strategy: SchedulingStrategy, registry: Arc<NodeRegistry>) -> Self {
-        Self {
-            strategy,
-            registry,
-            round_robin_counter: AtomicUsize::new(0),
-        }
+        Self { strategy, registry, round_robin_counter: AtomicUsize::new(0) }
     }
 
     /// Schedule a single placement request.
@@ -221,17 +215,12 @@ impl Scheduler {
             SchedulingStrategy::LeastLoaded => self.schedule_least_loaded(&candidates),
             SchedulingStrategy::BinPacking => self.schedule_bin_packing(&candidates),
             SchedulingStrategy::RoundRobin => self.schedule_round_robin(&candidates),
-            SchedulingStrategy::AffinityBased => {
-                self.schedule_affinity(request, &candidates)
-            }
+            SchedulingStrategy::AffinityBased => self.schedule_affinity(request, &candidates),
         }
     }
 
     /// Schedule a batch of placement requests, returning one result per request.
-    pub fn schedule_batch(
-        &self,
-        requests: &[PlacementRequest],
-    ) -> Vec<Result<PlacementDecision>> {
+    pub fn schedule_batch(&self, requests: &[PlacementRequest]) -> Vec<Result<PlacementDecision>> {
         requests.iter().map(|r| self.schedule(r)).collect()
     }
 
@@ -245,8 +234,10 @@ impl Scheduler {
             .into_iter()
             .filter(|node| {
                 // Check remaining memory
-                let remaining_mem =
-                    node.capacity.max_memory_bytes.saturating_sub(node.current_load.memory_used_bytes);
+                let remaining_mem = node
+                    .capacity
+                    .max_memory_bytes
+                    .saturating_sub(node.current_load.memory_used_bytes);
                 if remaining_mem < request.memory_required {
                     return false;
                 }
@@ -414,11 +405,8 @@ mod tests {
         let reg = NodeRegistry::new();
         reg.register(make_node("n1", 0.1, 1, 100));
 
-        let new_load = NodeLoad {
-            active_sandboxes: 5,
-            memory_used_bytes: 500,
-            cpu_utilization: 0.75,
-        };
+        let new_load =
+            NodeLoad { active_sandboxes: 5, memory_used_bytes: 500, cpu_utilization: 0.75 };
         reg.update_heartbeat("n1", new_load);
 
         let info = reg.get("n1").unwrap();

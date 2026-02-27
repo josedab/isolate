@@ -22,15 +22,15 @@
 //! assert!(limiter.try_acquire().is_ok());
 //! ```
 
-mod quota;
-mod token_bucket;
 pub mod circuit_breaker;
 pub mod ddos;
+mod quota;
+mod token_bucket;
 
-pub use quota::{QuotaConfig, QuotaEnforcer, QuotaStatus, QuotaUsage};
-pub use token_bucket::TokenBucket;
 pub use circuit_breaker::{CircuitBreaker, CircuitBreakerConfig, CircuitState};
 pub use ddos::{DdosConfig, DdosProtection, IpReputation};
+pub use quota::{QuotaConfig, QuotaEnforcer, QuotaStatus, QuotaUsage};
+pub use token_bucket::TokenBucket;
 
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};

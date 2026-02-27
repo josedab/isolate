@@ -2,7 +2,8 @@
 //!
 //! Provides an event broadcasting system for monitoring sandbox execution
 
-#![allow(missing_docs)]//! in real time. Events are delivered via a broadcast channel, allowing
+#![allow(missing_docs)]
+//! in real time. Events are delivered via a broadcast channel, allowing
 //! multiple subscribers to independently observe execution progress.
 //!
 //! # Example
@@ -31,37 +32,17 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecutionEvent {
     /// The sandbox has started executing.
-    Started {
-        sandbox_id: Uuid,
-        timestamp: DateTime<Utc>,
-    },
+    Started { sandbox_id: Uuid, timestamp: DateTime<Utc> },
     /// A chunk of stdout data was produced.
-    StdoutChunk {
-        data: Vec<u8>,
-        timestamp: DateTime<Utc>,
-    },
+    StdoutChunk { data: Vec<u8>, timestamp: DateTime<Utc> },
     /// A chunk of stderr data was produced.
-    StderrChunk {
-        data: Vec<u8>,
-        timestamp: DateTime<Utc>,
-    },
+    StderrChunk { data: Vec<u8>, timestamp: DateTime<Utc> },
     /// A resource usage update.
-    ResourceUpdate {
-        fuel_remaining: Option<u64>,
-        memory_used: u64,
-        timestamp: DateTime<Utc>,
-    },
+    ResourceUpdate { fuel_remaining: Option<u64>, memory_used: u64, timestamp: DateTime<Utc> },
     /// Execution completed successfully.
-    Completed {
-        exit_code: i32,
-        duration: Duration,
-        timestamp: DateTime<Utc>,
-    },
+    Completed { exit_code: i32, duration: Duration, timestamp: DateTime<Utc> },
     /// An error occurred during execution.
-    Error {
-        message: String,
-        timestamp: DateTime<Utc>,
-    },
+    Error { message: String, timestamp: DateTime<Utc> },
 }
 
 /// Broadcasts execution events to multiple subscribers.
@@ -78,9 +59,7 @@ impl EventBroadcaster {
 
     /// Create a new subscription to this broadcaster.
     pub fn subscribe(&self) -> EventSubscription {
-        EventSubscription {
-            receiver: self.sender.subscribe(),
-        }
+        EventSubscription { receiver: self.sender.subscribe() }
     }
 
     /// Emit an event to all active subscribers.
@@ -146,42 +125,22 @@ pub struct EventFilter {
 impl EventFilter {
     /// Create a filter that matches all events.
     pub fn new() -> Self {
-        Self {
-            stdout: true,
-            stderr: true,
-            lifecycle: true,
-            resource: true,
-        }
+        Self { stdout: true, stderr: true, lifecycle: true, resource: true }
     }
 
     /// Create a filter that matches only stdout events.
     pub fn stdout_only() -> Self {
-        Self {
-            stdout: true,
-            stderr: false,
-            lifecycle: false,
-            resource: false,
-        }
+        Self { stdout: true, stderr: false, lifecycle: false, resource: false }
     }
 
     /// Create a filter that matches only stderr events.
     pub fn stderr_only() -> Self {
-        Self {
-            stdout: false,
-            stderr: true,
-            lifecycle: false,
-            resource: false,
-        }
+        Self { stdout: false, stderr: true, lifecycle: false, resource: false }
     }
 
     /// Create a filter that matches only lifecycle events (Started, Completed, Error).
     pub fn lifecycle_only() -> Self {
-        Self {
-            stdout: false,
-            stderr: false,
-            lifecycle: true,
-            resource: false,
-        }
+        Self { stdout: false, stderr: false, lifecycle: true, resource: false }
     }
 
     /// Check whether a given event matches this filter.
@@ -211,10 +170,7 @@ mod tests {
     use uuid::Uuid;
 
     fn started_event() -> ExecutionEvent {
-        ExecutionEvent::Started {
-            sandbox_id: Uuid::new_v4(),
-            timestamp: Utc::now(),
-        }
+        ExecutionEvent::Started { sandbox_id: Uuid::new_v4(), timestamp: Utc::now() }
     }
 
     fn completed_event() -> ExecutionEvent {
@@ -226,24 +182,15 @@ mod tests {
     }
 
     fn stdout_event(data: &[u8]) -> ExecutionEvent {
-        ExecutionEvent::StdoutChunk {
-            data: data.to_vec(),
-            timestamp: Utc::now(),
-        }
+        ExecutionEvent::StdoutChunk { data: data.to_vec(), timestamp: Utc::now() }
     }
 
     fn stderr_event(data: &[u8]) -> ExecutionEvent {
-        ExecutionEvent::StderrChunk {
-            data: data.to_vec(),
-            timestamp: Utc::now(),
-        }
+        ExecutionEvent::StderrChunk { data: data.to_vec(), timestamp: Utc::now() }
     }
 
     fn error_event(msg: &str) -> ExecutionEvent {
-        ExecutionEvent::Error {
-            message: msg.to_string(),
-            timestamp: Utc::now(),
-        }
+        ExecutionEvent::Error { message: msg.to_string(), timestamp: Utc::now() }
     }
 
     fn resource_event() -> ExecutionEvent {

@@ -385,12 +385,7 @@ impl Wasi2FeatureStatus {
             };
             interface_status.insert(
                 name.to_string(),
-                InterfaceGaStatus {
-                    name: name.to_string(),
-                    stability: *stability,
-                    in_ga,
-                    notes,
-                },
+                InterfaceGaStatus { name: name.to_string(), stability: *stability, in_ga, notes },
             );
         }
 
@@ -462,10 +457,8 @@ mod tests {
     #[test]
     fn test_validate_for_deployment_experimental_blocked() {
         let config = ProductionConfig::for_profile(DeploymentProfile::Production);
-        let interfaces = vec![
-            "wasi:cli/stdout".to_string(),
-            "wasi:http/incoming-handler".to_string(),
-        ];
+        let interfaces =
+            vec!["wasi:cli/stdout".to_string(), "wasi:http/incoming-handler".to_string()];
         let report = config.validate_for_deployment(&interfaces);
         assert!(!report.is_ga_ready);
         assert!(!report.issues.is_empty());
@@ -474,10 +467,8 @@ mod tests {
     #[test]
     fn test_validate_for_deployment_dev_allows_experimental() {
         let config = ProductionConfig::for_profile(DeploymentProfile::Development);
-        let interfaces = vec![
-            "wasi:cli/stdout".to_string(),
-            "wasi:http/incoming-handler".to_string(),
-        ];
+        let interfaces =
+            vec!["wasi:cli/stdout".to_string(), "wasi:http/incoming-handler".to_string()];
         let report = config.validate_for_deployment(&interfaces);
         assert!(report.is_ga_ready);
     }
@@ -538,10 +529,8 @@ mod tests {
     #[test]
     fn test_validate_for_deployment_http_rate_limit_recommendation() {
         let config = ProductionConfig::for_profile(DeploymentProfile::Production);
-        let interfaces = vec![
-            "wasi:cli/stdout".to_string(),
-            "wasi:http/incoming-handler".to_string(),
-        ];
+        let interfaces =
+            vec!["wasi:cli/stdout".to_string(), "wasi:http/incoming-handler".to_string()];
         let report = config.validate_for_deployment(&interfaces);
         assert!(report.recommendations.iter().any(|r| r.contains("rate limit")));
     }

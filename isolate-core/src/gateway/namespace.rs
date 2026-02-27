@@ -48,7 +48,7 @@ impl Default for TenantQuota {
         Self {
             max_concurrent_sandboxes: 10,
             max_total_memory: 4 * 1024 * 1024 * 1024, // 4GB
-            max_total_cpu: 4000,                        // 4 cores
+            max_total_cpu: 4000,                      // 4 cores
             rate_limit_per_minute: 60,
             max_modules: 50,
             max_storage_bytes: 1024 * 1024 * 1024, // 1GB
@@ -82,11 +82,7 @@ impl TenantUsage {
     }
 
     fn current_minute() -> u64 {
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            / 60
+        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs() / 60
     }
 
     fn rate_count(&self) -> u64 {
@@ -236,10 +232,8 @@ impl NamespaceManager {
         quota: TenantQuota,
     ) -> NamespaceId {
         let ns_id = NamespaceId::new(id);
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now =
+            SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
 
         let ns = Namespace {
             id: ns_id.clone(),
@@ -271,12 +265,15 @@ impl NamespaceManager {
         };
 
         if ns.status != NamespaceStatus::Active {
-            return QuotaCheckResult::Denied(format!("namespace is {}", match ns.status {
-                NamespaceStatus::Suspended => "suspended",
-                NamespaceStatus::ReadOnly => "read-only",
-                NamespaceStatus::Terminating => "terminating",
-                NamespaceStatus::Active => "active",
-            }));
+            return QuotaCheckResult::Denied(format!(
+                "namespace is {}",
+                match ns.status {
+                    NamespaceStatus::Suspended => "suspended",
+                    NamespaceStatus::ReadOnly => "read-only",
+                    NamespaceStatus::Terminating => "terminating",
+                    NamespaceStatus::Active => "active",
+                }
+            ));
         }
 
         let usage = match self.usage.get(ns_id) {
@@ -293,9 +290,16 @@ impl NamespaceManager {
                     current_sandboxes, ns.quota.max_concurrent_sandboxes
                 ));
             }
-            if usage.concurrent_sandboxes.compare_exchange(
-                current_sandboxes, current_sandboxes + 1, Ordering::AcqRel, Ordering::Acquire
-            ).is_ok() {
+            if usage
+                .concurrent_sandboxes
+                .compare_exchange(
+                    current_sandboxes,
+                    current_sandboxes + 1,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+            {
                 break;
             }
         }
@@ -308,9 +312,16 @@ impl NamespaceManager {
                 usage.concurrent_sandboxes.fetch_sub(1, Ordering::Release);
                 return QuotaCheckResult::Denied("total memory quota exceeded".into());
             }
-            if usage.total_memory.compare_exchange(
-                current_mem, current_mem + memory_bytes, Ordering::AcqRel, Ordering::Acquire
-            ).is_ok() {
+            if usage
+                .total_memory
+                .compare_exchange(
+                    current_mem,
+                    current_mem + memory_bytes,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+            {
                 break;
             }
         }
@@ -324,9 +335,16 @@ impl NamespaceManager {
                 usage.concurrent_sandboxes.fetch_sub(1, Ordering::Release);
                 return QuotaCheckResult::Denied("total CPU quota exceeded".into());
             }
-            if usage.total_cpu.compare_exchange(
-                current_cpu, current_cpu + cpu_millicores as u64, Ordering::AcqRel, Ordering::Acquire
-            ).is_ok() {
+            if usage
+                .total_cpu
+                .compare_exchange(
+                    current_cpu,
+                    current_cpu + cpu_millicores as u64,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+            {
                 break;
             }
         }
@@ -358,30 +376,29 @@ impl NamespaceManager {
     }
 
     /// Record the end of a sandbox execution (releases quota).
-    pub fn record_sandbox_end(
-        &self,
-        ns_id: &NamespaceId,
-        memory_bytes: u64,
-        cpu_millicores: u32,
-    ) {
+    pub fn record_sandbox_end(&self, ns_id: &NamespaceId, memory_bytes: u64, cpu_millicores: u32) {
         if let Some(usage) = self.usage.get(ns_id) {
             usage.concurrent_sandboxes.fetch_sub(1, Ordering::Release);
             // Use compare-and-swap loop for saturating subtraction to prevent underflow
             loop {
                 let prev_mem = usage.total_memory.load(Ordering::Acquire);
                 let new_mem = prev_mem.saturating_sub(memory_bytes);
-                if usage.total_memory.compare_exchange(
-                    prev_mem, new_mem, Ordering::AcqRel, Ordering::Acquire
-                ).is_ok() {
+                if usage
+                    .total_memory
+                    .compare_exchange(prev_mem, new_mem, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+                {
                     break;
                 }
             }
             loop {
                 let prev_cpu = usage.total_cpu.load(Ordering::Acquire);
                 let new_cpu = prev_cpu.saturating_sub(cpu_millicores as u64);
-                if usage.total_cpu.compare_exchange(
-                    prev_cpu, new_cpu, Ordering::AcqRel, Ordering::Acquire
-                ).is_ok() {
+                if usage
+                    .total_cpu
+                    .compare_exchange(prev_cpu, new_cpu, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+                {
                     break;
                 }
             }
@@ -466,12 +483,7 @@ impl NamespaceManager {
 
     /// Get audit log entries for a specific namespace (partitioned view).
     pub fn audit_log_for(&self, ns_id: &NamespaceId) -> Vec<NamespaceAuditEntry> {
-        self.audit_log
-            .lock()
-            .iter()
-            .filter(|e| e.namespace_id == *ns_id)
-            .cloned()
-            .collect()
+        self.audit_log.lock().iter().filter(|e| e.namespace_id == *ns_id).cloned().collect()
     }
 
     /// Total audit log entries across all namespaces.
@@ -543,16 +555,10 @@ mod tests {
         let ns_id = mgr.create_namespace("t1", "Test", quota);
 
         mgr.record_sandbox_start(&ns_id, 1024, 500);
-        assert!(matches!(
-            mgr.check_sandbox_quota(&ns_id, 1024, 500),
-            QuotaCheckResult::Denied(_)
-        ));
+        assert!(matches!(mgr.check_sandbox_quota(&ns_id, 1024, 500), QuotaCheckResult::Denied(_)));
 
         mgr.record_sandbox_end(&ns_id, 1024, 500);
-        assert!(matches!(
-            mgr.check_sandbox_quota(&ns_id, 1024, 500),
-            QuotaCheckResult::Allowed
-        ));
+        assert!(matches!(mgr.check_sandbox_quota(&ns_id, 1024, 500), QuotaCheckResult::Allowed));
     }
 
     #[test]
@@ -582,10 +588,7 @@ mod tests {
         let ns_id = mgr.create_namespace("t1", "Test", TenantQuota::default());
 
         mgr.set_status(&ns_id, NamespaceStatus::Suspended);
-        assert!(matches!(
-            mgr.check_sandbox_quota(&ns_id, 1024, 500),
-            QuotaCheckResult::Denied(_)
-        ));
+        assert!(matches!(mgr.check_sandbox_quota(&ns_id, 1024, 500), QuotaCheckResult::Denied(_)));
     }
 
     #[test]

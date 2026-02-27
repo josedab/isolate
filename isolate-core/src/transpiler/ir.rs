@@ -98,11 +98,22 @@ impl IRInstruction {
     pub fn is_pure(&self) -> bool {
         matches!(
             self,
-            Self::Const(..) | Self::LocalGet(_) | Self::GlobalGet(_)
-            | Self::Add(_) | Self::Sub(_) | Self::Mul(_)
-            | Self::Eq(_) | Self::Ne(_) | Self::LtS(_) | Self::GtS(_)
-            | Self::And(_) | Self::Or(_) | Self::Xor(_)
-            | Self::Select | Self::Nop | Self::Drop
+            Self::Const(..)
+                | Self::LocalGet(_)
+                | Self::GlobalGet(_)
+                | Self::Add(_)
+                | Self::Sub(_)
+                | Self::Mul(_)
+                | Self::Eq(_)
+                | Self::Ne(_)
+                | Self::LtS(_)
+                | Self::GtS(_)
+                | Self::And(_)
+                | Self::Or(_)
+                | Self::Xor(_)
+                | Self::Select
+                | Self::Nop
+                | Self::Drop
         )
     }
 
@@ -110,9 +121,13 @@ impl IRInstruction {
     pub fn has_side_effects(&self) -> bool {
         matches!(
             self,
-            Self::LocalSet(_) | Self::LocalTee(_) | Self::GlobalSet(_)
-            | Self::Store(..) | Self::MemoryGrow
-            | Self::Call(_) | Self::CallIndirect(_)
+            Self::LocalSet(_)
+                | Self::LocalTee(_)
+                | Self::GlobalSet(_)
+                | Self::Store(..)
+                | Self::MemoryGrow
+                | Self::Call(_)
+                | Self::CallIndirect(_)
         )
     }
 
@@ -120,8 +135,15 @@ impl IRInstruction {
     pub fn is_control_flow(&self) -> bool {
         matches!(
             self,
-            Self::Block(_) | Self::Loop(_) | Self::If(_) | Self::Else | Self::End
-            | Self::Br(_) | Self::BrIf(_) | Self::Return | Self::Unreachable
+            Self::Block(_)
+                | Self::Loop(_)
+                | Self::If(_)
+                | Self::Else
+                | Self::End
+                | Self::Br(_)
+                | Self::BrIf(_)
+                | Self::Return
+                | Self::Unreachable
         )
     }
 
@@ -155,7 +177,10 @@ impl IRFunction {
 
     /// Count call instructions.
     pub fn call_count(&self) -> usize {
-        self.body.iter().filter(|i| matches!(i, IRInstruction::Call(_) | IRInstruction::CallIndirect(_))).count()
+        self.body
+            .iter()
+            .filter(|i| matches!(i, IRInstruction::Call(_) | IRInstruction::CallIndirect(_)))
+            .count()
     }
 }
 
@@ -225,10 +250,7 @@ mod tests {
             name: Some("main".into()),
             params: vec![],
             results: vec![IRType::I32],
-            body: vec![
-                IRInstruction::Const(IRType::I32, 42),
-                IRInstruction::Return,
-            ],
+            body: vec![IRInstruction::Const(IRType::I32, 42), IRInstruction::Return],
             is_exported: true,
         });
         ir.add_function(IRFunction {
@@ -236,10 +258,7 @@ mod tests {
             name: Some("helper".into()),
             params: vec![IRType::I32],
             results: vec![IRType::I32],
-            body: vec![
-                IRInstruction::LocalGet(0),
-                IRInstruction::Return,
-            ],
+            body: vec![IRInstruction::LocalGet(0), IRInstruction::Return],
             is_exported: false,
         });
 

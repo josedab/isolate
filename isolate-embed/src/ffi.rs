@@ -70,10 +70,7 @@ pub unsafe extern "C" fn isolate_config_new(
 /// # Safety
 /// `config` must be a valid pointer from `isolate_config_new`.
 #[no_mangle]
-pub unsafe extern "C" fn isolate_config_set_memory_limit(
-    config: *mut IsolateConfig,
-    bytes: usize,
-) {
+pub unsafe extern "C" fn isolate_config_set_memory_limit(config: *mut IsolateConfig, bytes: usize) {
     if let Some(c) = unsafe { config.as_mut() } {
         c.inner = c.inner.clone().memory_limit(bytes);
     }
@@ -128,9 +125,7 @@ pub unsafe extern "C" fn isolate_config_free(config: *mut IsolateConfig) {
 /// # Safety
 /// `config` must be a valid pointer from `isolate_config_new`.
 #[no_mangle]
-pub unsafe extern "C" fn isolate_sandbox_create(
-    config: *mut IsolateConfig,
-) -> *mut IsolateSandbox {
+pub unsafe extern "C" fn isolate_sandbox_create(config: *mut IsolateConfig) -> *mut IsolateSandbox {
     let Some(c) = (unsafe { config.as_ref() }) else {
         return ptr::null_mut();
     };

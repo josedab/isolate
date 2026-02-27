@@ -337,7 +337,7 @@ impl AiSandbox {
             if ch == '\x1b' {
                 if chars.peek() == Some(&'[') {
                     chars.next(); // consume '['
-                    // consume until a letter (0x40–0x7E) terminates the sequence
+                                  // consume until a letter (0x40–0x7E) terminates the sequence
                     while let Some(&c) = chars.peek() {
                         chars.next();
                         if c.is_ascii_alphabetic() || c == '~' {
@@ -388,13 +388,7 @@ impl AiSandbox {
             return Verdict::RuntimeError;
         }
 
-        const SUSPICIOUS_PATTERNS: &[&str] = &[
-            "rm -rf",
-            "sudo",
-            "/etc/passwd",
-            "eval(",
-            "exec(",
-        ];
+        const SUSPICIOUS_PATTERNS: &[&str] = &["rm -rf", "sudo", "/etc/passwd", "eval(", "exec("];
 
         let stderr_lower = stderr.to_lowercase();
         for pattern in SUSPICIOUS_PATTERNS {
@@ -485,44 +479,23 @@ mod tests {
     #[test]
     fn test_verdict_runtime_error() {
         let sb = AiSandbox::builder().build();
-        assert_eq!(
-            sb.classify_verdict(1, "", "panic", false),
-            Verdict::RuntimeError
-        );
+        assert_eq!(sb.classify_verdict(1, "", "panic", false), Verdict::RuntimeError);
     }
 
     #[test]
     fn test_verdict_resource_exhausted() {
         let sb = AiSandbox::builder().build();
-        assert_eq!(
-            sb.classify_verdict(0, "", "", true),
-            Verdict::ResourceExhausted
-        );
+        assert_eq!(sb.classify_verdict(0, "", "", true), Verdict::ResourceExhausted);
     }
 
     #[test]
     fn test_verdict_suspicious_patterns() {
         let sb = AiSandbox::builder().build();
-        assert_eq!(
-            sb.classify_verdict(0, "", "tried rm -rf /", false),
-            Verdict::Suspicious
-        );
-        assert_eq!(
-            sb.classify_verdict(0, "", "using sudo command", false),
-            Verdict::Suspicious
-        );
-        assert_eq!(
-            sb.classify_verdict(0, "", "reading /etc/passwd", false),
-            Verdict::Suspicious
-        );
-        assert_eq!(
-            sb.classify_verdict(0, "", "eval(user_input)", false),
-            Verdict::Suspicious
-        );
-        assert_eq!(
-            sb.classify_verdict(0, "", "exec(cmd)", false),
-            Verdict::Suspicious
-        );
+        assert_eq!(sb.classify_verdict(0, "", "tried rm -rf /", false), Verdict::Suspicious);
+        assert_eq!(sb.classify_verdict(0, "", "using sudo command", false), Verdict::Suspicious);
+        assert_eq!(sb.classify_verdict(0, "", "reading /etc/passwd", false), Verdict::Suspicious);
+        assert_eq!(sb.classify_verdict(0, "", "eval(user_input)", false), Verdict::Suspicious);
+        assert_eq!(sb.classify_verdict(0, "", "exec(cmd)", false), Verdict::Suspicious);
     }
 
     // -- Verdict helpers ----------------------------------------------------

@@ -9,8 +9,8 @@ use std::time::Instant;
 /// If the bucket is empty, requests are denied until tokens refill.
 pub struct TokenBucket {
     state: Mutex<BucketState>,
-    rate: f64,      // tokens per second
-    capacity: u64,  // max tokens
+    rate: f64,     // tokens per second
+    capacity: u64, // max tokens
 }
 
 struct BucketState {

@@ -1,9 +1,8 @@
-
 //! Instant clone engine for sub-100μs CoW sandbox cloning, disk persistence,
 //! and cross-node snapshot restore.
 
-use super::{GlobalValue, MemoryPage, Snapshot, SnapshotId, SnapshotMetadata};
 use super::cow::PageHash;
+use super::{GlobalValue, MemoryPage, Snapshot, SnapshotId, SnapshotMetadata};
 use crate::config::ModuleHash;
 use crate::sandbox::SandboxId;
 
@@ -244,10 +243,7 @@ pub struct InstantCloneEngine {
 impl InstantCloneEngine {
     /// Create a new empty engine.
     pub fn new() -> Self {
-        Self {
-            templates: HashMap::new(),
-            clone_counter: AtomicUsize::new(0),
-        }
+        Self { templates: HashMap::new(), clone_counter: AtomicUsize::new(0) }
     }
 
     /// Pre-process a snapshot into a clone template and register it.
@@ -360,12 +356,7 @@ impl TransferManifest {
         }
         page_indices.sort();
 
-        Self {
-            snapshot_id: snapshot.id,
-            page_indices,
-            total_bytes,
-            page_hashes,
-        }
+        Self { snapshot_id: snapshot.id, page_indices, total_bytes, page_hashes }
     }
 
     /// Number of pages that need transfer.
@@ -383,10 +374,7 @@ pub struct CrossNodeRestore {
 
 impl CrossNodeRestore {
     pub fn new(local_node: NodeAddress) -> Self {
-        Self {
-            local_node,
-            known_peers: Vec::new(),
-        }
+        Self { local_node, known_peers: Vec::new() }
     }
 
     pub fn add_peer(&mut self, peer: NodeAddress) {
@@ -396,11 +384,7 @@ impl CrossNodeRestore {
     }
 
     /// Build a [`RestoreRequest`] for sending a snapshot to a target node.
-    pub fn build_request(
-        &self,
-        snapshot: &Snapshot,
-        target: NodeAddress,
-    ) -> RestoreRequest {
+    pub fn build_request(&self, snapshot: &Snapshot, target: NodeAddress) -> RestoreRequest {
         RestoreRequest {
             snapshot_id: snapshot.id,
             target_node: target,
@@ -445,8 +429,7 @@ impl DiskSnapshotPersistence {
     pub fn load(&self, id: &SnapshotId) -> std::io::Result<Snapshot> {
         let path = self.snapshot_path(id);
         let data = std::fs::read(&path)?;
-        serde_json::from_slice(&data)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+        serde_json::from_slice(&data).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
     /// List all persisted snapshot ids.

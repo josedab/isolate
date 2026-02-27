@@ -1,8 +1,8 @@
 //! Local module cache with LRU eviction.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -51,7 +51,11 @@ pub struct CacheStats {
 impl CacheStats {
     pub fn hit_rate(&self) -> f64 {
         let total = self.hits + self.misses;
-        if total == 0 { 0.0 } else { self.hits as f64 / total as f64 }
+        if total == 0 {
+            0.0
+        } else {
+            self.hits as f64 / total as f64
+        }
     }
 }
 
@@ -92,14 +96,17 @@ impl ModuleCache {
         // Evict if needed
         self.evict_if_needed(data.len());
 
-        self.inner.entries.write().insert(cid.clone(), CacheEntry {
-            cid: cid.clone(),
-            name: name.to_string(),
-            data: data.to_vec(),
-            cached_at: now,
-            last_accessed: now,
-            access_count: 0,
-        });
+        self.inner.entries.write().insert(
+            cid.clone(),
+            CacheEntry {
+                cid: cid.clone(),
+                name: name.to_string(),
+                data: data.to_vec(),
+                cached_at: now,
+                last_accessed: now,
+                access_count: 0,
+            },
+        );
     }
 
     /// Get a module from the cache.
@@ -164,7 +171,8 @@ impl ModuleCache {
 
         // Evict by max size
         let current_size: usize = entries.values().map(|e| e.data.len()).sum();
-        let mut need_to_free = (current_size + incoming_size).saturating_sub(self.inner.config.max_size_bytes);
+        let mut need_to_free =
+            (current_size + incoming_size).saturating_sub(self.inner.config.max_size_bytes);
 
         while need_to_free > 0 {
             if let Some(lru_key) = self.find_lru(&entries) {
@@ -179,9 +187,7 @@ impl ModuleCache {
     }
 
     fn find_lru(&self, entries: &HashMap<ContentId, CacheEntry>) -> Option<ContentId> {
-        entries.iter()
-            .min_by_key(|(_, e)| e.last_accessed)
-            .map(|(k, _)| k.clone())
+        entries.iter().min_by_key(|(_, e)| e.last_accessed).map(|(k, _)| k.clone())
     }
 }
 

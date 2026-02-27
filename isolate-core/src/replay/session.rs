@@ -23,7 +23,7 @@ impl SessionToken {
     }
 
     fn generate() -> Self {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -54,12 +54,7 @@ pub struct ShareSettings {
 
 impl Default for ShareSettings {
     fn default() -> Self {
-        Self {
-            is_public: false,
-            expires_at: None,
-            max_views: None,
-            allow_download: true,
-        }
+        Self { is_public: false, expires_at: None, max_views: None, allow_download: true }
     }
 }
 
@@ -107,11 +102,7 @@ struct SessionManagerInner {
 
 impl SessionManager {
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(SessionManagerInner {
-                sessions: RwLock::new(HashMap::new()),
-            }),
-        }
+        Self { inner: Arc::new(SessionManagerInner { sessions: RwLock::new(HashMap::new()) }) }
     }
 
     /// Create a new replay session from a recording.
@@ -213,10 +204,10 @@ mod tests {
     #[test]
     fn test_max_views_limit() {
         let manager = SessionManager::new();
-        let token = manager.create_session(make_recording(), ShareSettings {
-            max_views: Some(2),
-            ..Default::default()
-        });
+        let token = manager.create_session(
+            make_recording(),
+            ShareSettings { max_views: Some(2), ..Default::default() },
+        );
         assert!(manager.get_session(&token).is_some()); // view 1
         assert!(manager.get_session(&token).is_some()); // view 2
         assert!(manager.get_session(&token).is_none()); // exceeded

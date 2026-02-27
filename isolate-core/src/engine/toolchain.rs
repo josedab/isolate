@@ -102,9 +102,7 @@ pub struct ToolchainRegistry {
 impl ToolchainRegistry {
     /// Create a new empty registry.
     pub fn new() -> Self {
-        Self {
-            toolchains: HashMap::new(),
-        }
+        Self { toolchains: HashMap::new() }
     }
 
     /// Register a toolchain configuration for a language.
@@ -259,14 +257,8 @@ mod tests {
     fn test_language_equality() {
         assert_eq!(Language::Rust, Language::Rust);
         assert_ne!(Language::Rust, Language::Go);
-        assert_eq!(
-            Language::Other("Zig".into()),
-            Language::Other("Zig".into())
-        );
-        assert_ne!(
-            Language::Other("Zig".into()),
-            Language::Other("C".into())
-        );
+        assert_eq!(Language::Other("Zig".into()), Language::Other("Zig".into()));
+        assert_ne!(Language::Other("Zig".into()), Language::Other("C".into()));
     }
 
     #[test]
@@ -317,11 +309,7 @@ mod tests {
 
     #[test]
     fn test_wasm_target_values() {
-        let targets = vec![
-            WasmTarget::WasiPreview1,
-            WasmTarget::WasiPreview2,
-            WasmTarget::CoreModule,
-        ];
+        let targets = [WasmTarget::WasiPreview1, WasmTarget::WasiPreview2, WasmTarget::CoreModule];
         assert_eq!(targets.len(), 3);
         assert_ne!(WasmTarget::WasiPreview1, WasmTarget::WasiPreview2);
         assert_ne!(WasmTarget::WasiPreview1, WasmTarget::CoreModule);
@@ -330,11 +318,7 @@ mod tests {
 
     #[test]
     fn test_wasm_target_serde_roundtrip() {
-        for target in [
-            WasmTarget::WasiPreview1,
-            WasmTarget::WasiPreview2,
-            WasmTarget::CoreModule,
-        ] {
+        for target in [WasmTarget::WasiPreview1, WasmTarget::WasiPreview2, WasmTarget::CoreModule] {
             let json = serde_json::to_string(&target).unwrap();
             let deserialized: WasmTarget = serde_json::from_str(&json).unwrap();
             assert_eq!(target, deserialized);
@@ -383,10 +367,7 @@ mod tests {
             env_vars: HashMap::from([("GOARCH".into(), "wasm".into())]),
         };
         assert_eq!(config.language, Language::Go);
-        assert_eq!(
-            config.compiler_path,
-            Some(PathBuf::from("/usr/local/bin/tinygo"))
-        );
+        assert_eq!(config.compiler_path, Some(PathBuf::from("/usr/local/bin/tinygo")));
         assert_eq!(config.target, WasmTarget::WasiPreview1);
         assert_eq!(config.optimization, OptLevel::Size);
         assert_eq!(config.extra_args.len(), 2);
@@ -455,20 +436,14 @@ mod tests {
             ..ToolchainConfig::new(Language::Rust)
         };
         registry.register(Language::Rust, config1);
-        assert_eq!(
-            registry.get(&Language::Rust).unwrap().optimization,
-            OptLevel::None
-        );
+        assert_eq!(registry.get(&Language::Rust).unwrap().optimization, OptLevel::None);
 
         let config2 = ToolchainConfig {
             optimization: OptLevel::Speed,
             ..ToolchainConfig::new(Language::Rust)
         };
         registry.register(Language::Rust, config2);
-        assert_eq!(
-            registry.get(&Language::Rust).unwrap().optimization,
-            OptLevel::Speed
-        );
+        assert_eq!(registry.get(&Language::Rust).unwrap().optimization, OptLevel::Speed);
     }
 
     #[test]
@@ -562,10 +537,7 @@ mod tests {
             config: ToolchainConfig::new(Language::Rust),
         };
         assert_eq!(request.source_path, PathBuf::from("/project/src/main.rs"));
-        assert_eq!(
-            request.output_path,
-            PathBuf::from("/project/target/module.wasm")
-        );
+        assert_eq!(request.output_path, PathBuf::from("/project/target/module.wasm"));
         assert_eq!(request.language, Language::Rust);
     }
 
@@ -639,6 +611,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_methods)]
     fn test_detector_find_in_empty_path() {
         // Temporarily use an empty PATH to verify no false positives.
         let original_path = std::env::var_os("PATH");

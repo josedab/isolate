@@ -94,9 +94,9 @@ impl SandboxProfile {
         match self {
             Self::AiCodeExecution => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 32 * 1024 * 1024,   // 32MB
-                    stack_max: 512 * 1024,         // 512KB
-                    total_max: 64 * 1024 * 1024,   // 64MB
+                    heap_max: 32 * 1024 * 1024,  // 32MB
+                    stack_max: 512 * 1024,       // 512KB
+                    total_max: 64 * 1024 * 1024, // 64MB
                 },
                 cpu: CpuLimits {
                     fuel: Some(100_000),
@@ -104,8 +104,8 @@ impl SandboxProfile {
                     preemption_interval: Duration::from_millis(10),
                 },
                 io: IoLimits {
-                    read_bytes: Some(1024 * 1024),       // 1MB
-                    write_bytes: Some(1024 * 1024),      // 1MB
+                    read_bytes: Some(1024 * 1024),  // 1MB
+                    write_bytes: Some(1024 * 1024), // 1MB
                     iops: Some(100),
                 },
                 time: TimeLimits {
@@ -115,9 +115,9 @@ impl SandboxProfile {
             },
             Self::PluginRuntime => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 64 * 1024 * 1024,    // 64MB
-                    stack_max: 1024 * 1024,         // 1MB
-                    total_max: 128 * 1024 * 1024,   // 128MB
+                    heap_max: 64 * 1024 * 1024,   // 64MB
+                    stack_max: 1024 * 1024,       // 1MB
+                    total_max: 128 * 1024 * 1024, // 128MB
                 },
                 cpu: CpuLimits {
                     fuel: Some(1_000_000),
@@ -125,8 +125,8 @@ impl SandboxProfile {
                     preemption_interval: Duration::from_millis(10),
                 },
                 io: IoLimits {
-                    read_bytes: Some(10 * 1024 * 1024),  // 10MB
-                    write_bytes: Some(5 * 1024 * 1024),  // 5MB
+                    read_bytes: Some(10 * 1024 * 1024), // 10MB
+                    write_bytes: Some(5 * 1024 * 1024), // 5MB
                     iops: Some(500),
                 },
                 time: TimeLimits {
@@ -136,9 +136,9 @@ impl SandboxProfile {
             },
             Self::CiRunner => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 256 * 1024 * 1024,   // 256MB
-                    stack_max: 4 * 1024 * 1024,    // 4MB
-                    total_max: 512 * 1024 * 1024,  // 512MB
+                    heap_max: 256 * 1024 * 1024,  // 256MB
+                    stack_max: 4 * 1024 * 1024,   // 4MB
+                    total_max: 512 * 1024 * 1024, // 512MB
                 },
                 cpu: CpuLimits {
                     fuel: Some(10_000_000),
@@ -157,9 +157,9 @@ impl SandboxProfile {
             },
             Self::EdgeFunction => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 16 * 1024 * 1024,    // 16MB
-                    stack_max: 512 * 1024,          // 512KB
-                    total_max: 32 * 1024 * 1024,   // 32MB
+                    heap_max: 16 * 1024 * 1024,  // 16MB
+                    stack_max: 512 * 1024,       // 512KB
+                    total_max: 32 * 1024 * 1024, // 32MB
                 },
                 cpu: CpuLimits {
                     fuel: Some(500_000),
@@ -167,8 +167,8 @@ impl SandboxProfile {
                     preemption_interval: Duration::from_millis(5),
                 },
                 io: IoLimits {
-                    read_bytes: Some(5 * 1024 * 1024),   // 5MB
-                    write_bytes: Some(1024 * 1024),      // 1MB
+                    read_bytes: Some(5 * 1024 * 1024), // 5MB
+                    write_bytes: Some(1024 * 1024),    // 1MB
                     iops: Some(200),
                 },
                 time: TimeLimits {
@@ -178,9 +178,9 @@ impl SandboxProfile {
             },
             Self::Playground => ResourceLimits {
                 memory: MemoryLimits {
-                    heap_max: 32 * 1024 * 1024,    // 32MB
-                    stack_max: 512 * 1024,          // 512KB
-                    total_max: 64 * 1024 * 1024,   // 64MB
+                    heap_max: 32 * 1024 * 1024,  // 32MB
+                    stack_max: 512 * 1024,       // 512KB
+                    total_max: 64 * 1024 * 1024, // 64MB
                 },
                 cpu: CpuLimits {
                     fuel: Some(200_000),
@@ -188,8 +188,8 @@ impl SandboxProfile {
                     preemption_interval: Duration::from_millis(10),
                 },
                 io: IoLimits {
-                    read_bytes: Some(1024 * 1024),       // 1MB
-                    write_bytes: Some(1024 * 1024),      // 1MB
+                    read_bytes: Some(1024 * 1024),  // 1MB
+                    write_bytes: Some(1024 * 1024), // 1MB
                     iops: Some(100),
                 },
                 time: TimeLimits {
@@ -208,11 +208,7 @@ impl SandboxProfile {
                     cpu_time: None,
                     preemption_interval: Duration::from_millis(100),
                 },
-                io: IoLimits {
-                    read_bytes: None,
-                    write_bytes: None,
-                    iops: None,
-                },
+                io: IoLimits { read_bytes: None, write_bytes: None, iops: None },
                 time: TimeLimits {
                     wall_time: Some(Duration::from_secs(3600)), // 1 hour
                     cpu_time: None,
@@ -224,10 +220,7 @@ impl SandboxProfile {
     /// Get the granted capabilities for this profile.
     pub fn capabilities(&self) -> Vec<Capability> {
         match self {
-            Self::AiCodeExecution => vec![
-                Capability::stdout(),
-                Capability::stderr(),
-            ],
+            Self::AiCodeExecution => vec![Capability::stdout(), Capability::stderr()],
             Self::PluginRuntime => vec![
                 Capability::stdout(),
                 Capability::stderr(),
@@ -381,11 +374,7 @@ mod tests {
                 "{:?} total_max must be >= heap_max",
                 profile
             );
-            assert!(
-                limits.time.wall_time.is_some(),
-                "{:?} should have a wall time limit",
-                profile
-            );
+            assert!(limits.time.wall_time.is_some(), "{:?} should have a wall time limit", profile);
         }
     }
 
@@ -511,40 +500,18 @@ mod tests {
 
     #[test]
     fn test_security_levels() {
-        assert_eq!(
-            SandboxProfile::AiCodeExecution.security_level(),
-            SecurityLevel::Conservative
-        );
-        assert_eq!(
-            SandboxProfile::PluginRuntime.security_level(),
-            SecurityLevel::Moderate
-        );
-        assert_eq!(
-            SandboxProfile::CiRunner.security_level(),
-            SecurityLevel::Moderate
-        );
-        assert_eq!(
-            SandboxProfile::EdgeFunction.security_level(),
-            SecurityLevel::Conservative
-        );
-        assert_eq!(
-            SandboxProfile::Playground.security_level(),
-            SecurityLevel::Conservative
-        );
-        assert_eq!(
-            SandboxProfile::Unrestricted.security_level(),
-            SecurityLevel::Permissive
-        );
+        assert_eq!(SandboxProfile::AiCodeExecution.security_level(), SecurityLevel::Conservative);
+        assert_eq!(SandboxProfile::PluginRuntime.security_level(), SecurityLevel::Moderate);
+        assert_eq!(SandboxProfile::CiRunner.security_level(), SecurityLevel::Moderate);
+        assert_eq!(SandboxProfile::EdgeFunction.security_level(), SecurityLevel::Conservative);
+        assert_eq!(SandboxProfile::Playground.security_level(), SecurityLevel::Conservative);
+        assert_eq!(SandboxProfile::Unrestricted.security_level(), SecurityLevel::Permissive);
     }
 
     #[test]
     fn test_descriptions_non_empty() {
         for profile in &ALL_PROFILES {
-            assert!(
-                !profile.description().is_empty(),
-                "{:?} has empty description",
-                profile
-            );
+            assert!(!profile.description().is_empty(), "{:?} has empty description", profile);
         }
     }
 
@@ -557,18 +524,9 @@ mod tests {
 
     #[test]
     fn test_security_level_from_str() {
-        assert_eq!(
-            "conservative".parse::<SecurityLevel>().unwrap(),
-            SecurityLevel::Conservative
-        );
-        assert_eq!(
-            "Moderate".parse::<SecurityLevel>().unwrap(),
-            SecurityLevel::Moderate
-        );
-        assert_eq!(
-            "PERMISSIVE".parse::<SecurityLevel>().unwrap(),
-            SecurityLevel::Permissive
-        );
+        assert_eq!("conservative".parse::<SecurityLevel>().unwrap(), SecurityLevel::Conservative);
+        assert_eq!("Moderate".parse::<SecurityLevel>().unwrap(), SecurityLevel::Moderate);
+        assert_eq!("PERMISSIVE".parse::<SecurityLevel>().unwrap(), SecurityLevel::Permissive);
         assert!("unknown".parse::<SecurityLevel>().is_err());
     }
 
@@ -601,14 +559,8 @@ mod tests {
             SandboxProfile::EdgeFunction
         );
         assert_eq!("edge".parse::<SandboxProfile>().unwrap(), SandboxProfile::EdgeFunction);
-        assert_eq!(
-            "playground".parse::<SandboxProfile>().unwrap(),
-            SandboxProfile::Playground
-        );
-        assert_eq!(
-            "unrestricted".parse::<SandboxProfile>().unwrap(),
-            SandboxProfile::Unrestricted
-        );
+        assert_eq!("playground".parse::<SandboxProfile>().unwrap(), SandboxProfile::Playground);
+        assert_eq!("unrestricted".parse::<SandboxProfile>().unwrap(), SandboxProfile::Unrestricted);
         assert_eq!("dev".parse::<SandboxProfile>().unwrap(), SandboxProfile::Unrestricted);
         assert!("unknown".parse::<SandboxProfile>().is_err());
     }
@@ -616,9 +568,7 @@ mod tests {
     #[test]
     fn test_apply_to_builder() {
         let wasm_bytes = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
-        let builder = crate::SandboxConfig::builder()
-            .module(wasm_bytes)
-            .expect("valid module");
+        let builder = crate::SandboxConfig::builder().module(wasm_bytes).expect("valid module");
         let builder = SandboxProfile::AiCodeExecution.apply_to_builder(builder);
         let config = builder.build().expect("valid config");
 
@@ -666,11 +616,7 @@ mod tests {
             if profile.security_level() == SecurityLevel::Conservative {
                 let caps = profile.capabilities();
                 let has_fs = caps.iter().any(|c| matches!(c, Capability::Filesystem(_)));
-                assert!(
-                    !has_fs,
-                    "{:?} is Conservative but has filesystem capabilities",
-                    profile
-                );
+                assert!(!has_fs, "{:?} is Conservative but has filesystem capabilities", profile);
             }
         }
     }

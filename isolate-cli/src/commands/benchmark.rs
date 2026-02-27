@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_percentile_calculation() {
-        let mut durations: Vec<Duration> = (1..=100).map(|i| Duration::from_millis(i)).collect();
+        let mut durations: Vec<Duration> = (1..=100).map(Duration::from_millis).collect();
         durations.sort();
         let n = durations.len();
         let p50 = &durations[n / 2];

@@ -263,8 +263,7 @@ impl MigrationAdapter {
             builder = builder.allow_dns();
         }
         if let Some(timeout) = self.default_network_timeout {
-            let has_network_cap =
-                capabilities.iter().any(|c| matches!(c, Capability::Network(_)));
+            let has_network_cap = capabilities.iter().any(|c| matches!(c, Capability::Network(_)));
             if has_tcp || has_dns || has_network_cap {
                 builder = builder.network_timeout(timeout);
             }

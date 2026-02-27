@@ -205,9 +205,7 @@ impl ResourceMeter {
                 // Rollback the addition since we exceeded the limit
                 self.inner.counters.bytes_read.fetch_sub(bytes, Ordering::AcqRel);
                 self.inner.counters.io_operations.fetch_sub(1, Ordering::AcqRel);
-                return Err(Error::Execution(
-                    "I/O read limit exceeded".to_string(),
-                ));
+                return Err(Error::Execution("I/O read limit exceeded".to_string()));
             }
         }
 
@@ -224,9 +222,7 @@ impl ResourceMeter {
                 // Rollback the addition since we exceeded the limit
                 self.inner.counters.bytes_written.fetch_sub(bytes, Ordering::AcqRel);
                 self.inner.counters.io_operations.fetch_sub(1, Ordering::AcqRel);
-                return Err(Error::Execution(
-                    "I/O write limit exceeded".to_string(),
-                ));
+                return Err(Error::Execution("I/O write limit exceeded".to_string()));
             }
         }
 

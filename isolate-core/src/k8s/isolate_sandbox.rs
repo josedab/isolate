@@ -46,11 +46,7 @@ pub enum IsolateModuleSource {
     Inline { wasm_base64: String },
     /// Reference to an OCI / WASM registry.
     #[serde(rename_all = "camelCase")]
-    Registry {
-        registry_url: String,
-        module_name: String,
-        version: String,
-    },
+    Registry { registry_url: String, module_name: String, version: String },
     /// Reference to a Kubernetes ConfigMap key.
     #[serde(rename_all = "camelCase")]
     ConfigMap { name: String, key: String },
@@ -386,9 +382,7 @@ mod tests {
 
     fn sample_spec() -> IsolateSandboxSpec {
         IsolateSandboxSpec {
-            module_source: IsolateModuleSource::Inline {
-                wasm_base64: "AGFzbQEAAAA=".to_string(),
-            },
+            module_source: IsolateModuleSource::Inline { wasm_base64: "AGFzbQEAAAA=".to_string() },
             replicas: Some(2),
             profile: Some("ai-code-execution".to_string()),
             resources: Some(K8sResourceSpec {
@@ -508,9 +502,7 @@ mod tests {
         ];
         for (name, expected) in &names_and_expected {
             let spec = IsolateSandboxSpec {
-                module_source: IsolateModuleSource::Inline {
-                    wasm_base64: String::new(),
-                },
+                module_source: IsolateModuleSource::Inline { wasm_base64: String::new() },
                 replicas: None,
                 profile: Some(name.to_string()),
                 resources: None,
@@ -526,9 +518,7 @@ mod tests {
     #[test]
     fn test_resolve_profile_unknown_returns_none() {
         let spec = IsolateSandboxSpec {
-            module_source: IsolateModuleSource::Inline {
-                wasm_base64: String::new(),
-            },
+            module_source: IsolateModuleSource::Inline { wasm_base64: String::new() },
             replicas: None,
             profile: Some("nope".to_string()),
             resources: None,
@@ -543,9 +533,7 @@ mod tests {
     #[test]
     fn test_resolve_profile_none_returns_none() {
         let spec = IsolateSandboxSpec {
-            module_source: IsolateModuleSource::Inline {
-                wasm_base64: String::new(),
-            },
+            module_source: IsolateModuleSource::Inline { wasm_base64: String::new() },
             replicas: None,
             profile: None,
             resources: None,
@@ -581,9 +569,7 @@ mod tests {
     #[test]
     fn test_to_sandbox_config_builder_with_profile() {
         let spec = IsolateSandboxSpec {
-            module_source: IsolateModuleSource::Inline {
-                wasm_base64: String::new(),
-            },
+            module_source: IsolateModuleSource::Inline { wasm_base64: String::new() },
             replicas: None,
             profile: Some("ai-code-execution".to_string()),
             resources: None,
@@ -604,9 +590,7 @@ mod tests {
     #[test]
     fn test_to_sandbox_config_builder_with_resources() {
         let spec = IsolateSandboxSpec {
-            module_source: IsolateModuleSource::Inline {
-                wasm_base64: String::new(),
-            },
+            module_source: IsolateModuleSource::Inline { wasm_base64: String::new() },
             replicas: None,
             profile: None,
             resources: Some(K8sResourceSpec {
@@ -635,19 +619,14 @@ mod tests {
         assert_eq!(config.resources.io.read_bytes, Some(1024 * 1024));
         assert!(config.capabilities.has(&Capability::stdout()));
         assert_eq!(config.env.get("FOO"), Some(&"bar".to_string()));
-        assert_eq!(
-            config.resources.time.wall_time,
-            Some(Duration::from_secs(60))
-        );
+        assert_eq!(config.resources.time.wall_time, Some(Duration::from_secs(60)));
     }
 
     // -- ModuleSource serialization --
 
     #[test]
     fn test_module_source_inline_serialization() {
-        let src = IsolateModuleSource::Inline {
-            wasm_base64: "AAAA".to_string(),
-        };
+        let src = IsolateModuleSource::Inline { wasm_base64: "AAAA".to_string() };
         let json = serde_json::to_string(&src).expect("serialize");
         assert!(json.contains("\"type\":\"inline\""));
         let back: IsolateModuleSource = serde_json::from_str(&json).expect("deserialize");

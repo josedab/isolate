@@ -4,8 +4,6 @@
 //! accessing the real filesystem. Supports overlay mounts, quota enforcement,
 //! and capability-based access control.
 
-
-
 #![allow(missing_docs)]
 mod layer;
 mod quota;

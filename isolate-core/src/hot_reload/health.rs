@@ -63,17 +63,13 @@ pub struct HealthTracker {
 
 impl HealthTracker {
     pub fn new() -> Self {
-        Self {
-            versions: dashmap::DashMap::new(),
-        }
+        Self { versions: dashmap::DashMap::new() }
     }
 
     /// Record a successful execution for a version.
     pub fn record_success(&self, version_id: &VersionId, latency_ms: u64) {
-        let counters = self
-            .versions
-            .entry(version_id.clone())
-            .or_insert_with(VersionHealthCounters::new);
+        let counters =
+            self.versions.entry(version_id.clone()).or_insert_with(VersionHealthCounters::new);
         counters.total.fetch_add(1, Ordering::Relaxed);
         counters.success.fetch_add(1, Ordering::Relaxed);
         counters.latency_ms.fetch_add(latency_ms, Ordering::Relaxed);
@@ -81,10 +77,8 @@ impl HealthTracker {
 
     /// Record a failed execution for a version.
     pub fn record_failure(&self, version_id: &VersionId, latency_ms: u64) {
-        let counters = self
-            .versions
-            .entry(version_id.clone())
-            .or_insert_with(VersionHealthCounters::new);
+        let counters =
+            self.versions.entry(version_id.clone()).or_insert_with(VersionHealthCounters::new);
         counters.total.fetch_add(1, Ordering::Relaxed);
         counters.failed.fetch_add(1, Ordering::Relaxed);
         counters.latency_ms.fetch_add(latency_ms, Ordering::Relaxed);
@@ -92,16 +86,12 @@ impl HealthTracker {
 
     /// Get health snapshot for a version.
     pub fn get_health(&self, version_id: &VersionId) -> Option<VersionHealth> {
-        self.versions
-            .get(version_id)
-            .map(|c| c.value().snapshot(version_id.clone()))
+        self.versions.get(version_id).map(|c| c.value().snapshot(version_id.clone()))
     }
 
     /// Check if a version exceeds the error rate threshold.
     pub fn exceeds_error_threshold(&self, version_id: &VersionId, threshold_pct: f64) -> bool {
-        self.get_health(version_id)
-            .map(|h| h.error_rate() > threshold_pct)
-            .unwrap_or(false)
+        self.get_health(version_id).map(|h| h.error_rate() > threshold_pct).unwrap_or(false)
     }
 
     /// Remove tracking data for a version.

@@ -1,4 +1,3 @@
-
 //! Multi-tenant SaaS service layer for the Isolate platform.
 //!
 //! Provides API key management, tenant lifecycle, usage tracking,
@@ -86,12 +85,7 @@ impl ApiKeyManager {
     ///
     /// Returns the persisted [`ApiKey`] together with the **plaintext** key
     /// string that must be shown to the user exactly once.
-    pub fn generate(
-        &self,
-        tenant_id: &str,
-        name: &str,
-        scopes: Vec<ApiScope>,
-    ) -> (ApiKey, String) {
+    pub fn generate(&self, tenant_id: &str, name: &str, scopes: Vec<ApiScope>) -> (ApiKey, String) {
         let plaintext = format!("iso_{}", Uuid::new_v4().as_simple());
         let key_hash = hash_key(&plaintext);
         let key_id = Uuid::new_v4().to_string();
@@ -120,13 +114,11 @@ impl ApiKeyManager {
         let keys = self.keys.read().unwrap();
         let index = self.hash_index.read().unwrap();
 
-        let key_id = index
-            .get(&key_hash)
-            .ok_or_else(|| Error::InvalidConfig("Invalid API key".into()))?;
+        let key_id =
+            index.get(&key_hash).ok_or_else(|| Error::InvalidConfig("Invalid API key".into()))?;
 
-        let api_key = keys
-            .get(key_id)
-            .ok_or_else(|| Error::InvalidConfig("API key not found".into()))?;
+        let api_key =
+            keys.get(key_id).ok_or_else(|| Error::InvalidConfig("API key not found".into()))?;
 
         if !api_key.is_active {
             return Err(Error::InvalidConfig("API key is revoked".into()));
@@ -144,22 +136,15 @@ impl ApiKeyManager {
     /// Revoke an API key by its id.
     pub fn revoke(&self, key_id: &str) -> Result<()> {
         let mut keys = self.keys.write().unwrap();
-        let api_key = keys
-            .get_mut(key_id)
-            .ok_or_else(|| Error::InvalidConfig("API key not found".into()))?;
+        let api_key =
+            keys.get_mut(key_id).ok_or_else(|| Error::InvalidConfig("API key not found".into()))?;
         api_key.is_active = false;
         Ok(())
     }
 
     /// List all keys belonging to a tenant.
     pub fn list_for_tenant(&self, tenant_id: &str) -> Vec<ApiKey> {
-        self.keys
-            .read()
-            .unwrap()
-            .values()
-            .filter(|k| k.tenant_id == tenant_id)
-            .cloned()
-            .collect()
+        self.keys.read().unwrap().values().filter(|k| k.tenant_id == tenant_id).cloned().collect()
     }
 }
 
@@ -203,21 +188,13 @@ impl TenantLimits {
     /// Default limits for a given plan.
     pub fn for_plan(plan: &Plan) -> Self {
         match plan {
-            Plan::Free => Self {
-                max_sandboxes: 5,
-                max_memory: 256 * 1024 * 1024,
-                max_api_keys: 3,
-            },
-            Plan::Pro => Self {
-                max_sandboxes: 50,
-                max_memory: 2 * 1024 * 1024 * 1024,
-                max_api_keys: 20,
-            },
-            Plan::Enterprise => Self {
-                max_sandboxes: 500,
-                max_memory: 16 * 1024 * 1024 * 1024,
-                max_api_keys: 100,
-            },
+            Plan::Free => Self { max_sandboxes: 5, max_memory: 256 * 1024 * 1024, max_api_keys: 3 },
+            Plan::Pro => {
+                Self { max_sandboxes: 50, max_memory: 2 * 1024 * 1024 * 1024, max_api_keys: 20 }
+            }
+            Plan::Enterprise => {
+                Self { max_sandboxes: 500, max_memory: 16 * 1024 * 1024 * 1024, max_api_keys: 100 }
+            }
         }
     }
 }
@@ -256,9 +233,7 @@ pub struct TenantManager {
 impl TenantManager {
     /// Create a new, empty tenant manager.
     pub fn new() -> Self {
-        Self {
-            tenants: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self { tenants: Arc::new(RwLock::new(HashMap::new())) }
     }
 
     /// Create a new tenant with the specified plan.
@@ -362,10 +337,7 @@ pub struct UsageTracker {
 impl UsageTracker {
     /// Create a new tracker backed by the given tenant manager.
     pub fn new(tenant_manager: TenantManager) -> Self {
-        Self {
-            records: Arc::new(RwLock::new(Vec::new())),
-            tenant_manager,
-        }
+        Self { records: Arc::new(RwLock::new(Vec::new())), tenant_manager }
     }
 
     /// Record a usage event.
@@ -434,10 +406,7 @@ impl AuthContext {
         if self.has_scope(scope) {
             Ok(())
         } else {
-            Err(Error::InvalidConfig(format!(
-                "API key lacks required scope: {:?}",
-                scope
-            )))
+            Err(Error::InvalidConfig(format!("API key lacks required scope: {:?}", scope)))
         }
     }
 
@@ -482,7 +451,8 @@ impl BillingEvent {
     ) -> Self {
         // Usage-based pricing: $0.001 per 1M fuel + $0.01 per GB-second
         let fuel_cost = fuel as f64 / 1_000_000.0 * 0.001;
-        let gb_seconds = (memory as f64 / (1024.0 * 1024.0 * 1024.0)) * (duration_ms as f64 / 1000.0);
+        let gb_seconds =
+            (memory as f64 / (1024.0 * 1024.0 * 1024.0)) * (duration_ms as f64 / 1000.0);
         let memory_cost = gb_seconds * 0.01;
         Self {
             tenant_id: tenant_id.to_string(),
@@ -520,11 +490,7 @@ impl SaasService {
     pub fn new() -> Self {
         let tenants = TenantManager::new();
         let usage = UsageTracker::new(tenants.clone());
-        Self {
-            api_keys: ApiKeyManager::new(),
-            tenants,
-            usage,
-        }
+        Self { api_keys: ApiKeyManager::new(), tenants, usage }
     }
 
     /// Authenticate a request using a plaintext API key.
@@ -864,8 +830,7 @@ mod tests {
     fn test_create_sandbox_success() {
         let svc = SaasService::new();
         let t = svc.tenants.create("S", Plan::Pro);
-        let (_, plain) =
-            svc.api_keys.generate(&t.tenant_id, "k", vec![ApiScope::SandboxCreate]);
+        let (_, plain) = svc.api_keys.generate(&t.tenant_id, "k", vec![ApiScope::SandboxCreate]);
         let ctx = svc.authenticate(&plain).unwrap();
         let id = svc.create_sandbox_for_tenant(&ctx, "{}").unwrap();
         assert!(!id.0.is_empty());
@@ -875,8 +840,7 @@ mod tests {
     fn test_create_sandbox_missing_scope() {
         let svc = SaasService::new();
         let t = svc.tenants.create("S", Plan::Pro);
-        let (_, plain) =
-            svc.api_keys.generate(&t.tenant_id, "k", vec![ApiScope::SandboxRead]);
+        let (_, plain) = svc.api_keys.generate(&t.tenant_id, "k", vec![ApiScope::SandboxRead]);
         let ctx = svc.authenticate(&plain).unwrap();
         assert!(svc.create_sandbox_for_tenant(&ctx, "{}").is_err());
     }
@@ -948,11 +912,7 @@ mod tests {
     fn test_record_execution() {
         let svc = SaasService::new();
         let t = svc.tenants.create("Exec", Plan::Pro);
-        let (_, plain) = svc.api_keys.generate(
-            &t.tenant_id,
-            "k",
-            vec![ApiScope::SandboxCreate],
-        );
+        let (_, plain) = svc.api_keys.generate(&t.tenant_id, "k", vec![ApiScope::SandboxCreate]);
         let ctx = svc.authenticate(&plain).unwrap();
         let sandbox_id = svc.create_sandbox_for_tenant(&ctx, "{}").unwrap();
 
@@ -969,11 +929,7 @@ mod tests {
     fn test_authorize_execution_success() {
         let svc = SaasService::new();
         let t = svc.tenants.create("AuthExec", Plan::Pro);
-        let (_, plain) = svc.api_keys.generate(
-            &t.tenant_id,
-            "k",
-            vec![ApiScope::SandboxRun],
-        );
+        let (_, plain) = svc.api_keys.generate(&t.tenant_id, "k", vec![ApiScope::SandboxRun]);
         let ctx = svc.authenticate(&plain).unwrap();
         assert!(svc.authorize_execution(&ctx).is_ok());
     }

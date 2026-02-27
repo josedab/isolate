@@ -37,7 +37,6 @@
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 
-
 mod differ;
 pub mod migration;
 mod patcher;

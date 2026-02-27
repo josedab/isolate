@@ -129,10 +129,7 @@ impl ModuleResolver {
         source: impl Into<String>,
     ) -> Result<(), String> {
         if self.modules.len() >= self.max_modules {
-            return Err(format!(
-                "Maximum module limit ({}) reached",
-                self.max_modules
-            ));
+            return Err(format!("Maximum module limit ({}) reached", self.max_modules));
         }
         let specifier = specifier.into();
         let source = source.into();
@@ -187,10 +184,8 @@ impl ModuleResolver {
         visited.insert(entry_specifier.clone());
 
         let mut queue: Vec<String> = imports.iter().map(|i| i.specifier.clone()).collect();
-        dependencies.insert(
-            entry_specifier.clone(),
-            imports.iter().map(|i| i.specifier.clone()).collect(),
-        );
+        dependencies
+            .insert(entry_specifier.clone(), imports.iter().map(|i| i.specifier.clone()).collect());
 
         while let Some(specifier) = queue.pop() {
             if visited.contains(&specifier) {
@@ -198,8 +193,11 @@ impl ModuleResolver {
             }
             visited.insert(specifier.clone());
 
-            if let Some(module) = self.modules.get(&specifier).or_else(|| self.builtins.get(&specifier)) {
-                let deps: Vec<String> = module.imports.iter().map(|i| i.specifier.clone()).collect();
+            if let Some(module) =
+                self.modules.get(&specifier).or_else(|| self.builtins.get(&specifier))
+            {
+                let deps: Vec<String> =
+                    module.imports.iter().map(|i| i.specifier.clone()).collect();
                 for dep in &deps {
                     if !visited.contains(dep) {
                         queue.push(dep.clone());
@@ -214,13 +212,7 @@ impl ModuleResolver {
 
         let has_cycles = self.detect_cycles(&dependencies);
 
-        ModuleGraph {
-            entry: entry_specifier,
-            modules,
-            dependencies,
-            has_cycles,
-            unresolved,
-        }
+        ModuleGraph { entry: entry_specifier, modules, dependencies, has_cycles, unresolved }
     }
 
     /// Bundle all modules in the graph into a single script.
@@ -267,11 +259,7 @@ impl ModuleResolver {
 
     /// List all registered module specifiers.
     pub fn specifiers(&self) -> Vec<&str> {
-        self.modules
-            .keys()
-            .chain(self.builtins.keys())
-            .map(|s| s.as_str())
-            .collect()
+        self.modules.keys().chain(self.builtins.keys()).map(|s| s.as_str()).collect()
     }
 
     /// Register built-in modules.
@@ -356,7 +344,10 @@ impl ModuleResolver {
                 if let Some(name) = trimmed[16..].split('(').next() {
                     exports.push(name.trim().to_string());
                 }
-            } else if trimmed.starts_with("export const ") || trimmed.starts_with("export let ") || trimmed.starts_with("export var ") {
+            } else if trimmed.starts_with("export const ")
+                || trimmed.starts_with("export let ")
+                || trimmed.starts_with("export var ")
+            {
                 let after_keyword = if trimmed.starts_with("export const ") {
                     &trimmed[13..]
                 } else if trimmed.starts_with("export let ") {
@@ -577,7 +568,8 @@ mod tests {
         let mut resolver = ModuleResolver::new();
         resolver.register("./utils", "export function greet() { return 'hello'; }");
 
-        let graph = resolver.resolve_graph("import { greet } from './utils'; console.log(greet());");
+        let graph =
+            resolver.resolve_graph("import { greet } from './utils'; console.log(greet());");
         let bundled = resolver.bundle(&graph);
 
         assert!(bundled.contains("__modules"));

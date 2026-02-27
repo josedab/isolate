@@ -3,8 +3,6 @@
 //! Provides GA-quality message envelopes, schema validation, and budget
 //! enforcement for the agent tool-call pipeline.
 
-
-
 use super::trace::ResourceBudget;
 use super::types::ResourceUsageSummary;
 use serde::{Deserialize, Serialize};
@@ -252,17 +250,11 @@ impl ValidationError {
             serde_json::Value::Array(_) => "array",
             serde_json::Value::Object(_) => "object",
         };
-        Self {
-            path: path.to_string(),
-            message: format!("expected {expected}, got {actual_type}"),
-        }
+        Self { path: path.to_string(), message: format!("expected {expected}, got {actual_type}") }
     }
 
     fn missing_field(path: &str, field: &str) -> Self {
-        Self {
-            path: path.to_string(),
-            message: format!("missing required field \"{field}\""),
-        }
+        Self { path: path.to_string(), message: format!("missing required field \"{field}\"") }
     }
 }
 
@@ -328,10 +320,7 @@ impl ProtocolMessage {
 
     /// Parse multiple newline-delimited messages.
     pub fn from_json_lines(text: &str) -> Vec<serde_json::Result<Self>> {
-        text.lines()
-            .filter(|l| !l.trim().is_empty())
-            .map(Self::from_json_line)
-            .collect()
+        text.lines().filter(|l| !l.trim().is_empty()).map(Self::from_json_line).collect()
     }
 }
 
@@ -353,20 +342,12 @@ impl ProtocolValidator {
     }
 
     /// Register an input schema for a tool.
-    pub fn register_input_schema(
-        &mut self,
-        tool_name: impl Into<String>,
-        schema: JsonSchema,
-    ) {
+    pub fn register_input_schema(&mut self, tool_name: impl Into<String>, schema: JsonSchema) {
         self.input_schemas.insert(tool_name.into(), schema);
     }
 
     /// Register an output schema for a tool.
-    pub fn register_output_schema(
-        &mut self,
-        tool_name: impl Into<String>,
-        schema: JsonSchema,
-    ) {
+    pub fn register_output_schema(&mut self, tool_name: impl Into<String>, schema: JsonSchema) {
         self.output_schemas.insert(tool_name.into(), schema);
     }
 
@@ -600,51 +581,64 @@ impl ProtocolAdapter {
     }
 
     fn to_openai_functions(&self, tools: &[super::tools::ToolDefinition]) -> serde_json::Value {
-        let functions: Vec<serde_json::Value> = tools.iter().map(|t| {
-            let schema = t.generate_schema();
-            serde_json::json!({
-                "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": schema,
-                }
+        let functions: Vec<serde_json::Value> = tools
+            .iter()
+            .map(|t| {
+                let schema = t.generate_schema();
+                serde_json::json!({
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": schema,
+                    }
+                })
             })
-        }).collect();
+            .collect();
         serde_json::Value::Array(functions)
     }
 
     fn to_anthropic_tools(&self, tools: &[super::tools::ToolDefinition]) -> serde_json::Value {
-        let items: Vec<serde_json::Value> = tools.iter().map(|t| {
-            let schema = t.generate_schema();
-            serde_json::json!({
-                "name": t.name,
-                "description": t.description,
-                "input_schema": schema,
+        let items: Vec<serde_json::Value> = tools
+            .iter()
+            .map(|t| {
+                let schema = t.generate_schema();
+                serde_json::json!({
+                    "name": t.name,
+                    "description": t.description,
+                    "input_schema": schema,
+                })
             })
-        }).collect();
+            .collect();
         serde_json::Value::Array(items)
     }
 
     fn to_langchain_tools(&self, tools: &[super::tools::ToolDefinition]) -> serde_json::Value {
-        let items: Vec<serde_json::Value> = tools.iter().map(|t| {
-            let schema = t.generate_schema();
-            serde_json::json!({
-                "name": t.name,
-                "description": t.description,
-                "args_schema": schema,
-                "return_direct": false,
+        let items: Vec<serde_json::Value> = tools
+            .iter()
+            .map(|t| {
+                let schema = t.generate_schema();
+                serde_json::json!({
+                    "name": t.name,
+                    "description": t.description,
+                    "args_schema": schema,
+                    "return_direct": false,
+                })
             })
-        }).collect();
+            .collect();
         serde_json::Value::Array(items)
     }
 
     fn parse_openai_call(&self, value: &serde_json::Value) -> Result<ProtocolMessage, String> {
-        let name = value.get("function").and_then(|f| f.get("name"))
+        let name = value
+            .get("function")
+            .and_then(|f| f.get("name"))
             .or_else(|| value.get("name"))
             .and_then(|v| v.as_str())
             .ok_or("Missing function name in OpenAI call")?;
-        let arguments = value.get("function").and_then(|f| f.get("arguments"))
+        let arguments = value
+            .get("function")
+            .and_then(|f| f.get("arguments"))
             .or_else(|| value.get("arguments"))
             .cloned()
             .unwrap_or(serde_json::Value::Object(Default::default()));
@@ -664,10 +658,12 @@ impl ProtocolAdapter {
     }
 
     fn parse_anthropic_call(&self, value: &serde_json::Value) -> Result<ProtocolMessage, String> {
-        let name = value.get("name").and_then(|v| v.as_str())
+        let name = value
+            .get("name")
+            .and_then(|v| v.as_str())
             .ok_or("Missing tool name in Anthropic call")?;
-        let input = value.get("input").cloned()
-            .unwrap_or(serde_json::Value::Object(Default::default()));
+        let input =
+            value.get("input").cloned().unwrap_or(serde_json::Value::Object(Default::default()));
         let id_str = value.get("id").and_then(|v| v.as_str()).unwrap_or("");
         let call_id = Uuid::parse_str(id_str).unwrap_or_else(|_| Uuid::new_v4());
         Ok(ProtocolMessage::AgentRequest {
@@ -679,10 +675,14 @@ impl ProtocolAdapter {
     }
 
     fn parse_langchain_call(&self, value: &serde_json::Value) -> Result<ProtocolMessage, String> {
-        let name = value.get("tool").or_else(|| value.get("name"))
+        let name = value
+            .get("tool")
+            .or_else(|| value.get("name"))
             .and_then(|v| v.as_str())
             .ok_or("Missing tool name in LangChain call")?;
-        let input = value.get("tool_input").or_else(|| value.get("args"))
+        let input = value
+            .get("tool_input")
+            .or_else(|| value.get("args"))
             .cloned()
             .unwrap_or(serde_json::Value::Object(Default::default()));
         Ok(ProtocolMessage::AgentRequest {
@@ -826,12 +826,8 @@ mod tests {
 
     #[test]
     fn test_schema_validate_nested_object() {
-        let inner = JsonSchema::object()
-            .required_property("street", JsonSchema::string())
-            .build();
-        let schema = JsonSchema::object()
-            .required_property("address", inner)
-            .build();
+        let inner = JsonSchema::object().required_property("street", JsonSchema::string()).build();
+        let schema = JsonSchema::object().required_property("address", inner).build();
 
         let valid = serde_json::json!({"address": {"street": "123 Main"}});
         assert!(schema.validate(&valid).is_empty());
@@ -853,9 +849,7 @@ mod tests {
 
     #[test]
     fn test_schema_serialization_roundtrip() {
-        let schema = JsonSchema::object()
-            .required_property("query", JsonSchema::string())
-            .build();
+        let schema = JsonSchema::object().required_property("query", JsonSchema::string()).build();
         let json = serde_json::to_string(&schema).unwrap();
         let deser: JsonSchema = serde_json::from_str(&json).unwrap();
         assert_eq!(schema, deser);
@@ -945,9 +939,7 @@ mod tests {
         let mut v = ProtocolValidator::new();
         v.register_input_schema(
             "tool_a",
-            JsonSchema::object()
-                .required_property("query", JsonSchema::string())
-                .build(),
+            JsonSchema::object().required_property("query", JsonSchema::string()).build(),
         );
 
         let msg = ProtocolMessage::AgentRequest {
@@ -965,9 +957,7 @@ mod tests {
         let mut v = ProtocolValidator::new();
         v.register_input_schema(
             "tool_a",
-            JsonSchema::object()
-                .required_property("query", JsonSchema::string())
-                .build(),
+            JsonSchema::object().required_property("query", JsonSchema::string()).build(),
         );
 
         let msg = ProtocolMessage::AgentRequest {
@@ -996,11 +986,8 @@ mod tests {
     #[test]
     fn test_validator_rejects_wrong_message_type() {
         let v = ProtocolValidator::new();
-        let msg = ProtocolMessage::ErrorResponse {
-            code: "E".into(),
-            message: "m".into(),
-            details: None,
-        };
+        let msg =
+            ProtocolMessage::ErrorResponse { code: "E".into(), message: "m".into(), details: None };
         assert!(!v.validate_request(&msg).is_empty());
     }
 
@@ -1009,9 +996,7 @@ mod tests {
         let mut v = ProtocolValidator::new();
         v.register_output_schema(
             "tool_a",
-            JsonSchema::object()
-                .required_property("result", JsonSchema::integer())
-                .build(),
+            JsonSchema::object().required_property("result", JsonSchema::integer()).build(),
         );
 
         let good = ProtocolMessage::AgentResponse {
@@ -1061,10 +1046,7 @@ mod tests {
 
     #[test]
     fn test_budget_enforcer_output_bytes() {
-        let budget = ResourceBudget {
-            max_output_bytes: Some(100),
-            ..ResourceBudget::default()
-        };
+        let budget = ResourceBudget { max_output_bytes: Some(100), ..ResourceBudget::default() };
         let enforcer = BudgetEnforcer::new(budget);
         assert!(enforcer.check_output_bytes(50).is_none());
         assert!(enforcer.check_output_bytes(200).is_some());
@@ -1072,10 +1054,7 @@ mod tests {
 
     #[test]
     fn test_budget_enforcer_io_ops() {
-        let budget = ResourceBudget {
-            max_io_ops: Some(10),
-            ..ResourceBudget::default()
-        };
+        let budget = ResourceBudget { max_io_ops: Some(10), ..ResourceBudget::default() };
         let enforcer = BudgetEnforcer::new(budget);
         assert!(enforcer.check_io_ops(5).is_none());
         assert!(enforcer.check_io_ops(20).is_some());

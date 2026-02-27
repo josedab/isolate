@@ -13,10 +13,7 @@ pub struct ReplicationConfig {
 
 impl Default for ReplicationConfig {
     fn default() -> Self {
-        Self {
-            min_replicas: 2,
-            max_staleness_ms: 30_000,
-        }
+        Self { min_replicas: 2, max_staleness_ms: 30_000 }
     }
 }
 
@@ -90,11 +87,7 @@ pub struct ReplicationTracker {
 
 impl ReplicationTracker {
     pub fn new(config: ReplicationConfig) -> Self {
-        Self {
-            config,
-            items: dashmap::DashMap::new(),
-            states: dashmap::DashMap::new(),
-        }
+        Self { config, items: dashmap::DashMap::new(), states: dashmap::DashMap::new() }
     }
 
     /// Add an item to be replicated.

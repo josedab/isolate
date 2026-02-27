@@ -42,17 +42,27 @@
 //! # }
 //! ```
 
-
-
 #![allow(missing_docs)]
+pub mod function_calling;
+pub mod guardrails;
+pub mod protocol;
 mod session;
 mod tools;
 pub mod trace;
 mod types;
-pub mod function_calling;
-pub mod guardrails;
-pub mod protocol;
 
+pub use function_calling::{
+    ExecutorConfig, FunctionCallExecutor, FunctionCallInfo, FunctionDefinition, ToolCall,
+    ToolCallResult, ToolSpec,
+};
+pub use guardrails::{
+    ChainDepthTracker, ContentFilter, GuardrailConfig, ProviderConfig, ProviderType,
+    SessionRateLimiter, ViolationKind,
+};
+pub use protocol::{
+    BudgetEnforcer, BudgetViolation, JsonSchema, JsonSchemaType, ProtocolAdapter, ProtocolFormat,
+    ProtocolMessage, ProtocolValidator, ValidationError,
+};
 pub use session::{AgentSession, ExecutionRecord, SessionSnapshot};
 pub use tools::{ToolDefinition, ToolParameter, ToolParameterType, ToolRegistry};
 pub use trace::{
@@ -62,16 +72,4 @@ pub use trace::{
 pub use types::{
     AgentConfig, AgentConfigBuilder, CodeExecutionRequest, CodeExecutionResult, ExecutionStatus,
     ResourceUsageSummary,
-};
-pub use function_calling::{
-    ExecutorConfig, FunctionCallExecutor, FunctionCallInfo, FunctionDefinition, ToolCall,
-    ToolCallResult, ToolSpec,
-};
-pub use protocol::{
-    BudgetEnforcer, BudgetViolation, JsonSchema, JsonSchemaType, ProtocolAdapter,
-    ProtocolFormat, ProtocolMessage, ProtocolValidator, ValidationError,
-};
-pub use guardrails::{
-    ChainDepthTracker, ContentFilter, GuardrailConfig, ProviderConfig, ProviderType,
-    SessionRateLimiter, ViolationKind,
 };

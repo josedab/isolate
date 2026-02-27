@@ -3,7 +3,6 @@
 // This module is experimental and not all APIs are used yet.
 #![allow(dead_code)]
 
-
 use opentelemetry::{
     global,
     trace::{Span, SpanKind, Status, Tracer},
@@ -292,10 +291,7 @@ pub fn audit_log(sandbox_id: Uuid, action: &str) -> SandboxSpan {
 
 /// Create a span for signature verification.
 pub fn signature_verify(module_hash: &str) -> SandboxSpan {
-    SpanBuilder::new("signature.verify")
-        .kind(SpanKind::Internal)
-        .module_hash(module_hash)
-        .start()
+    SpanBuilder::new("signature.verify").kind(SpanKind::Internal).module_hash(module_hash).start()
 }
 
 /// Convenience macro for creating spans with automatic error handling.

@@ -10,18 +10,16 @@
 //! - **Data Flow**: Typed data passing between nodes with transformations
 //! - **Execution Engine**: Topological execution with error handling
 
-
-
 #![allow(missing_docs)]
 pub mod dag;
 pub mod executor;
 pub mod metrics;
 pub mod nodes;
 
-pub use dag::{Workflow, WorkflowBuilder, WorkflowError, Edge};
-pub use executor::{WorkflowExecutor, ExecutionResult, ExecutionStatus, NodeOutput};
-pub use metrics::{StageMetrics, PipelineMetrics, MetricsCollector, MetricsAwareExecutor};
-pub use nodes::{Node, NodeId, NodeKind, TransformFn, ConditionFn};
+pub use dag::{Edge, Workflow, WorkflowBuilder, WorkflowError};
+pub use executor::{ExecutionResult, ExecutionStatus, NodeOutput, WorkflowExecutor};
+pub use metrics::{MetricsAwareExecutor, MetricsCollector, PipelineMetrics, StageMetrics};
+pub use nodes::{ConditionFn, Node, NodeId, NodeKind, TransformFn};
 
 #[cfg(test)]
 mod tests {
@@ -30,12 +28,16 @@ mod tests {
     #[test]
     fn test_linear_workflow() {
         let wf = WorkflowBuilder::new("linear-test")
-            .add_node(Node::new("start", NodeKind::Transform {
-                transform: TransformFn::JsonPath("$.input".into()),
-            }))
-            .add_node(Node::new("end", NodeKind::Transform {
-                transform: TransformFn::Template("result: {{value}}".into()),
-            }))
+            .add_node(Node::new(
+                "start",
+                NodeKind::Transform { transform: TransformFn::JsonPath("$.input".into()) },
+            ))
+            .add_node(Node::new(
+                "end",
+                NodeKind::Transform {
+                    transform: TransformFn::Template("result: {{value}}".into()),
+                },
+            ))
             .add_edge("start", "end")
             .unwrap()
             .build()

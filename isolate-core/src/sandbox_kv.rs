@@ -39,7 +39,7 @@ impl Default for KvConfig {
     fn default() -> Self {
         Self {
             max_keys: 10_000,
-            max_value_size: 1024 * 1024,        // 1MB per value
+            max_value_size: 1024 * 1024,          // 1MB per value
             max_namespace_size: 64 * 1024 * 1024, // 64MB per namespace
             max_namespaces: 1000,
         }
@@ -101,18 +101,11 @@ impl KvNamespace {
         let config = &self.inner.config;
 
         if value.len() > config.max_value_size {
-            return Err(KvError::ValueTooLarge {
-                size: value.len(),
-                max: config.max_value_size,
-            });
+            return Err(KvError::ValueTooLarge { size: value.len(), max: config.max_value_size });
         }
 
         let now = std::time::Instant::now();
-        let new_entry = KvEntry {
-            value: value.to_vec(),
-            created_at: now,
-            updated_at: now,
-        };
+        let new_entry = KvEntry { value: value.to_vec(), created_at: now, updated_at: now };
 
         // Check if updating an existing key
         if let Some(mut existing) = self.inner.entries.get_mut(key) {
@@ -129,14 +122,10 @@ impl KvNamespace {
                 });
             }
 
-            self.inner
-                .total_bytes
-                .fetch_sub(old_size, Ordering::Relaxed);
+            self.inner.total_bytes.fetch_sub(old_size, Ordering::Relaxed);
             existing.value = value.to_vec();
             existing.updated_at = now;
-            self.inner
-                .total_bytes
-                .fetch_add(new_size, Ordering::Relaxed);
+            self.inner.total_bytes.fetch_add(new_size, Ordering::Relaxed);
         } else {
             // New key
             if self.inner.entries.len() >= config.max_keys {
@@ -165,9 +154,7 @@ impl KvNamespace {
     /// Delete a key. Returns true if the key existed.
     pub fn delete(&self, key: &str) -> bool {
         if let Some((_, entry)) = self.inner.entries.remove(key) {
-            self.inner
-                .total_bytes
-                .fetch_sub(entry.value.len() as u64, Ordering::Relaxed);
+            self.inner.total_bytes.fetch_sub(entry.value.len() as u64, Ordering::Relaxed);
             true
         } else {
             false
@@ -181,11 +168,7 @@ impl KvNamespace {
 
     /// List all keys.
     pub fn keys(&self) -> Vec<String> {
-        self.inner
-            .entries
-            .iter()
-            .map(|e| e.key().clone())
-            .collect()
+        self.inner.entries.iter().map(|e| e.key().clone()).collect()
     }
 
     /// Get namespace statistics.
@@ -217,19 +200,13 @@ pub struct SandboxKvStore {
 impl SandboxKvStore {
     /// Create a new KV store.
     pub fn new(config: KvConfig) -> Self {
-        Self {
-            namespaces: DashMap::new(),
-            config,
-        }
+        Self { namespaces: DashMap::new(), config }
     }
 
     /// Get or create a namespace.
     pub fn namespace(&self, name: &str) -> Result<KvNamespace, KvError> {
         if let Some(inner) = self.namespaces.get(name) {
-            return Ok(KvNamespace {
-                inner: inner.value().clone(),
-                name: name.to_string(),
-            });
+            return Ok(KvNamespace { inner: inner.value().clone(), name: name.to_string() });
         }
 
         if self.namespaces.len() >= self.config.max_namespaces {
@@ -246,10 +223,7 @@ impl SandboxKvStore {
         });
         self.namespaces.insert(name.to_string(), inner.clone());
 
-        Ok(KvNamespace {
-            inner,
-            name: name.to_string(),
-        })
+        Ok(KvNamespace { inner, name: name.to_string() })
     }
 
     /// Remove a namespace and all its data.
@@ -316,20 +290,14 @@ mod tests {
 
     #[test]
     fn test_value_too_large() {
-        let store = SandboxKvStore::new(KvConfig {
-            max_value_size: 10,
-            ..KvConfig::default()
-        });
+        let store = SandboxKvStore::new(KvConfig { max_value_size: 10, ..KvConfig::default() });
         let ns = store.namespace("test").unwrap();
         assert!(ns.set("key", &[0u8; 11]).is_err());
     }
 
     #[test]
     fn test_too_many_keys() {
-        let store = SandboxKvStore::new(KvConfig {
-            max_keys: 2,
-            ..KvConfig::default()
-        });
+        let store = SandboxKvStore::new(KvConfig { max_keys: 2, ..KvConfig::default() });
         let ns = store.namespace("test").unwrap();
         ns.set("a", b"1").unwrap();
         ns.set("b", b"2").unwrap();
@@ -338,10 +306,7 @@ mod tests {
 
     #[test]
     fn test_storage_exceeded() {
-        let store = SandboxKvStore::new(KvConfig {
-            max_namespace_size: 20,
-            ..KvConfig::default()
-        });
+        let store = SandboxKvStore::new(KvConfig { max_namespace_size: 20, ..KvConfig::default() });
         let ns = store.namespace("test").unwrap();
         ns.set("a", &[0u8; 10]).unwrap();
         ns.set("b", &[0u8; 10]).unwrap();
@@ -363,16 +328,10 @@ mod tests {
 
     #[test]
     fn test_too_many_namespaces() {
-        let store = SandboxKvStore::new(KvConfig {
-            max_namespaces: 2,
-            ..KvConfig::default()
-        });
+        let store = SandboxKvStore::new(KvConfig { max_namespaces: 2, ..KvConfig::default() });
         store.namespace("a").unwrap();
         store.namespace("b").unwrap();
-        assert!(matches!(
-            store.namespace("c"),
-            Err(KvError::TooManyNamespaces { .. })
-        ));
+        assert!(matches!(store.namespace("c"), Err(KvError::TooManyNamespaces { .. })));
     }
 
     #[test]

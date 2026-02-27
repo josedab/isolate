@@ -10,17 +10,15 @@
 //! - **Timeline**: Navigate to any point in execution
 //! - **Session Sharing**: Share replay sessions via tokens
 
-
-
 #![allow(missing_docs)]
 pub mod recording;
 pub mod session;
 pub mod timeline;
 pub mod tracing;
 
-pub use recording::{ExecutionRecorder, Recording, RecordingEvent, EventKind};
+pub use recording::{EventKind, ExecutionRecorder, Recording, RecordingEvent};
 pub use session::{ReplaySession, SessionManager, SessionToken, ShareSettings};
-pub use timeline::{Timeline, TimelineEntry, TimelineView, Bookmark};
+pub use timeline::{Bookmark, Timeline, TimelineEntry, TimelineView};
 pub use tracing::{
     ExecutionTrace, FlamegraphFrame, FlamegraphGenerator, SpanEvent, SpanId, SpanStatus,
     TraceBuilder, TraceId, TraceSpan,

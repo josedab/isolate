@@ -115,12 +115,7 @@ impl FunctionCallExecutor {
     /// Create an executor with custom configuration.
     pub fn with_config(config: ExecutorConfig) -> Result<Self> {
         let engine = Arc::new(WasmEngine::new()?);
-        Ok(Self {
-            engine,
-            modules: HashMap::new(),
-            tool_specs: Vec::new(),
-            default_config: config,
-        })
+        Ok(Self { engine, modules: HashMap::new(), tool_specs: Vec::new(), default_config: config })
     }
 
     /// Create an executor with a shared engine.
@@ -194,17 +189,15 @@ impl FunctionCallExecutor {
         };
 
         // Build sandbox config
-        let config = match SandboxConfig::builder()
-            .module(wasm_bytes)
-            .and_then(|b| {
-                Ok(b.memory_limit(self.default_config.memory_limit)
-                    .fuel(self.default_config.fuel)
-                    .wall_time_limit(self.default_config.timeout)
-                    .capability(Capability::stdout())
-                    .capability(Capability::stderr())
-                    .capability(Capability::stdin())
-                    .build()?)
-            }) {
+        let config = match SandboxConfig::builder().module(wasm_bytes).and_then(|b| {
+            Ok(b.memory_limit(self.default_config.memory_limit)
+                .fuel(self.default_config.fuel)
+                .wall_time_limit(self.default_config.timeout)
+                .capability(Capability::stdout())
+                .capability(Capability::stderr())
+                .capability(Capability::stdin())
+                .build()?)
+        }) {
             Ok(c) => c,
             Err(e) => {
                 return ToolCallResult {
@@ -234,11 +227,7 @@ impl FunctionCallExecutor {
                         tool_call_id: tool_call.id.clone(),
                         output: truncated,
                         success: output.exit_code == 0,
-                        error: if output.exit_code != 0 {
-                            Some(output.stderr_str())
-                        } else {
-                            None
-                        },
+                        error: if output.exit_code != 0 { Some(output.stderr_str()) } else { None },
                         duration_ms: start.elapsed().as_millis() as u64,
                         resource_usage: output.resource_usage.into(),
                     }
@@ -364,10 +353,7 @@ mod tests {
         let call = ToolCall {
             id: "call-1".to_string(),
             tool_type: "function".to_string(),
-            function: FunctionCallInfo {
-                name: "unknown".to_string(),
-                arguments: "{}".to_string(),
-            },
+            function: FunctionCallInfo { name: "unknown".to_string(), arguments: "{}".to_string() },
         };
 
         let result = executor.execute_tool_call(&call).await;

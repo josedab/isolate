@@ -204,12 +204,8 @@ impl CapabilityBridge {
         if result.is_satisfied() {
             Ok(())
         } else {
-            let missing_str = result
-                .missing
-                .iter()
-                .map(|c| c.to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
+            let missing_str =
+                result.missing.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(", ");
             Err(crate::error::Error::InvalidConfig(format!(
                 "WASI Preview 2 capability check failed: missing [{}]",
                 missing_str
@@ -357,7 +353,8 @@ mod tests {
         let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
 
         let bridge = CapabilityBridge::new();
-        let result = bridge.validate_enforcer(&enforcer, &["wasi:cli/stdout", "wasi:filesystem/read"]);
+        let result =
+            bridge.validate_enforcer(&enforcer, &["wasi:cli/stdout", "wasi:filesystem/read"]);
         assert!(!result.is_satisfied());
         assert!(result.missing.contains(&RequiredCapability::FilesystemRead));
     }

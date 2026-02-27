@@ -31,9 +31,9 @@ pub struct PolicyValidator {
 impl PolicyValidator {
     pub fn new() -> Self {
         Self {
-            max_memory: 512 * 1024 * 1024,   // 512MB
+            max_memory: 512 * 1024 * 1024, // 512MB
             max_fuel: 100_000_000,
-            max_timeout_ms: 300_000,           // 5 minutes
+            max_timeout_ms: 300_000, // 5 minutes
         }
     }
 
@@ -75,7 +75,9 @@ impl PolicyValidator {
                             block_id: Some(block.id.clone()),
                             severity: IssueSeverity::Warning,
                             message: "Write access granted without explicit read paths".into(),
-                            suggestion: Some("Consider adding read paths for write directories".into()),
+                            suggestion: Some(
+                                "Consider adding read paths for write directories".into(),
+                            ),
                         });
                     }
                 }
@@ -85,7 +87,9 @@ impl PolicyValidator {
                             block_id: Some(block.id.clone()),
                             severity: IssueSeverity::Warning,
                             message: "Outbound network enabled with no host restrictions".into(),
-                            suggestion: Some("Restrict to specific hosts for better security".into()),
+                            suggestion: Some(
+                                "Restrict to specific hosts for better security".into(),
+                            ),
                         });
                     }
                 }
@@ -95,7 +99,9 @@ impl PolicyValidator {
                             block_id: Some(block.id.clone()),
                             severity: IssueSeverity::Warning,
                             message: "Inheriting host environment variables".into(),
-                            suggestion: Some("Use explicit variables or passthrough for security".into()),
+                            suggestion: Some(
+                                "Use explicit variables or passthrough for security".into(),
+                            ),
                         });
                     }
                 }
@@ -114,14 +120,26 @@ impl PolicyValidator {
         issues
     }
 
-    fn validate_resource(&self, r: &ResourceBlock, block_id: &str, issues: &mut Vec<ValidationIssue>) {
+    fn validate_resource(
+        &self,
+        r: &ResourceBlock,
+        block_id: &str,
+        issues: &mut Vec<ValidationIssue>,
+    ) {
         if let Some(mem) = r.max_memory_bytes {
             if mem > self.max_memory {
                 issues.push(ValidationIssue {
                     block_id: Some(block_id.to_string()),
                     severity: IssueSeverity::Error,
-                    message: format!("Memory limit {}MB exceeds maximum {}MB", mem / (1024*1024), self.max_memory / (1024*1024)),
-                    suggestion: Some(format!("Reduce to at most {}MB", self.max_memory / (1024*1024))),
+                    message: format!(
+                        "Memory limit {}MB exceeds maximum {}MB",
+                        mem / (1024 * 1024),
+                        self.max_memory / (1024 * 1024)
+                    ),
+                    suggestion: Some(format!(
+                        "Reduce to at most {}MB",
+                        self.max_memory / (1024 * 1024)
+                    )),
                 });
             }
             if mem < 1024 * 1024 {
@@ -150,7 +168,10 @@ impl PolicyValidator {
                 issues.push(ValidationIssue {
                     block_id: Some(block_id.to_string()),
                     severity: IssueSeverity::Error,
-                    message: format!("Timeout {}ms exceeds maximum {}ms", timeout, self.max_timeout_ms),
+                    message: format!(
+                        "Timeout {}ms exceeds maximum {}ms",
+                        timeout, self.max_timeout_ms
+                    ),
                     suggestion: None,
                 });
             }
@@ -185,30 +206,36 @@ mod tests {
         let ir = PolicyIR::new("");
         let validator = PolicyValidator::new();
         let issues = validator.validate(&ir);
-        assert!(issues.iter().any(|i| i.severity == IssueSeverity::Error && i.message.contains("name")));
+        assert!(issues
+            .iter()
+            .any(|i| i.severity == IssueSeverity::Error && i.message.contains("name")));
     }
 
     #[test]
     fn test_excessive_memory() {
-        let ir = PolicyIR::new("big")
-            .add_block(PolicyBlock::new("res", BlockKind::Resource(ResourceBlock {
+        let ir = PolicyIR::new("big").add_block(PolicyBlock::new(
+            "res",
+            BlockKind::Resource(ResourceBlock {
                 max_memory_bytes: Some(1024 * 1024 * 1024), // 1GB
                 ..Default::default()
-            })));
+            }),
+        ));
 
         let validator = PolicyValidator::new();
         let issues = validator.validate(&ir);
-        assert!(issues.iter().any(|i| i.severity == IssueSeverity::Error && i.message.contains("Memory")));
+        assert!(issues
+            .iter()
+            .any(|i| i.severity == IssueSeverity::Error && i.message.contains("Memory")));
     }
 
     #[test]
     fn test_open_network_warning() {
         let ir = PolicyIR::new("open-net")
             .add_block(PolicyBlock::new("res", BlockKind::Resource(ResourceBlock::default())))
-            .add_block(PolicyBlock::new("net", BlockKind::Network(NetworkBlock {
-                allow_outbound: true,
-                ..Default::default()
-            })));
+            .add_block(PolicyBlock::new(
+                "net",
+                BlockKind::Network(NetworkBlock { allow_outbound: true, ..Default::default() }),
+            ));
 
         let validator = PolicyValidator::new();
         let issues = validator.validate(&ir);
@@ -219,10 +246,10 @@ mod tests {
     fn test_env_inherit_warning() {
         let ir = PolicyIR::new("env")
             .add_block(PolicyBlock::new("res", BlockKind::Resource(ResourceBlock::default())))
-            .add_block(PolicyBlock::new("env", BlockKind::Environment(EnvironmentBlock {
-                inherit: true,
-                ..Default::default()
-            })));
+            .add_block(PolicyBlock::new(
+                "env",
+                BlockKind::Environment(EnvironmentBlock { inherit: true, ..Default::default() }),
+            ));
 
         let validator = PolicyValidator::new();
         let issues = validator.validate(&ir);
@@ -241,11 +268,13 @@ mod tests {
 
     #[test]
     fn test_tiny_memory_warning() {
-        let ir = PolicyIR::new("tiny")
-            .add_block(PolicyBlock::new("res", BlockKind::Resource(ResourceBlock {
+        let ir = PolicyIR::new("tiny").add_block(PolicyBlock::new(
+            "res",
+            BlockKind::Resource(ResourceBlock {
                 max_memory_bytes: Some(512), // 512 bytes
                 ..Default::default()
-            })));
+            }),
+        ));
 
         let validator = PolicyValidator::new();
         let issues = validator.validate(&ir);

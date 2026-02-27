@@ -631,7 +631,7 @@ mod tests {
             Error::InvalidState { expected: "Running".into(), actual: "Terminated".into() },
             Error::Snapshot("test".into()),
             Error::SnapshotNotFound("snap-1".into()),
-            Error::Io { source: std::io::Error::new(std::io::ErrorKind::Other, "test") },
+            Error::Io { source: std::io::Error::other("test") },
             Error::FilesystemAccessDenied { path: PathBuf::from("/etc") },
             Error::NetworkAccessDenied { host: "evil.com".into() },
             Error::Engine("test".into()),
@@ -648,11 +648,7 @@ mod tests {
         ];
 
         for err in &errors {
-            assert!(
-                err.suggestion().is_some(),
-                "Error variant {:?} should have a suggestion",
-                err
-            );
+            assert!(err.suggestion().is_some(), "Error variant {:?} should have a suggestion", err);
         }
     }
 }

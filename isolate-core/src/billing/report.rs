@@ -122,9 +122,8 @@ mod tests {
             last_execution_epoch_ms: 600,
         };
 
-        let report = UsageReportBuilder::new(TenantId::new("p"), usage)
-            .with_period(100, 999)
-            .build();
+        let report =
+            UsageReportBuilder::new(TenantId::new("p"), usage).with_period(100, 999).build();
         assert_eq!(report.period_start_epoch_ms, 100);
         assert_eq!(report.period_end_epoch_ms, 999);
     }

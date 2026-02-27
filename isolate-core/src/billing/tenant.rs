@@ -60,9 +60,7 @@ pub struct TenantUsageTracker {
 
 impl TenantUsageTracker {
     pub fn new() -> Self {
-        Self {
-            tenants: dashmap::DashMap::new(),
-        }
+        Self { tenants: dashmap::DashMap::new() }
     }
 
     /// Record a sandbox execution for a tenant.

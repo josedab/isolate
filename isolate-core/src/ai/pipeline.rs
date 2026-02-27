@@ -3,8 +3,6 @@
 //! Extracts behavioral features from sandbox execution for ML model scoring,
 //! providing real-time anomaly classification and threat assessment.
 
-
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
@@ -27,10 +25,7 @@ pub struct FeatureVector {
 impl FeatureVector {
     /// Get a feature by name.
     pub fn get(&self, name: &str) -> Option<f64> {
-        self.feature_names
-            .iter()
-            .position(|n| n == name)
-            .map(|idx| self.features[idx])
+        self.feature_names.iter().position(|n| n == name).map(|idx| self.features[idx])
     }
 
     /// Dimension of the feature vector.
@@ -273,17 +268,17 @@ impl HeuristicDetector {
 
         // Port scanning: many connections to unique destinations
         if profile.unique_destinations > self.thresholds.network_scan_threshold {
-            let score =
-                (profile.unique_destinations as f64 / self.thresholds.network_scan_threshold as f64)
-                    .min(1.0);
+            let score = (profile.unique_destinations as f64
+                / self.thresholds.network_scan_threshold as f64)
+                .min(1.0);
             scores.push((ThreatClass::ReconScanning, score));
             importance.push(("unique_destinations".to_string(), score));
         }
 
         // Data exfiltration: high DNS or network output
         if profile.dns_queries > self.thresholds.dns_exfil_threshold {
-            let score = (profile.dns_queries as f64 / self.thresholds.dns_exfil_threshold as f64)
-                .min(1.0);
+            let score =
+                (profile.dns_queries as f64 / self.thresholds.dns_exfil_threshold as f64).min(1.0);
             scores.push((ThreatClass::DataExfiltration, score));
             importance.push(("dns_queries".to_string(), score));
         }
@@ -378,7 +373,11 @@ impl DetectionPipeline {
     /// Get detection statistics.
     pub fn stats(&self) -> PipelineStats {
         let total = self.predictions.len();
-        let alerts = self.predictions.iter().filter(|(_, p)| p.anomaly_score >= self.alert_threshold).count();
+        let alerts = self
+            .predictions
+            .iter()
+            .filter(|(_, p)| p.anomaly_score >= self.alert_threshold)
+            .count();
 
         let mut class_counts: HashMap<ThreatClass, usize> = HashMap::new();
         for (_, pred) in &self.predictions {

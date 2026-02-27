@@ -91,8 +91,7 @@ impl ResourceTable {
         entry.ref_count += 1;
 
         // Create a borrowed alias handle
-        let borrowed_handle =
-            ResourceHandle(self.next_handle.fetch_add(1, Ordering::Relaxed));
+        let borrowed_handle = ResourceHandle(self.next_handle.fetch_add(1, Ordering::Relaxed));
         let borrowed_entry = ResourceEntry {
             resource_type: entry.resource_type.clone(),
             ownership: Ownership::Borrowed,

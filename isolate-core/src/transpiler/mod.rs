@@ -10,16 +10,14 @@
 //! - **Safety Layer**: Bounds checking, trap handling, capability enforcement
 //! - **Codegen Abstraction**: Target-independent native code generation
 
-
-
 #![allow(missing_docs)]
 pub mod ir;
 pub mod optimizer;
 pub mod safety;
 
-pub use ir::{WasmIR, IRFunction, IRInstruction, IRType};
-pub use optimizer::{OptimizationPass, PassManager, OptimizationLevel, OptimizationStats};
-pub use safety::{SafetyLayer, SafetyConfig, SafetyCheck, BoundsCheckMode};
+pub use ir::{IRFunction, IRInstruction, IRType, WasmIR};
+pub use optimizer::{OptimizationLevel, OptimizationPass, OptimizationStats, PassManager};
+pub use safety::{BoundsCheckMode, SafetyCheck, SafetyConfig, SafetyLayer};
 
 #[cfg(test)]
 mod tests {

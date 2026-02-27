@@ -79,11 +79,8 @@ impl WitParser {
             }
 
             if trimmed.starts_with("package ") {
-                let pkg = trimmed
-                    .trim_start_matches("package ")
-                    .trim_end_matches(';')
-                    .trim()
-                    .to_string();
+                let pkg =
+                    trimmed.trim_start_matches("package ").trim_end_matches(';').trim().to_string();
                 package = Some(pkg);
                 i += 1;
                 continue;
@@ -110,11 +107,7 @@ impl WitParser {
         package: Option<&str>,
     ) -> Result<(WitInterface, usize), WitParseError> {
         let header = lines[start].trim();
-        let name = header
-            .trim_start_matches("interface ")
-            .trim_end_matches('{')
-            .trim()
-            .to_string();
+        let name = header.trim_start_matches("interface ").trim_end_matches('{').trim().to_string();
 
         let pkg = package.unwrap_or("unknown:package").to_string();
 
@@ -206,11 +199,7 @@ impl WitParser {
         docs: &[String],
     ) -> Result<(WitType, usize), WitParseError> {
         let header = lines[start].trim();
-        let name = header
-            .trim_start_matches("record ")
-            .trim_end_matches('{')
-            .trim()
-            .to_string();
+        let name = header.trim_start_matches("record ").trim_end_matches('{').trim().to_string();
 
         let mut fields: Vec<(String, String)> = Vec::new();
         let mut i = start + 1;
@@ -243,11 +232,7 @@ impl WitParser {
         docs: &[String],
     ) -> Result<(WitType, usize), WitParseError> {
         let header = lines[start].trim();
-        let name = header
-            .trim_start_matches("enum ")
-            .trim_end_matches('{')
-            .trim()
-            .to_string();
+        let name = header.trim_start_matches("enum ").trim_end_matches('{').trim().to_string();
 
         let mut values: Vec<String> = Vec::new();
         let mut i = start + 1;
@@ -280,11 +265,7 @@ impl WitParser {
         docs: &[String],
     ) -> Result<(WitType, usize), WitParseError> {
         let header = lines[start].trim();
-        let name = header
-            .trim_start_matches("variant ")
-            .trim_end_matches('{')
-            .trim()
-            .to_string();
+        let name = header.trim_start_matches("variant ").trim_end_matches('{').trim().to_string();
 
         let mut cases: Vec<(String, Option<String>)> = Vec::new();
         let mut i = start + 1;
@@ -302,10 +283,7 @@ impl WitParser {
                 let case = trimmed.trim_end_matches(',');
                 if let Some(paren_start) = case.find('(') {
                     let case_name = case[..paren_start].trim().to_string();
-                    let payload = case[paren_start + 1..]
-                        .trim_end_matches(')')
-                        .trim()
-                        .to_string();
+                    let payload = case[paren_start + 1..].trim_end_matches(')').trim().to_string();
                     cases.push((case_name, Some(payload)));
                 } else {
                     cases.push((case.trim().to_string(), None));
@@ -324,11 +302,7 @@ impl WitParser {
         docs: &[String],
     ) -> Result<(WitType, usize), WitParseError> {
         let header = lines[start].trim();
-        let name = header
-            .trim_start_matches("flags ")
-            .trim_end_matches('{')
-            .trim()
-            .to_string();
+        let name = header.trim_start_matches("flags ").trim_end_matches('{').trim().to_string();
 
         let mut flags: Vec<String> = Vec::new();
         let mut i = start + 1;
@@ -358,8 +332,7 @@ impl WitParser {
         // type foo = bar;
         let body = line.trim_start_matches("type ").trim_end_matches(';');
         if let Some((name, target)) = body.split_once('=') {
-            let mut ty =
-                WitType::new(name.trim(), WitTypeKind::Alias(target.trim().to_string()));
+            let mut ty = WitType::new(name.trim(), WitTypeKind::Alias(target.trim().to_string()));
             if !docs.is_empty() {
                 ty = ty.with_docs(docs.join("\n"));
             }

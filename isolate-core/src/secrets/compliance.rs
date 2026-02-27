@@ -118,18 +118,13 @@ impl ComplianceAuditor {
             let type_name = format!("{:?}", event.access_type);
             *access_by_type.entry(type_name).or_insert(0) += 1;
 
-            *accessor_counts
-                .entry(event.accessor.clone())
-                .or_insert(0) += 1;
+            *accessor_counts.entry(event.accessor.clone()).or_insert(0) += 1;
 
             if !event.success {
                 violations.push(ComplianceViolation {
                     violation_type: ViolationType::UnauthorizedAccess,
                     secret_path: event.secret_path.clone(),
-                    details: format!(
-                        "Failed {:?} by {}",
-                        event.access_type, event.accessor
-                    ),
+                    details: format!("Failed {:?} by {}", event.access_type, event.accessor),
                     severity: ViolationSeverity::High,
                 });
             }
@@ -212,10 +207,7 @@ mod tests {
 
         let report = auditor.generate_report();
         assert_eq!(report.violations.len(), 1);
-        assert_eq!(
-            report.violations[0].violation_type,
-            ViolationType::UnauthorizedAccess
-        );
+        assert_eq!(report.violations[0].violation_type, ViolationType::UnauthorizedAccess);
         assert_eq!(report.violations[0].severity, ViolationSeverity::High);
     }
 

@@ -168,11 +168,7 @@ pub struct ApiKeyManager {
 impl ApiKeyManager {
     /// Create a new API key manager.
     pub fn new() -> Self {
-        Self {
-            keys: HashMap::new(),
-            teams: HashMap::new(),
-            usage: HashMap::new(),
-        }
+        Self { keys: HashMap::new(), teams: HashMap::new(), usage: HashMap::new() }
     }
 
     /// Generate a new API key for a team.
@@ -182,7 +178,8 @@ impl ApiKeyManager {
         name: impl Into<String>,
         role: Role,
     ) -> (String, ApiKey) {
-        let key_id = format!("kid_{}", Uuid::new_v4().to_string().replace('-', "")[..16].to_string());
+        let key_id =
+            format!("kid_{}", Uuid::new_v4().to_string().replace('-', "")[..16].to_string());
         let secret = format!("iso_live_{}", Uuid::new_v4().to_string().replace('-', ""));
         let prefix = format!("{}...{}", &secret[..12], &secret[secret.len() - 4..]);
 
@@ -221,7 +218,9 @@ impl ApiKeyManager {
         };
 
         // Find key by hash
-        let key_id = self.keys.iter()
+        let key_id = self
+            .keys
+            .iter()
             .find(|(_, k)| k.key_hash == hash && k.active)
             .map(|(id, _)| id.clone())?;
 
@@ -280,12 +279,9 @@ impl ApiKeyManager {
 
     /// Record usage for a team.
     pub fn record_usage(&mut self, team_id: Uuid, period: &str, cpu_seconds: f64, fuel: u64) {
-        let record = self.usage.entry((team_id, period.to_string()))
-            .or_insert_with(|| UsageRecord {
-                team_id,
-                period: period.to_string(),
-                ..Default::default()
-            });
+        let record = self.usage.entry((team_id, period.to_string())).or_insert_with(|| {
+            UsageRecord { team_id, period: period.to_string(), ..Default::default() }
+        });
         record.sandbox_count += 1;
         record.cpu_seconds += cpu_seconds;
         record.total_fuel += fuel;
@@ -299,7 +295,10 @@ impl ApiKeyManager {
     /// Check if a team is within its quota.
     pub fn check_quota(&self, team_id: &Uuid, period: &str) -> QuotaStatus {
         let Some(team) = self.teams.get(team_id) else {
-            return QuotaStatus { within_limits: false, reasons: vec!["Team not found".to_string()] };
+            return QuotaStatus {
+                within_limits: false,
+                reasons: vec!["Team not found".to_string()],
+            };
         };
 
         let usage = self.usage.get(&(*team_id, period.to_string()));

@@ -117,26 +117,17 @@ impl ExecutionTrace {
 
     /// Get direct children of a span.
     pub fn children_of(&self, span_id: &SpanId) -> Vec<&TraceSpan> {
-        self.spans
-            .iter()
-            .filter(|s| s.parent_span_id.as_ref() == Some(span_id))
-            .collect()
+        self.spans.iter().filter(|s| s.parent_span_id.as_ref() == Some(span_id)).collect()
     }
 
     /// Get spans by operation name.
     pub fn spans_by_name(&self, name: &str) -> Vec<&TraceSpan> {
-        self.spans
-            .iter()
-            .filter(|s| s.operation_name == name)
-            .collect()
+        self.spans.iter().filter(|s| s.operation_name == name).collect()
     }
 
     /// Get the critical path (longest chain of sequential spans).
     pub fn critical_path(&self) -> Vec<&TraceSpan> {
-        fn longest_path<'a>(
-            trace: &'a ExecutionTrace,
-            span: &'a TraceSpan,
-        ) -> Vec<&'a TraceSpan> {
+        fn longest_path<'a>(trace: &'a ExecutionTrace, span: &'a TraceSpan) -> Vec<&'a TraceSpan> {
             let children = trace.children_of(&span.span_id);
             if children.is_empty() {
                 return vec![span];
@@ -171,10 +162,7 @@ pub struct TraceBuilder {
 impl TraceBuilder {
     /// Create a new trace builder.
     pub fn new(service_name: impl Into<String>) -> Self {
-        Self {
-            service_name: service_name.into(),
-            trace_id: TraceId::generate(),
-        }
+        Self { service_name: service_name.into(), trace_id: TraceId::generate() }
     }
 
     /// Use a specific trace ID (for correlation with external systems).
@@ -219,8 +207,7 @@ impl TraceBuilder {
         });
 
         // Create child spans for grouped operations
-        let phase_spans =
-            self.build_phase_spans(recording, &root_span_id);
+        let phase_spans = self.build_phase_spans(recording, &root_span_id);
         spans.extend(phase_spans);
 
         ExecutionTrace {
@@ -233,11 +220,7 @@ impl TraceBuilder {
     }
 
     /// Group events into logical phase spans (I/O, computation, filesystem, network).
-    fn build_phase_spans(
-        &self,
-        recording: &Recording,
-        parent_id: &SpanId,
-    ) -> Vec<TraceSpan> {
+    fn build_phase_spans(&self, recording: &Recording, parent_id: &SpanId) -> Vec<TraceSpan> {
         let mut spans = Vec::new();
 
         // Group consecutive I/O events
@@ -310,11 +293,8 @@ impl TraceBuilder {
         }
 
         // Network operations span
-        let net_events: Vec<&RecordingEvent> = recording
-            .events
-            .iter()
-            .filter(|e| matches!(e.kind, EventKind::NetOp { .. }))
-            .collect();
+        let net_events: Vec<&RecordingEvent> =
+            recording.events.iter().filter(|e| matches!(e.kind, EventKind::NetOp { .. })).collect();
 
         if !net_events.is_empty() {
             let start = net_events.first().unwrap().timestamp_us;
@@ -363,11 +343,7 @@ impl TraceBuilder {
                     }
                     _ => return None,
                 };
-                Some(SpanEvent {
-                    name,
-                    timestamp_us: e.timestamp_us,
-                    attributes: attrs,
-                })
+                Some(SpanEvent { name, timestamp_us: e.timestamp_us, attributes: attrs })
             })
             .collect()
     }
@@ -418,10 +394,7 @@ impl FlamegraphGenerator {
         let self_time = span.duration_us().saturating_sub(child_time);
 
         if self_time > 0 {
-            frames.push(FlamegraphFrame {
-                stack: stack.clone(),
-                value: self_time,
-            });
+            frames.push(FlamegraphFrame { stack: stack.clone(), value: self_time });
         }
 
         for child in children {
@@ -431,11 +404,7 @@ impl FlamegraphGenerator {
 
     /// Render folded stacks as a string (one line per frame).
     pub fn render_folded(frames: &[FlamegraphFrame]) -> String {
-        frames
-            .iter()
-            .map(|f| format!("{} {}", f.stack, f.value))
-            .collect::<Vec<_>>()
-            .join("\n")
+        frames.iter().map(|f| format!("{} {}", f.stack, f.value)).collect::<Vec<_>>().join("\n")
     }
 }
 
@@ -447,14 +416,8 @@ mod tests {
     fn make_test_recording() -> Recording {
         let rec = ExecutionRecorder::new("trace-test");
         rec.record_event(EventKind::Input(b"hello".to_vec()));
-        rec.record_event(EventKind::MemorySnapshot {
-            pages: 4,
-            used_bytes: 16384,
-        });
-        rec.record_event(EventKind::FileOp {
-            path: "/data/input.txt".into(),
-            op: "read".into(),
-        });
+        rec.record_event(EventKind::MemorySnapshot { pages: 4, used_bytes: 16384 });
+        rec.record_event(EventKind::FileOp { path: "/data/input.txt".into(), op: "read".into() });
         rec.record_event(EventKind::Output(b"result".to_vec()));
         rec.record_event(EventKind::FuelCheckpoint(500_000));
         rec.record_event(EventKind::Exit(0));
@@ -595,9 +558,7 @@ mod tests {
         let stacks: Vec<&str> = frames.iter().map(|f| f.stack.as_str()).collect();
 
         // Child spans should have semicolon-delimited paths
-        assert!(stacks
-            .iter()
-            .any(|s| s.contains("sandbox.execute;sandbox.io")));
+        assert!(stacks.iter().any(|s| s.contains("sandbox.execute;sandbox.io")));
     }
 
     #[test]

@@ -11,8 +11,6 @@
 //! - **Templates**: Pre-built policy templates for common use cases
 //! - **Simulation**: Dry-run policies against test scenarios
 
-
-
 #![allow(missing_docs)]
 pub mod codegen;
 pub mod ir;
@@ -21,10 +19,10 @@ pub mod templates;
 pub mod validation;
 
 pub use codegen::PolicyCodegen;
-pub use ir::{PolicyBlock, PolicyIR, BlockKind, ResourceBlock, CapabilityBlock};
-pub use simulation::{PolicySimulator, SimulationResult, SimulatedAction};
+pub use ir::{BlockKind, CapabilityBlock, PolicyBlock, PolicyIR, ResourceBlock};
+pub use simulation::{PolicySimulator, SimulatedAction, SimulationResult};
 pub use templates::{PolicyTemplate, TemplateLibrary};
-pub use validation::{PolicyValidator, ValidationIssue, IssueSeverity};
+pub use validation::{IssueSeverity, PolicyValidator, ValidationIssue};
 
 #[cfg(test)]
 mod tests {

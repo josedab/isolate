@@ -1,9 +1,7 @@
 //! Agent session management with execution history and budgets.
 
 use super::tools::ToolRegistry;
-use super::trace::{
-    ResourceBudget, SpanKind, SpanStatus, TraceBuilder, TraceSpan, TraceStore,
-};
+use super::trace::{ResourceBudget, SpanKind, SpanStatus, TraceBuilder, TraceSpan, TraceStore};
 use super::types::*;
 use crate::capability::Capability;
 use crate::config::SandboxConfig;
@@ -489,10 +487,8 @@ mod tests {
 
     #[test]
     fn test_session_save_load() {
-        let config = AgentConfig::builder()
-            .memory_limit(128 * 1024 * 1024)
-            .max_tool_calls(50)
-            .build();
+        let config =
+            AgentConfig::builder().memory_limit(128 * 1024 * 1024).max_tool_calls(50).build();
 
         let session = AgentSession::new(config);
         let original_id = session.id();

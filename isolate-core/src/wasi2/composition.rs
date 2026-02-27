@@ -3,8 +3,6 @@
 //! Enables composing multiple WASM components via WIT interfaces,
 //! with typed imports/exports and automatic dependency resolution.
 
-
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -180,11 +178,7 @@ impl std::fmt::Display for CompositionError {
                 )
             }
             Self::DuplicateExport { interface, component1, component2 } => {
-                write!(
-                    f,
-                    "Duplicate export of {} by {} and {}",
-                    interface, component1, component2
-                )
+                write!(f, "Duplicate export of {} by {} and {}", interface, component1, component2)
             }
         }
     }
@@ -267,12 +261,7 @@ impl ComponentComposer {
                 .collect()
         };
 
-        Ok(CompositionResult {
-            component_order: order,
-            bindings,
-            unresolved,
-            warnings,
-        })
+        Ok(CompositionResult { component_order: order, bindings, unresolved, warnings })
     }
 
     /// Topological sort of components.
@@ -385,8 +374,7 @@ impl VersionMatcher {
     }
 
     fn parse_semver(version: &str) -> (u32, u32, u32) {
-        let parts: Vec<u32> =
-            version.split('.').filter_map(|s| s.parse().ok()).collect();
+        let parts: Vec<u32> = version.split('.').filter_map(|s| s.parse().ok()).collect();
         (
             parts.first().copied().unwrap_or(0),
             parts.get(1).copied().unwrap_or(0),
@@ -442,10 +430,8 @@ impl ComponentComposer {
                         ));
                     }
                 } else if !import.optional {
-                    errors.push(format!(
-                        "Unresolved import: {} requires {}",
-                        name, import.interface
-                    ));
+                    errors
+                        .push(format!("Unresolved import: {} requires {}", name, import.interface));
                 }
             }
         }
@@ -585,11 +571,7 @@ mod tests {
         }
     }
 
-    fn test_component(
-        name: &str,
-        imports: Vec<&str>,
-        exports: Vec<&str>,
-    ) -> ComponentDescriptor {
+    fn test_component(name: &str, imports: Vec<&str>, exports: Vec<&str>) -> ComponentDescriptor {
         ComponentDescriptor {
             name: name.to_string(),
             version: "1.0.0".to_string(),

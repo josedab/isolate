@@ -551,7 +551,7 @@ mod tests {
         assert_eq!(stats.total_evaluations, 15);
         assert_eq!(stats.allow_count, 10);
         assert_eq!(stats.deny_count, 5);
-        assert!(stats.avg_latency > Duration::ZERO || stats.avg_latency == Duration::ZERO);
+        assert!(stats.avg_latency >= Duration::ZERO);
     }
 
     #[test]

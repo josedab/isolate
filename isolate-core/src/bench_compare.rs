@@ -1,4 +1,3 @@
-
 //! Comparative benchmark suite with CI regression detection.
 //!
 //! Measures Isolate's performance against baseline targets (Firecracker, gVisor,
@@ -79,12 +78,7 @@ impl ComparisonBaseline {
 
     /// Returns all pre-defined baselines.
     pub fn all() -> Vec<ComparisonTarget> {
-        vec![
-            Self::firecracker(),
-            Self::gvisor(),
-            Self::wasmer(),
-            Self::native_process(),
-        ]
+        vec![Self::firecracker(), Self::gvisor(), Self::wasmer(), Self::native_process()]
     }
 }
 
@@ -242,12 +236,7 @@ impl ComparisonResult {
             ComparisonVerdict::Slower
         };
 
-        Self {
-            cold_start_ratio,
-            execution_ratio,
-            memory_ratio,
-            verdict,
-        }
+        Self { cold_start_ratio, execution_ratio, memory_ratio, verdict }
     }
 }
 
@@ -283,10 +272,7 @@ impl ComparisonReport {
                 (t.clone(), cmp)
             })
             .collect();
-        Self {
-            isolate_results: result,
-            comparisons,
-        }
+        Self { isolate_results: result, comparisons }
     }
 
     /// Render the report as a Markdown table.
@@ -295,9 +281,7 @@ impl ComparisonReport {
         md.push_str("# Isolate Comparative Benchmark Report\n\n");
 
         md.push_str("## Isolate Results\n\n");
-        md.push_str(&format!(
-            "| Metric | Mean | Median | P95 | P99 | Std Dev |\n"
-        ));
+        md.push_str(&format!("| Metric | Mean | Median | P95 | P99 | Std Dev |\n"));
         md.push_str("| --- | ---: | ---: | ---: | ---: | ---: |\n");
         md.push_str(&format!(
             "| Cold Start (µs) | {:.1} | {:.1} | {:.1} | {:.1} | {:.1} |\n",
@@ -329,9 +313,7 @@ impl ComparisonReport {
         ));
 
         md.push_str("## Comparison Against Targets\n\n");
-        md.push_str(
-            "| Target | Cold Start Ratio | Exec Ratio | Memory Ratio | Verdict |\n",
-        );
+        md.push_str("| Target | Cold Start Ratio | Exec Ratio | Memory Ratio | Verdict |\n");
         md.push_str("| --- | ---: | ---: | ---: | --- |\n");
         for (target, cmp) in &self.comparisons {
             md.push_str(&format!(
@@ -378,11 +360,7 @@ impl ComparisonReport {
         previous: &BenchmarkResult,
         threshold_pct: f64,
     ) -> Vec<Regression> {
-        RegressionDetector::detect_regressions(
-            &self.isolate_results,
-            previous,
-            threshold_pct,
-        )
+        RegressionDetector::detect_regressions(&self.isolate_results, previous, threshold_pct)
     }
 }
 
@@ -398,10 +376,7 @@ impl RegressionDetector {
     }
 
     /// Save a baseline to a JSON file.
-    pub fn save_baseline(
-        path: &std::path::Path,
-        results: &BenchmarkResult,
-    ) -> std::io::Result<()> {
+    pub fn save_baseline(path: &std::path::Path, results: &BenchmarkResult) -> std::io::Result<()> {
         let data = serde_json::to_string_pretty(results)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
         std::fs::write(path, data)
@@ -417,31 +392,11 @@ impl RegressionDetector {
         let mut regressions = Vec::new();
 
         let checks: &[(&str, f64, f64)] = &[
-            (
-                "cold_start_us_mean",
-                previous.mean_cold_start_us(),
-                current.mean_cold_start_us(),
-            ),
-            (
-                "cold_start_us_p95",
-                previous.p95_cold_start_us(),
-                current.p95_cold_start_us(),
-            ),
-            (
-                "execution_us_mean",
-                previous.mean_execution_us(),
-                current.mean_execution_us(),
-            ),
-            (
-                "execution_us_p95",
-                previous.p95_execution_us(),
-                current.p95_execution_us(),
-            ),
-            (
-                "memory_bytes_mean",
-                previous.mean_memory_bytes(),
-                current.mean_memory_bytes(),
-            ),
+            ("cold_start_us_mean", previous.mean_cold_start_us(), current.mean_cold_start_us()),
+            ("cold_start_us_p95", previous.p95_cold_start_us(), current.p95_cold_start_us()),
+            ("execution_us_mean", previous.mean_execution_us(), current.mean_execution_us()),
+            ("execution_us_p95", previous.p95_execution_us(), current.p95_execution_us()),
+            ("memory_bytes_mean", previous.mean_memory_bytes(), current.mean_memory_bytes()),
         ];
 
         for &(name, prev, curr) in checks {
@@ -460,9 +415,9 @@ impl RegressionDetector {
 
         // Throughput regression is inverted: lower is worse.
         if previous.throughput_rps > 0.0 {
-            let pct =
-                ((previous.throughput_rps - current.throughput_rps) / previous.throughput_rps)
-                    * 100.0;
+            let pct = ((previous.throughput_rps - current.throughput_rps)
+                / previous.throughput_rps)
+                * 100.0;
             if pct > threshold_pct {
                 regressions.push(Regression {
                     metric_name: "throughput_rps".to_string(),
@@ -508,9 +463,7 @@ fn percentile_u64(values: &[u64], pct: f64) -> f64 {
     }
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
-    let idx = ((pct / 100.0) * (sorted.len() as f64 - 1.0))
-        .round()
-        .max(0.0) as usize;
+    let idx = ((pct / 100.0) * (sorted.len() as f64 - 1.0)).round().max(0.0) as usize;
     sorted[idx.min(sorted.len() - 1)] as f64
 }
 
@@ -557,9 +510,7 @@ fn percentile_usize(values: &[usize], pct: f64) -> f64 {
     }
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
-    let idx = ((pct / 100.0) * (sorted.len() as f64 - 1.0))
-        .round()
-        .max(0.0) as usize;
+    let idx = ((pct / 100.0) * (sorted.len() as f64 - 1.0)).round().max(0.0) as usize;
     sorted[idx.min(sorted.len() - 1)] as f64
 }
 
@@ -834,11 +785,8 @@ mod tests {
     fn test_detect_regressions_cold_start() {
         let previous = fast_result();
         let current = slow_result();
-        let regressions =
-            RegressionDetector::detect_regressions(&current, &previous, 10.0);
-        let cold_start_reg = regressions
-            .iter()
-            .find(|r| r.metric_name == "cold_start_us_mean");
+        let regressions = RegressionDetector::detect_regressions(&current, &previous, 10.0);
+        let cold_start_reg = regressions.iter().find(|r| r.metric_name == "cold_start_us_mean");
         assert!(cold_start_reg.is_some());
         assert!(cold_start_reg.unwrap().regression_pct > 10.0);
     }
@@ -847,11 +795,8 @@ mod tests {
     fn test_detect_regressions_throughput() {
         let previous = fast_result();
         let current = slow_result();
-        let regressions =
-            RegressionDetector::detect_regressions(&current, &previous, 10.0);
-        let tp_reg = regressions
-            .iter()
-            .find(|r| r.metric_name == "throughput_rps");
+        let regressions = RegressionDetector::detect_regressions(&current, &previous, 10.0);
+        let tp_reg = regressions.iter().find(|r| r.metric_name == "throughput_rps");
         assert!(tp_reg.is_some());
         assert!(tp_reg.unwrap().regression_pct > 10.0);
     }
@@ -873,9 +818,8 @@ mod tests {
 
     #[test]
     fn test_load_baseline_missing_file() {
-        let result = RegressionDetector::load_baseline(std::path::Path::new(
-            "/nonexistent/path.json",
-        ));
+        let result =
+            RegressionDetector::load_baseline(std::path::Path::new("/nonexistent/path.json"));
         assert!(result.is_err());
     }
 

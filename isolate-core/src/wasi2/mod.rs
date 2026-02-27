@@ -39,21 +39,20 @@
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 
-
 pub mod async_io;
 pub mod capability_bridge;
+pub mod compat_shim;
 mod component;
 pub mod composition;
 mod context;
 pub mod dual_mode;
 mod host;
+pub mod interface_registry;
 pub mod migration;
 pub mod production;
 pub mod readiness;
 pub mod resource_handles;
 pub mod runtime;
-pub mod compat_shim;
-pub mod interface_registry;
 pub mod wit;
 pub mod wit_parser;
 pub mod world_gen;
@@ -64,14 +63,12 @@ pub use component::{
 pub use context::{
     ComponentConfig, ComponentConfigBuilder, ComponentHash, NetworkConfig, WasmComponent,
 };
-pub use host::{IoLimits, WasiError, WasiHostState};
 pub use dual_mode::{detect_wasi_version, DualModeSandbox, WasiVersion};
-pub use interface_registry::{
-    CapabilityRef, InterfaceBinding, InterfaceRegistry, WorldDefinition,
-};
+pub use host::{IoLimits, WasiError, WasiHostState};
+pub use interface_registry::{CapabilityRef, InterfaceBinding, InterfaceRegistry, WorldDefinition};
 pub use world_gen::{
-    WorldGenerator, WorldDefinition as WitWorldDefinition, CompositionPipeline, PipelineStage,
-    PipelineResult,
+    CompositionPipeline, PipelineResult, PipelineStage, WorldDefinition as WitWorldDefinition,
+    WorldGenerator,
 };
 
 use crate::Result;

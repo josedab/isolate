@@ -426,12 +426,11 @@ mod tests {
     #[test]
     fn test_warm_pool_record_access_and_check() {
         let pool = create_test_pool();
-        let tracker = super::super::auto_warm::AccessTracker::new(
-            super::super::auto_warm::AutoWarmConfig {
+        let tracker =
+            super::super::auto_warm::AccessTracker::new(super::super::auto_warm::AutoWarmConfig {
                 hot_threshold: 3,
                 ..Default::default()
-            },
-        );
+            });
         let module_hash = ModuleHash("test_mod".to_string());
 
         // First few accesses: not hot yet

@@ -39,12 +39,7 @@ pub struct Node {
 
 impl Node {
     pub fn new(id: impl Into<NodeId>, kind: NodeKind) -> Self {
-        Self {
-            id: id.into(),
-            kind,
-            label: None,
-            retry_count: 0,
-        }
+        Self { id: id.into(), kind, label: None, retry_count: 0 }
     }
 
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
@@ -62,31 +57,17 @@ impl Node {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NodeKind {
     /// Execute a WASM sandbox.
-    Sandbox {
-        module_name: String,
-        fuel_limit: u64,
-    },
+    Sandbox { module_name: String, fuel_limit: u64 },
     /// Apply a data transformation.
-    Transform {
-        transform: TransformFn,
-    },
+    Transform { transform: TransformFn },
     /// Conditional branching.
-    Condition {
-        condition: ConditionFn,
-    },
+    Condition { condition: ConditionFn },
     /// Fan out to parallel branches.
-    FanOut {
-        split_path: String,
-    },
+    FanOut { split_path: String },
     /// Merge parallel branches.
-    FanIn {
-        merge_strategy: MergeStrategy,
-    },
+    FanIn { merge_strategy: MergeStrategy },
     /// HTTP request node.
-    Http {
-        method: String,
-        url_template: String,
-    },
+    Http { method: String, url_template: String },
     /// No-op passthrough.
     Passthrough,
 }
@@ -134,13 +115,9 @@ impl ConditionFn {
     /// Evaluate the condition against a JSON value.
     pub fn evaluate(&self, data: &serde_json::Value) -> bool {
         match self {
-            Self::Equals { field, value } => {
-                data.get(field).map_or(false, |v| v == value)
-            }
+            Self::Equals { field, value } => data.get(field).map_or(false, |v| v == value),
             Self::GreaterThan { field, value } => {
-                data.get(field)
-                    .and_then(|v| v.as_f64())
-                    .map_or(false, |v| v > *value)
+                data.get(field).and_then(|v| v.as_f64()).map_or(false, |v| v > *value)
             }
             Self::Exists { field } => data.get(field).is_some(),
             Self::Always => true,
@@ -191,9 +168,7 @@ mod tests {
 
     #[test]
     fn test_node_creation() {
-        let node = Node::new("test-node", NodeKind::Passthrough)
-            .with_label("Test")
-            .with_retries(3);
+        let node = Node::new("test-node", NodeKind::Passthrough).with_label("Test").with_retries(3);
         assert_eq!(node.id.as_str(), "test-node");
         assert_eq!(node.label.as_deref(), Some("Test"));
         assert_eq!(node.retry_count, 3);
@@ -201,20 +176,14 @@ mod tests {
 
     #[test]
     fn test_condition_equals() {
-        let cond = ConditionFn::Equals {
-            field: "status".into(),
-            value: serde_json::json!("ok"),
-        };
+        let cond = ConditionFn::Equals { field: "status".into(), value: serde_json::json!("ok") };
         assert!(cond.evaluate(&serde_json::json!({"status": "ok"})));
         assert!(!cond.evaluate(&serde_json::json!({"status": "error"})));
     }
 
     #[test]
     fn test_condition_greater_than() {
-        let cond = ConditionFn::GreaterThan {
-            field: "count".into(),
-            value: 10.0,
-        };
+        let cond = ConditionFn::GreaterThan { field: "count".into(), value: 10.0 };
         assert!(cond.evaluate(&serde_json::json!({"count": 15})));
         assert!(!cond.evaluate(&serde_json::json!({"count": 5})));
     }

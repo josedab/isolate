@@ -61,12 +61,7 @@ pub struct Stage {
 impl Stage {
     /// Create a new pipeline stage.
     pub fn new(id: impl Into<String>, config: SandboxConfig) -> Self {
-        Self {
-            id: StageId::new(id),
-            config,
-            retry: RetryPolicy::default(),
-            timeout: None,
-        }
+        Self { id: StageId::new(id), config, retry: RetryPolicy::default(), timeout: None }
     }
 
     /// Set retry policy.
@@ -200,10 +195,7 @@ impl PipelineDefinition {
 
     /// Get stages with no outgoing edges (exit points).
     pub fn exit_stages(&self) -> Vec<&StageId> {
-        self.stages
-            .keys()
-            .filter(|id| self.edges.get(*id).map_or(true, |v| v.is_empty()))
-            .collect()
+        self.stages.keys().filter(|id| self.edges.get(*id).map_or(true, |v| v.is_empty())).collect()
     }
 
     /// Get downstream stages for a given stage.
@@ -290,7 +282,11 @@ impl PipelineDefinition {
     /// Runs stages in topological order. For each stage, creates a sandbox,
     /// runs it with the appropriate input (based on DataFlow), and collects
     /// the output. Supports retry policies with exponential backoff.
-    pub async fn execute(&self, engine: std::sync::Arc<crate::engine::WasmEngine>, input: &[u8]) -> Result<PipelineResult> {
+    pub async fn execute(
+        &self,
+        engine: std::sync::Arc<crate::engine::WasmEngine>,
+        input: &[u8],
+    ) -> Result<PipelineResult> {
         use crate::sandbox::Sandbox;
         use std::time::Instant;
 
@@ -302,9 +298,10 @@ impl PipelineDefinition {
         let mut failed_stage = None;
 
         for stage_id in &order {
-            let stage = self.stages.get(stage_id).ok_or_else(|| {
-                Error::InvalidConfig(format!("Stage '{}' not found", stage_id))
-            })?;
+            let stage = self
+                .stages
+                .get(stage_id)
+                .ok_or_else(|| Error::InvalidConfig(format!("Stage '{}' not found", stage_id)))?;
 
             // Determine input for this stage
             let stage_input = self.resolve_stage_input(stage_id, input, &stage_outputs);
@@ -313,10 +310,8 @@ impl PipelineDefinition {
             let mut retries = 0u32;
 
             let output = loop {
-                let mut sandbox = Sandbox::create_with_engine(
-                    stage.config.clone(),
-                    engine.clone(),
-                ).await?;
+                let mut sandbox =
+                    Sandbox::create_with_engine(stage.config.clone(), engine.clone()).await?;
 
                 let result = sandbox.run(&stage_input).await;
 
@@ -434,12 +429,7 @@ impl PipelineBuilder {
         to: impl Into<String>,
         data_flow: DataFlow,
     ) -> Self {
-        self.edges.push((
-            StageId::new(from),
-            StageId::new(to),
-            data_flow,
-            BranchCondition::Always,
-        ));
+        self.edges.push((StageId::new(from), StageId::new(to), data_flow, BranchCondition::Always));
         self
     }
 
@@ -451,12 +441,7 @@ impl PipelineBuilder {
         data_flow: DataFlow,
         condition: BranchCondition,
     ) -> Self {
-        self.edges.push((
-            StageId::new(from),
-            StageId::new(to),
-            data_flow,
-            condition,
-        ));
+        self.edges.push((StageId::new(from), StageId::new(to), data_flow, condition));
         self
     }
 
@@ -678,10 +663,8 @@ mod tests {
 
     #[test]
     fn test_single_stage_pipeline() {
-        let pipeline = PipelineDefinition::builder()
-            .stage(Stage::new("only", test_config()))
-            .build()
-            .unwrap();
+        let pipeline =
+            PipelineDefinition::builder().stage(Stage::new("only", test_config())).build().unwrap();
 
         assert_eq!(pipeline.stage_count(), 1);
         assert_eq!(pipeline.entry_stages().len(), 1);

@@ -123,15 +123,11 @@ impl PolicyBuilder {
 
     /// Build the policy. Returns an error if `id`, `name`, or `action` are missing.
     pub fn build(self) -> crate::Result<Policy> {
-        let id = self
-            .id
-            .ok_or_else(|| crate::Error::Policy("policy id is required".into()))?;
-        let name = self
-            .name
-            .ok_or_else(|| crate::Error::Policy("policy name is required".into()))?;
-        let action = self
-            .action
-            .ok_or_else(|| crate::Error::Policy("policy action is required".into()))?;
+        let id = self.id.ok_or_else(|| crate::Error::Policy("policy id is required".into()))?;
+        let name =
+            self.name.ok_or_else(|| crate::Error::Policy("policy name is required".into()))?;
+        let action =
+            self.action.ok_or_else(|| crate::Error::Policy("policy action is required".into()))?;
 
         Ok(Policy {
             id,
@@ -148,10 +144,7 @@ impl PolicyBuilder {
 impl Policy {
     /// Create a new [`PolicyBuilder`].
     pub fn builder() -> PolicyBuilder {
-        PolicyBuilder {
-            enabled: true,
-            ..Default::default()
-        }
+        PolicyBuilder { enabled: true, ..Default::default() }
     }
 }
 
@@ -213,10 +206,7 @@ impl PolicyEngine {
     /// Add a policy to the engine.
     pub fn add_policy(&mut self, policy: Policy) -> crate::Result<()> {
         if self.policies.iter().any(|p| p.id == policy.id) {
-            return Err(crate::Error::Policy(format!(
-                "duplicate policy id: {}",
-                policy.id
-            )));
+            return Err(crate::Error::Policy(format!("duplicate policy id: {}", policy.id)));
         }
         self.policies.push(policy);
         Ok(())
@@ -263,10 +253,8 @@ impl PolicyEngine {
                 match &policy.action {
                     PolicyAction::Deny => {
                         decision.allowed = false;
-                        decision.denied_reason = Some(format!(
-                            "denied by policy '{}' ({})",
-                            policy.name, policy.id
-                        ));
+                        decision.denied_reason =
+                            Some(format!("denied by policy '{}' ({})", policy.name, policy.id));
                         decision.matched_policies.push(matched);
                         return decision;
                     }
@@ -375,10 +363,7 @@ mod tests {
         let decision = engine.evaluate(&sample_request());
         assert!(!decision.allowed);
         assert!(decision.denied_reason.is_some());
-        assert!(decision
-            .denied_reason
-            .unwrap()
-            .contains("deny stdout"));
+        assert!(decision.denied_reason.unwrap().contains("deny stdout"));
     }
 
     #[test]
@@ -415,10 +400,7 @@ mod tests {
                 Policy::builder()
                     .id("allowlist")
                     .name("module allowlist")
-                    .rule(PolicyRule::ModuleAllowlist(vec![
-                        "trusted1".into(),
-                        "trusted2".into(),
-                    ]))
+                    .rule(PolicyRule::ModuleAllowlist(vec!["trusted1".into(), "trusted2".into()]))
                     .action(PolicyAction::Deny)
                     .build()
                     .unwrap(),
@@ -570,12 +552,8 @@ mod tests {
     #[test]
     fn test_add_duplicate_policy_errors() {
         let mut engine = PolicyEngine::new();
-        let policy = Policy::builder()
-            .id("p1")
-            .name("test")
-            .action(PolicyAction::Allow)
-            .build()
-            .unwrap();
+        let policy =
+            Policy::builder().id("p1").name("test").action(PolicyAction::Allow).build().unwrap();
         engine.add_policy(policy.clone()).unwrap();
         assert!(engine.add_policy(policy).is_err());
     }
@@ -614,12 +592,7 @@ mod tests {
             .unwrap();
         engine
             .add_policy(
-                Policy::builder()
-                    .id("b")
-                    .name("beta")
-                    .action(PolicyAction::Deny)
-                    .build()
-                    .unwrap(),
+                Policy::builder().id("b").name("beta").action(PolicyAction::Deny).build().unwrap(),
             )
             .unwrap();
 

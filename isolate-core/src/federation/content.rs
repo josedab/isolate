@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Content identifier (SHA-256 hash of content).
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
@@ -54,11 +54,7 @@ struct ContentStoreInner {
 
 impl ContentStore {
     pub fn new() -> Self {
-        Self {
-            inner: Arc::new(ContentStoreInner {
-                modules: RwLock::new(HashMap::new()),
-            }),
-        }
+        Self { inner: Arc::new(ContentStoreInner { modules: RwLock::new(HashMap::new()) }) }
     }
 
     /// Store content and return its CID.

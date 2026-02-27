@@ -273,9 +273,9 @@ impl DebugSession {
                     success: true,
                     command: "setBreakpoints".into(),
                     message: None,
-                    body: Some(DapResponseBody::SetBreakpoints(
-                        SetBreakpointsResponseBody { breakpoints: verified },
-                    )),
+                    body: Some(DapResponseBody::SetBreakpoints(SetBreakpointsResponseBody {
+                        breakpoints: verified,
+                    })),
                 }
             }
             DapCommand::Continue { .. } => {
@@ -336,9 +336,7 @@ impl DebugSession {
                 success: true,
                 command: "variables".into(),
                 message: None,
-                body: Some(DapResponseBody::Variables(VariablesResponseBody {
-                    variables: vec![],
-                })),
+                body: Some(DapResponseBody::Variables(VariablesResponseBody { variables: vec![] })),
             },
             DapCommand::Evaluate { ref expression, .. } => DapResponse {
                 seq,
@@ -385,10 +383,7 @@ impl DebugSession {
 
     /// Get breakpoints for a specific source file.
     pub fn get_breakpoints(&self, source: &str) -> Vec<&Breakpoint> {
-        self.breakpoints
-            .get(source)
-            .map(|bps| bps.iter().collect())
-            .unwrap_or_default()
+        self.breakpoints.get(source).map(|bps| bps.iter().collect()).unwrap_or_default()
     }
 
     /// Get all breakpoints across every source.
@@ -599,10 +594,7 @@ mod tests {
     #[test]
     fn test_initialize_request() {
         let mut session = DebugSession::new();
-        let resp = session.handle_request(DapRequest {
-            seq: 1,
-            command: DapCommand::Initialize,
-        });
+        let resp = session.handle_request(DapRequest { seq: 1, command: DapCommand::Initialize });
         assert!(resp.success);
         assert_eq!(*session.state(), SessionState::Initialized);
         assert!(matches!(resp.body, Some(DapResponseBody::Initialize(_))));
@@ -614,10 +606,7 @@ mod tests {
         session.handle_request(DapRequest { seq: 1, command: DapCommand::Initialize });
         let resp = session.handle_request(DapRequest {
             seq: 2,
-            command: DapCommand::Launch {
-                program: "test.wasm".into(),
-                args: vec![],
-            },
+            command: DapCommand::Launch { program: "test.wasm".into(), args: vec![] },
         });
         assert!(resp.success);
         assert_eq!(*session.state(), SessionState::Running);
@@ -650,16 +639,11 @@ mod tests {
     fn test_continue_changes_state() {
         let mut session = DebugSession::new();
         session.handle_request(DapRequest { seq: 1, command: DapCommand::Initialize });
-        session.handle_request(DapRequest {
-            seq: 2,
-            command: DapCommand::Pause { thread_id: 1 },
-        });
+        session.handle_request(DapRequest { seq: 2, command: DapCommand::Pause { thread_id: 1 } });
         assert_eq!(*session.state(), SessionState::Stopped(StopReason::Pause));
 
-        let resp = session.handle_request(DapRequest {
-            seq: 3,
-            command: DapCommand::Continue { thread_id: 1 },
-        });
+        let resp = session
+            .handle_request(DapRequest { seq: 3, command: DapCommand::Continue { thread_id: 1 } });
         assert!(resp.success);
         assert_eq!(*session.state(), SessionState::Running);
     }
@@ -668,10 +652,8 @@ mod tests {
     fn test_pause_changes_state() {
         let mut session = DebugSession::new();
         session.handle_request(DapRequest { seq: 1, command: DapCommand::Initialize });
-        let resp = session.handle_request(DapRequest {
-            seq: 2,
-            command: DapCommand::Pause { thread_id: 1 },
-        });
+        let resp = session
+            .handle_request(DapRequest { seq: 2, command: DapCommand::Pause { thread_id: 1 } });
         assert!(resp.success);
         assert_eq!(*session.state(), SessionState::Stopped(StopReason::Pause));
     }
@@ -695,10 +677,8 @@ mod tests {
     #[test]
     fn test_scopes_returns_scopes() {
         let mut session = DebugSession::new();
-        let resp = session.handle_request(DapRequest {
-            seq: 1,
-            command: DapCommand::Scopes { frame_id: 0 },
-        });
+        let resp = session
+            .handle_request(DapRequest { seq: 1, command: DapCommand::Scopes { frame_id: 0 } });
         assert!(resp.success);
         let Some(DapResponseBody::Scopes(body)) = resp.body else {
             unreachable!("expected Scopes body");
@@ -727,10 +707,7 @@ mod tests {
         let mut session = DebugSession::new();
         let resp = session.handle_request(DapRequest {
             seq: 1,
-            command: DapCommand::Evaluate {
-                expression: "2 + 2".into(),
-                frame_id: None,
-            },
+            command: DapCommand::Evaluate { expression: "2 + 2".into(), frame_id: None },
         });
         assert!(resp.success);
         let Some(DapResponseBody::Evaluate(body)) = resp.body else {
@@ -743,10 +720,7 @@ mod tests {
     fn test_disconnect_terminates() {
         let mut session = DebugSession::new();
         session.handle_request(DapRequest { seq: 1, command: DapCommand::Initialize });
-        let resp = session.handle_request(DapRequest {
-            seq: 2,
-            command: DapCommand::Disconnect,
-        });
+        let resp = session.handle_request(DapRequest { seq: 2, command: DapCommand::Disconnect });
         assert!(resp.success);
         assert_eq!(*session.state(), SessionState::Terminated);
     }
@@ -818,18 +792,12 @@ mod tests {
 
     #[test]
     fn test_dap_message_serialization() {
-        let msg = DapMessage::Request(DapRequest {
-            seq: 1,
-            command: DapCommand::Initialize,
-        });
+        let msg = DapMessage::Request(DapRequest { seq: 1, command: DapCommand::Initialize });
         let json = serde_json::to_string(&msg).unwrap();
         let parsed: DapMessage = serde_json::from_str(&json).unwrap();
         assert!(matches!(parsed, DapMessage::Request(_)));
 
-        let msg = DapMessage::Event(DapEvent {
-            seq: 2,
-            event: DapEventType::Terminated,
-        });
+        let msg = DapMessage::Event(DapEvent { seq: 2, event: DapEventType::Terminated });
         let json = serde_json::to_string(&msg).unwrap();
         let parsed: DapMessage = serde_json::from_str(&json).unwrap();
         assert!(matches!(parsed, DapMessage::Event(_)));
@@ -837,12 +805,8 @@ mod tests {
 
     #[test]
     fn test_stop_reason_variants() {
-        let reasons = [
-            StopReason::Breakpoint,
-            StopReason::Step,
-            StopReason::Pause,
-            StopReason::Exception,
-        ];
+        let reasons =
+            [StopReason::Breakpoint, StopReason::Step, StopReason::Pause, StopReason::Exception];
         for reason in &reasons {
             let json = serde_json::to_string(reason).unwrap();
             let parsed: StopReason = serde_json::from_str(&json).unwrap();
@@ -852,11 +816,7 @@ mod tests {
 
     #[test]
     fn test_output_category_variants() {
-        let categories = [
-            OutputCategory::Console,
-            OutputCategory::Stdout,
-            OutputCategory::Stderr,
-        ];
+        let categories = [OutputCategory::Console, OutputCategory::Stdout, OutputCategory::Stderr];
         for cat in &categories {
             let json = serde_json::to_string(cat).unwrap();
             let parsed: OutputCategory = serde_json::from_str(&json).unwrap();
@@ -869,11 +829,7 @@ mod tests {
         let mut session = DebugSession::new();
         let bps = session.set_breakpoints(
             "main.rs",
-            vec![SourceBreakpoint {
-                line: 42,
-                column: None,
-                condition: Some("x > 10".into()),
-            }],
+            vec![SourceBreakpoint { line: 42, column: None, condition: Some("x > 10".into()) }],
         );
         assert_eq!(bps.len(), 1);
         assert_eq!(bps[0].condition.as_deref(), Some("x > 10"));
@@ -887,17 +843,12 @@ mod tests {
         session.handle_request(DapRequest { seq: 1, command: DapCommand::Initialize });
 
         // First pause
-        session.handle_request(DapRequest {
-            seq: 2,
-            command: DapCommand::Pause { thread_id: 1 },
-        });
+        session.handle_request(DapRequest { seq: 2, command: DapCommand::Pause { thread_id: 1 } });
         assert_eq!(*session.state(), SessionState::Stopped(StopReason::Pause));
 
         // Pause again while already paused — should succeed
-        let resp = session.handle_request(DapRequest {
-            seq: 3,
-            command: DapCommand::Pause { thread_id: 1 },
-        });
+        let resp = session
+            .handle_request(DapRequest { seq: 3, command: DapCommand::Pause { thread_id: 1 } });
         assert!(resp.success);
         assert_eq!(*session.state(), SessionState::Stopped(StopReason::Pause));
     }
@@ -979,10 +930,7 @@ mod tests {
             assert_eq!(*session.state(), SessionState::Stopped(StopReason::Pause));
 
             // Step should set Running
-            let resp = session.handle_request(DapRequest {
-                seq: (i * 2 + 3) as u64,
-                command: cmd,
-            });
+            let resp = session.handle_request(DapRequest { seq: (i * 2 + 3) as u64, command: cmd });
             assert!(resp.success);
             assert_eq!(*session.state(), SessionState::Running);
         }
@@ -1005,10 +953,7 @@ mod tests {
     #[test]
     fn test_disconnect_from_uninitialized() {
         let mut session = DebugSession::new();
-        let resp = session.handle_request(DapRequest {
-            seq: 1,
-            command: DapCommand::Disconnect,
-        });
+        let resp = session.handle_request(DapRequest { seq: 1, command: DapCommand::Disconnect });
         assert!(resp.success);
         assert_eq!(*session.state(), SessionState::Terminated);
     }
@@ -1026,10 +971,7 @@ mod tests {
         let mut session = DebugSession::new();
         let resp = session.handle_request(DapRequest {
             seq: 1,
-            command: DapCommand::Evaluate {
-                expression: "x + y".into(),
-                frame_id: Some(42),
-            },
+            command: DapCommand::Evaluate { expression: "x + y".into(), frame_id: Some(42) },
         });
         assert!(resp.success);
         let Some(DapResponseBody::Evaluate(body)) = resp.body else {

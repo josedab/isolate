@@ -152,10 +152,7 @@ pub struct ConfigLoader {
 impl ConfigLoader {
     /// Create a new config loader.
     pub fn new() -> Self {
-        Self {
-            extra_vars: HashMap::new(),
-            environment: None,
-        }
+        Self { extra_vars: HashMap::new(), environment: None }
     }
 
     /// Set the active environment for overrides.
@@ -211,17 +208,12 @@ impl ConfigLoader {
 
     /// Load from a YAML file path.
     pub fn load_file(&self, path: &Path) -> Result<SandboxFile, ConfigError> {
-        let content =
-            std::fs::read_to_string(path).map_err(|e| ConfigError::Io(e.to_string()))?;
+        let content = std::fs::read_to_string(path).map_err(|e| ConfigError::Io(e.to_string()))?;
         self.load_yaml(&content)
     }
 
     /// Resolve inheritance for a sandbox spec.
-    fn resolve_inheritance(
-        &self,
-        file: &mut SandboxFile,
-        name: &str,
-    ) -> Result<(), ConfigError> {
+    fn resolve_inheritance(&self, file: &mut SandboxFile, name: &str) -> Result<(), ConfigError> {
         let spec = file
             .sandboxes
             .get(name)
@@ -282,8 +274,7 @@ impl ConfigLoader {
         let env_clone = spec.env.clone();
         spec.env.clear();
         for (k, v) in env_clone {
-            spec.env
-                .insert(substitute(&k, vars)?, substitute(&v, vars)?);
+            spec.env.insert(substitute(&k, vars)?, substitute(&v, vars)?);
         }
         let args_clone = spec.args.clone();
         spec.args.clear();
@@ -368,9 +359,7 @@ pub fn parse_size(s: &str) -> Result<u64, ConfigError> {
         (s, 1)
     };
 
-    let num: u64 = num_str
-        .parse()
-        .map_err(|_| ConfigError::InvalidResource(s.to_string()))?;
+    let num: u64 = num_str.parse().map_err(|_| ConfigError::InvalidResource(s.to_string()))?;
     Ok(num * multiplier)
 }
 
@@ -379,10 +368,7 @@ pub fn parse_duration(s: &str) -> Result<std::time::Duration, ConfigError> {
     let s = s.trim();
     // Check ms before m and s to avoid partial matches
     if let Some(n) = s.strip_suffix("ms") {
-        let num: u64 = n
-            .trim()
-            .parse()
-            .map_err(|_| ConfigError::InvalidResource(s.to_string()))?;
+        let num: u64 = n.trim().parse().map_err(|_| ConfigError::InvalidResource(s.to_string()))?;
         return Ok(std::time::Duration::from_millis(num));
     }
     let (num_str, multiplier) = if let Some(n) = s.strip_suffix('h') {
@@ -396,9 +382,7 @@ pub fn parse_duration(s: &str) -> Result<std::time::Duration, ConfigError> {
         (s, 1)
     };
 
-    let num: u64 = num_str
-        .parse()
-        .map_err(|_| ConfigError::InvalidResource(s.to_string()))?;
+    let num: u64 = num_str.parse().map_err(|_| ConfigError::InvalidResource(s.to_string()))?;
     Ok(std::time::Duration::from_secs(num * multiplier))
 }
 
@@ -492,8 +476,7 @@ environments:
 
     #[test]
     fn test_variable_override() {
-        let loader = ConfigLoader::new()
-            .with_variable("MODULE_PATH", "/custom/path");
+        let loader = ConfigLoader::new().with_variable("MODULE_PATH", "/custom/path");
         let file = loader.load_yaml(BASIC_YAML).unwrap();
         let hello = &file.sandboxes["hello"];
         assert_eq!(hello.module.as_deref(), Some("/custom/path/hello.wasm"));
@@ -526,10 +509,7 @@ environments:
         assert_eq!(app.env.get("LOG_LEVEL").unwrap(), "warn");
         // Production adds memory override
         assert!(app.resources.is_some());
-        assert_eq!(
-            app.resources.as_ref().unwrap().memory.as_deref(),
-            Some("256MB")
-        );
+        assert_eq!(app.resources.as_ref().unwrap().memory.as_deref(), Some("256MB"));
     }
 
     #[test]

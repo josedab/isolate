@@ -17,8 +17,6 @@
 //! - Affinity/anti-affinity rules
 //! - Geographic proximity
 
-
-
 use super::{NodeAddr, NodeId};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -40,9 +38,7 @@ pub enum DiscoveryMethod {
 
 impl Default for DiscoveryMethod {
     fn default() -> Self {
-        DiscoveryMethod::Static {
-            addresses: Vec::new(),
-        }
+        DiscoveryMethod::Static { addresses: Vec::new() }
     }
 }
 
@@ -183,10 +179,7 @@ pub struct DiscoveryService {
 impl DiscoveryService {
     /// Create a new discovery service.
     pub fn new(config: DiscoveryConfig) -> Self {
-        Self {
-            config,
-            nodes: RwLock::new(HashMap::new()),
-        }
+        Self { config, nodes: RwLock::new(HashMap::new()) }
     }
 
     /// Register a node (used by static discovery or gossip propagation).
@@ -254,12 +247,8 @@ impl DiscoveryService {
         candidates.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         candidates.first().map(|(id, score, reasons)| {
-            let alternatives: Vec<(NodeId, f64)> = candidates
-                .iter()
-                .skip(1)
-                .take(3)
-                .map(|(id, score, _)| (*id, *score))
-                .collect();
+            let alternatives: Vec<(NodeId, f64)> =
+                candidates.iter().skip(1).take(3).map(|(id, score, _)| (*id, *score)).collect();
 
             PlacementDecision {
                 node_id: *id,
@@ -276,9 +265,7 @@ impl DiscoveryService {
         nodes
             .values()
             .filter(|n| {
-                labels.iter().all(|(k, v)| {
-                    n.capabilities.labels.get(k).map_or(false, |nv| nv == v)
-                })
+                labels.iter().all(|(k, v)| n.capabilities.labels.get(k).map_or(false, |nv| nv == v))
             })
             .cloned()
             .collect()
@@ -288,9 +275,7 @@ impl DiscoveryService {
     pub fn evict_stale(&self, timeout: Duration) -> usize {
         let mut nodes = self.nodes.write().expect("discovery lock poisoned");
         let before = nodes.len();
-        nodes.retain(|_, n| {
-            n.last_seen.map_or(true, |seen| seen.elapsed() < timeout)
-        });
+        nodes.retain(|_, n| n.last_seen.map_or(true, |seen| seen.elapsed() < timeout));
         before - nodes.len()
     }
 

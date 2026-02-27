@@ -40,10 +40,7 @@ pub struct RpcRegistry {
 impl RpcRegistry {
     /// Create a new RPC registry.
     pub fn new() -> Self {
-        Self {
-            services: DashMap::new(),
-            stats: Arc::new(RpcStats::default()),
-        }
+        Self { services: DashMap::new(), stats: Arc::new(RpcStats::default()) }
     }
 
     /// Register a sandbox as a named service endpoint.
@@ -145,12 +142,7 @@ impl RpcResponse {
 
     /// Create an error response.
     pub fn error(message: impl Into<String>, duration: Duration) -> Self {
-        Self {
-            success: false,
-            payload: Vec::new(),
-            error: Some(message.into()),
-            duration,
-        }
+        Self { success: false, payload: Vec::new(), error: Some(message.into()), duration }
     }
 }
 
@@ -214,11 +206,7 @@ pub struct CircuitBreakerConfig {
 
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
-        Self {
-            failure_threshold: 5,
-            open_duration: Duration::from_secs(30),
-            success_threshold: 2,
-        }
+        Self { failure_threshold: 5, open_duration: Duration::from_secs(30), success_threshold: 2 }
     }
 }
 
@@ -387,8 +375,7 @@ mod tests {
 
     #[test]
     fn test_trace_context() {
-        let ctx = TraceContext::new("abc123", "def456")
-            .with_baggage("user_id", "u123");
+        let ctx = TraceContext::new("abc123", "def456").with_baggage("user_id", "u123");
 
         assert!(ctx.is_sampled());
         assert_eq!(ctx.baggage.get("user_id"), Some(&"u123".to_string()));
@@ -568,10 +555,7 @@ mod tests {
 
     #[test]
     fn test_trace_context_to_traceparent_format() {
-        let ctx = TraceContext::new(
-            "0af7651916cd43dd8448eb211c80319c",
-            "b7ad6b7169203331",
-        );
+        let ctx = TraceContext::new("0af7651916cd43dd8448eb211c80319c", "b7ad6b7169203331");
         let tp = ctx.to_traceparent();
         // W3C format: version-trace_id-span_id-flags
         assert!(tp.starts_with("00-"));

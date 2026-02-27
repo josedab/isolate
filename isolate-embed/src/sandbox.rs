@@ -159,8 +159,7 @@ impl Sandbox {
         engine_config.wasm_simd(true);
         engine_config.wasm_bulk_memory(true);
 
-        let engine = Engine::new(&engine_config)
-            .map_err(|e| Error::Engine(e.to_string()))?;
+        let engine = Engine::new(&engine_config).map_err(|e| Error::Engine(e.to_string()))?;
 
         let module = Module::from_binary(&engine, &config.wasm_bytes)
             .map_err(|e| Error::Compilation(e.to_string()))?;
@@ -206,9 +205,7 @@ impl Sandbox {
         let wasi = wasi_builder.build_p1();
 
         // Memory limits
-        let limits = StoreLimitsBuilder::new()
-            .memory_size(self.config.memory_limit)
-            .build();
+        let limits = StoreLimitsBuilder::new().memory_size(self.config.memory_limit).build();
 
         let host_state = HostState { wasi, limits };
         let mut store = Store::new(&self.engine, host_state);
@@ -232,7 +229,12 @@ impl Sandbox {
         // Find entry point
         let entry = instance
             .get_typed_func::<(), ()>(&mut store, &self.config.entry_point)
-            .map_err(|e| Error::Execution(format!("Entry point '{}' not found: {}", self.config.entry_point, e)))?;
+            .map_err(|e| {
+                Error::Execution(format!(
+                    "Entry point '{}' not found: {}",
+                    self.config.entry_point, e
+                ))
+            })?;
 
         // Execute
         let exit_code = match entry.call(&mut store, ()) {
@@ -266,13 +268,7 @@ impl Sandbox {
         let stdout: Vec<u8> = stdout_pipe.try_into_inner().unwrap_or_default().into();
         let stderr: Vec<u8> = stderr_pipe.try_into_inner().unwrap_or_default().into();
 
-        Ok(Output {
-            exit_code,
-            stdout,
-            stderr,
-            duration,
-            fuel_consumed,
-        })
+        Ok(Output { exit_code, stdout, stderr, duration, fuel_consumed })
     }
 
     /// Get the module hash.

@@ -3,8 +3,6 @@
 //! Provides Raft-based leader election, split-brain protection,
 //! and work-stealing scheduling for the mesh cluster.
 
-
-
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{Duration, Instant};

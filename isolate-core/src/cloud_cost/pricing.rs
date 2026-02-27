@@ -74,7 +74,14 @@ impl PricingTracker {
     }
 
     /// Update with explicit tier and timestamp.
-    pub fn update_price_full(&self, provider_id: &str, region_id: &str, price: f64, tier: PricingTier, timestamp: u64) {
+    pub fn update_price_full(
+        &self,
+        provider_id: &str,
+        region_id: &str,
+        price: f64,
+        tier: PricingTier,
+        timestamp: u64,
+    ) {
         let key = format!("{}:{}", provider_id, region_id);
         let point = PricePoint {
             provider_id: provider_id.to_string(),
@@ -98,14 +105,19 @@ impl PricingTracker {
     pub fn cheapest_options(&self) -> Vec<PricePoint> {
         let prices = self.inner.current_prices.read();
         let mut sorted: Vec<PricePoint> = prices.values().cloned().collect();
-        sorted.sort_by(|a, b| a.price_per_execution.partial_cmp(&b.price_per_execution).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| {
+            a.price_per_execution
+                .partial_cmp(&b.price_per_execution)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         sorted
     }
 
     /// Get average price for a provider across all regions.
     pub fn average_price(&self, provider_id: &str) -> Option<f64> {
         let prices = self.inner.current_prices.read();
-        let provider_prices: Vec<f64> = prices.values()
+        let provider_prices: Vec<f64> = prices
+            .values()
             .filter(|p| p.provider_id == provider_id)
             .map(|p| p.price_per_execution)
             .collect();

@@ -53,10 +53,7 @@ pub struct RegistrySecurity {
 impl RegistrySecurity {
     /// Create a new `RegistrySecurity` instance.
     pub fn new() -> Self {
-        Self {
-            scanner: VulnerabilityScanner::new(),
-            provenance_store: ProvenanceStore::new(),
-        }
+        Self { scanner: VulnerabilityScanner::new(), provenance_store: ProvenanceStore::new() }
     }
 
     /// Sign a module, create a default provenance record, and store it.
@@ -462,10 +459,7 @@ mod tests {
         // Contains both proc_exit (Low) and fd_write (Info)
         let report = scanner.scan(b"proc_exit fd_write");
         assert_eq!(*report.severity_counts.get(&Severity::Low).unwrap_or(&0), 1);
-        assert_eq!(
-            *report.severity_counts.get(&Severity::Info).unwrap_or(&0),
-            1
-        );
+        assert_eq!(*report.severity_counts.get(&Severity::Info).unwrap_or(&0), 1);
     }
 
     // -- RegistrySecurity --------------------------------------------------
@@ -647,7 +641,11 @@ mod tests {
         invalid.signature = "tampered".into();
 
         // All valid chain
-        let chain = SignatureVerifier::verify_chain(&data, &[valid1.clone(), valid2.clone()], key.as_bytes());
+        let chain = SignatureVerifier::verify_chain(
+            &data,
+            &[valid1.clone(), valid2.clone()],
+            key.as_bytes(),
+        );
         assert!(chain.all_valid);
 
         // Mixed chain: one valid + one invalid

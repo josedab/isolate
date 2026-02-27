@@ -259,11 +259,13 @@ impl AtomicResourceUsage {
     }
 
     /// Add CPU time.
+    #[allow(dead_code)]
     pub fn add_cpu_time(&self, ms: u64) {
         self.total_cpu_time_ms.fetch_add(ms, Ordering::SeqCst);
     }
 
     /// Add I/O bytes.
+    #[allow(dead_code)]
     pub fn add_io_bytes(&self, bytes: u64) {
         self.total_io_bytes.fetch_add(bytes, Ordering::SeqCst);
     }

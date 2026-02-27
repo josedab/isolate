@@ -150,11 +150,7 @@ entry_point = "_start"
         let dir = tempfile::tempdir().unwrap();
         let child = dir.path().join("sub").join("deep");
         std::fs::create_dir_all(&child).unwrap();
-        std::fs::write(
-            dir.path().join(".isolate.toml"),
-            "[project]\nname = \"found\"\n",
-        )
-        .unwrap();
+        std::fs::write(dir.path().join(".isolate.toml"), "[project]\nname = \"found\"\n").unwrap();
 
         let result = load_project_config_from(child);
         let config = result.expect("should find config in parent");

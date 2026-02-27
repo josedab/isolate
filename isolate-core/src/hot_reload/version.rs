@@ -67,9 +67,7 @@ pub struct VersionRegistry {
 
 impl VersionRegistry {
     pub fn new() -> Self {
-        Self {
-            versions: dashmap::DashMap::new(),
-        }
+        Self { versions: dashmap::DashMap::new() }
     }
 
     pub fn register(&self, version: ModuleVersion) {
@@ -105,11 +103,7 @@ pub enum VersionRoute {
     /// Route all traffic to a single version.
     Single(VersionId),
     /// Canary deployment: route `canary_pct`% to new, rest to primary.
-    Canary {
-        primary: VersionId,
-        canary: VersionId,
-        canary_pct: u8,
-    },
+    Canary { primary: VersionId, canary: VersionId, canary_pct: u8 },
 }
 
 impl VersionRoute {
@@ -118,11 +112,7 @@ impl VersionRoute {
     }
 
     pub fn canary(primary: VersionId, canary: VersionId, pct: u8) -> Self {
-        Self::Canary {
-            primary,
-            canary,
-            canary_pct: pct.min(100),
-        }
+        Self::Canary { primary, canary, canary_pct: pct.min(100) }
     }
 }
 
@@ -149,14 +139,8 @@ impl VersionRouter {
         let route = self.route.read();
         match route.as_ref()? {
             VersionRoute::Single(id) => Some(id.clone()),
-            VersionRoute::Canary {
-                primary,
-                canary,
-                canary_pct,
-            } => {
-                let n = self
-                    .counter
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            VersionRoute::Canary { primary, canary, canary_pct } => {
+                let n = self.counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 if (n % 100) < (*canary_pct as u64) {
                     Some(canary.clone())
                 } else {

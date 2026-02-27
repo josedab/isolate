@@ -54,10 +54,8 @@ pub struct RegionInfo {
 
 impl RegionInfo {
     pub fn new(id: impl Into<String>, is_primary: bool) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        let now =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
         Self {
             id: RegionId::new(id),
             is_primary,
@@ -83,10 +81,7 @@ struct RegionHealthState {
 
 impl RegionRegistry {
     pub fn new() -> Self {
-        Self {
-            regions: dashmap::DashMap::new(),
-            health: dashmap::DashMap::new(),
-        }
+        Self { regions: dashmap::DashMap::new(), health: dashmap::DashMap::new() }
     }
 
     pub fn register(&self, info: RegionInfo) {
@@ -130,16 +125,9 @@ impl RegionRegistry {
             state.total_requests += 1;
         }
         if let Some(mut info) = self.regions.get_mut(id) {
-            let failures = self
-                .health
-                .get(id)
-                .map(|s| s.consecutive_failures)
-                .unwrap_or(0);
-            info.status = if failures >= 3 {
-                RegionStatus::Unhealthy
-            } else {
-                RegionStatus::Degraded
-            };
+            let failures = self.health.get(id).map(|s| s.consecutive_failures).unwrap_or(0);
+            info.status =
+                if failures >= 3 { RegionStatus::Unhealthy } else { RegionStatus::Degraded };
         }
     }
 
@@ -155,10 +143,8 @@ impl RegionRegistry {
             last_heartbeat_epoch_ms: state
                 .last_heartbeat
                 .map(|_| {
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as u64
+                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis()
+                        as u64
                 })
                 .unwrap_or(0),
             consecutive_failures: state.consecutive_failures,
@@ -169,10 +155,7 @@ impl RegionRegistry {
 
     /// Get the primary region.
     pub fn primary(&self) -> Option<RegionInfo> {
-        self.regions
-            .iter()
-            .find(|e| e.value().is_primary)
-            .map(|e| e.value().clone())
+        self.regions.iter().find(|e| e.value().is_primary).map(|e| e.value().clone())
     }
 
     /// List all healthy regions.
@@ -258,10 +241,7 @@ mod tests {
         reg.record_failure(&id);
         reg.record_failure(&id);
         reg.record_failure(&id);
-        assert_eq!(
-            reg.get_health(&id).unwrap().status,
-            RegionStatus::Unhealthy
-        );
+        assert_eq!(reg.get_health(&id).unwrap().status, RegionStatus::Unhealthy);
 
         reg.record_heartbeat(&id, 10);
         assert_eq!(reg.get_health(&id).unwrap().status, RegionStatus::Healthy);

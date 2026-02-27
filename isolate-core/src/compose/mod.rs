@@ -250,12 +250,8 @@ impl Composer {
 
     /// Check for unresolved imports (imports with no matching link).
     fn check_unresolved_imports(&self) -> Result<(), ComposeError> {
-        let linked_imports: std::collections::HashSet<(&str, &str)> = self
-            .config
-            .links
-            .iter()
-            .map(|l| (l.to.as_str(), l.to_interface.as_str()))
-            .collect();
+        let linked_imports: std::collections::HashSet<(&str, &str)> =
+            self.config.links.iter().map(|l| (l.to.as_str(), l.to_interface.as_str())).collect();
 
         for (id, component) in &self.config.components {
             for import in &component.imports {
@@ -264,9 +260,10 @@ impl Composer {
                 }
                 if !linked_imports.contains(&(id.as_str(), import.name.as_str())) {
                     // Check if any other component provides this interface
-                    let provided = self.config.components.values().any(|c| {
-                        c.id != *id && c.exports.iter().any(|e| e.name == import.name)
-                    });
+                    let provided =
+                        self.config.components.values().any(|c| {
+                            c.id != *id && c.exports.iter().any(|e| e.name == import.name)
+                        });
                     if !provided {
                         return Err(ComposeError::UnresolvedImport {
                             component: id.clone(),
@@ -419,7 +416,10 @@ impl WitParser {
             }
             if line.contains(": func(") || line.contains(": func()") {
                 functions.push(Self::parse_function(line)?);
-            } else if line.starts_with("record ") || line.starts_with("enum ") || line.starts_with("flags ") {
+            } else if line.starts_with("record ")
+                || line.starts_with("enum ")
+                || line.starts_with("flags ")
+            {
                 types.push(Self::parse_type_def(line)?);
             }
         }
@@ -522,14 +522,14 @@ impl WitParser {
     }
 
     fn parse_type_def(line: &str) -> Result<TypeDefinition, ComposeError> {
-        if line.starts_with("enum ") {
-            let name = line["enum ".len()..].trim().to_string();
+        if let Some(rest) = line.strip_prefix("enum ") {
+            let name = rest.trim().to_string();
             Ok(TypeDefinition { name, kind: TypeKind::Enum(Vec::new()) })
-        } else if line.starts_with("flags ") {
-            let name = line["flags ".len()..].trim().to_string();
+        } else if let Some(rest) = line.strip_prefix("flags ") {
+            let name = rest.trim().to_string();
             Ok(TypeDefinition { name, kind: TypeKind::Flags(Vec::new()) })
-        } else if line.starts_with("record ") {
-            let name = line["record ".len()..].trim().to_string();
+        } else if let Some(rest) = line.strip_prefix("record ") {
+            let name = rest.trim().to_string();
             Ok(TypeDefinition { name, kind: TypeKind::Record(Vec::new()) })
         } else {
             Err(ComposeError::InterfaceMismatch(
@@ -589,9 +589,8 @@ impl CapabilityBoundaryValidator {
                     }
 
                     // Check that consumer has at least read access
-                    let has_access = to_caps.granted.iter().any(|g| {
-                        g == &link.to_interface || g == "*"
-                    });
+                    let has_access =
+                        to_caps.granted.iter().any(|g| g == &link.to_interface || g == "*");
                     if !has_access && !to_caps.granted.is_empty() {
                         violations.push(CapabilityBoundaryViolation {
                             from_component: link.from.clone(),
@@ -679,15 +678,31 @@ mod tests {
         let a = Component {
             id: "a".to_string(),
             name: "a".to_string(),
-            exports: vec![Interface { name: "from-a".to_string(), functions: vec![], types: vec![] }],
-            imports: vec![Interface { name: "from-b".to_string(), functions: vec![], types: vec![] }],
+            exports: vec![Interface {
+                name: "from-a".to_string(),
+                functions: vec![],
+                types: vec![],
+            }],
+            imports: vec![Interface {
+                name: "from-b".to_string(),
+                functions: vec![],
+                types: vec![],
+            }],
             bytes: vec![],
         };
         let b = Component {
             id: "b".to_string(),
             name: "b".to_string(),
-            exports: vec![Interface { name: "from-b".to_string(), functions: vec![], types: vec![] }],
-            imports: vec![Interface { name: "from-a".to_string(), functions: vec![], types: vec![] }],
+            exports: vec![Interface {
+                name: "from-b".to_string(),
+                functions: vec![],
+                types: vec![],
+            }],
+            imports: vec![Interface {
+                name: "from-a".to_string(),
+                functions: vec![],
+                types: vec![],
+            }],
             bytes: vec![],
         };
 
@@ -696,19 +711,23 @@ mod tests {
         composer.set_root("a").unwrap();
 
         // a exports from-a → b imports from-a
-        composer.link(ComponentLink {
-            from: "a".to_string(),
-            from_interface: "from-a".to_string(),
-            to: "b".to_string(),
-            to_interface: "from-a".to_string(),
-        }).unwrap();
+        composer
+            .link(ComponentLink {
+                from: "a".to_string(),
+                from_interface: "from-a".to_string(),
+                to: "b".to_string(),
+                to_interface: "from-a".to_string(),
+            })
+            .unwrap();
         // b exports from-b → a imports from-b
-        composer.link(ComponentLink {
-            from: "b".to_string(),
-            from_interface: "from-b".to_string(),
-            to: "a".to_string(),
-            to_interface: "from-b".to_string(),
-        }).unwrap();
+        composer
+            .link(ComponentLink {
+                from: "b".to_string(),
+                from_interface: "from-b".to_string(),
+                to: "a".to_string(),
+                to_interface: "from-b".to_string(),
+            })
+            .unwrap();
 
         let result = composer.compose();
         match &result {
@@ -722,7 +741,8 @@ mod tests {
         let mut composer = Composer::new();
 
         let mut app = create_test_component("app");
-        app.imports = vec![Interface { name: "logger-api".to_string(), functions: vec![], types: vec![] }];
+        app.imports =
+            vec![Interface { name: "logger-api".to_string(), functions: vec![], types: vec![] }];
 
         let logger = create_test_component("logger");
 
@@ -730,12 +750,14 @@ mod tests {
         composer.add_component(logger);
         composer.set_root("app").unwrap();
 
-        composer.link(ComponentLink {
-            from: "logger".to_string(),
-            from_interface: "api".to_string(),
-            to: "app".to_string(),
-            to_interface: "logger-api".to_string(),
-        }).unwrap();
+        composer
+            .link(ComponentLink {
+                from: "logger".to_string(),
+                from_interface: "api".to_string(),
+                to: "app".to_string(),
+                to_interface: "logger-api".to_string(),
+            })
+            .unwrap();
 
         let composed = composer.compose().unwrap();
         // logger should come before app in execution order
@@ -773,12 +795,14 @@ mod tests {
         composer.add_component(a);
         composer.add_component(b);
 
-        composer.link(ComponentLink {
-            from: "a".to_string(),
-            from_interface: "api".to_string(),
-            to: "b".to_string(),
-            to_interface: "api".to_string(),
-        }).unwrap();
+        composer
+            .link(ComponentLink {
+                from: "a".to_string(),
+                from_interface: "api".to_string(),
+                to: "b".to_string(),
+                to_interface: "api".to_string(),
+            })
+            .unwrap();
 
         let errors = composer.validate_types();
         assert!(errors.is_empty(), "Expected no type errors, got {:?}", errors);
@@ -841,10 +865,7 @@ mod tests {
             process: func(items: list<u32>) -> list<string>
         }"#;
         let iface = WitParser::parse_interface(wit).unwrap();
-        assert_eq!(
-            iface.functions[0].params[0].1,
-            WitType::List(Box::new(WitType::U32))
-        );
+        assert_eq!(iface.functions[0].params[0].1, WitType::List(Box::new(WitType::U32)));
     }
 
     #[test]

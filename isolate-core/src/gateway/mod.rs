@@ -26,21 +26,20 @@
 #![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
-
-mod router;
-mod types;
 pub mod http_handler;
 pub mod namespace;
+mod router;
+mod types;
 pub mod websocket;
 
+pub use namespace::{
+    IsolationLevel, Namespace, NamespaceAuditEntry, NamespaceId, NamespaceManager, NamespaceStatus,
+    QuotaCheckResult, TenantQuota, UsageSnapshot,
+};
 pub use router::{GatewayConfig, GatewayRouter, RateLimitConfig, Route, RouteHandler};
 pub use types::{
     ApiError, ApiResponse, CreateSandboxRequest, ListSandboxesResponse, RunSandboxRequest,
     RunSandboxResponse, SandboxInfo,
-};
-pub use namespace::{
-    IsolationLevel, Namespace, NamespaceAuditEntry, NamespaceId, NamespaceManager,
-    NamespaceStatus, QuotaCheckResult, TenantQuota, UsageSnapshot,
 };
 
 #[cfg(test)]

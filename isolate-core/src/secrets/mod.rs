@@ -10,7 +10,6 @@
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 
-
 pub mod compliance;
 pub mod rotation;
 
@@ -372,9 +371,7 @@ impl SecretsManager {
                     .canonicalize()
                     .map_err(|e| SecretsError::ProviderError(e.to_string()))?;
                 if !canonical.starts_with(&base) {
-                    return Err(SecretsError::ProviderError(
-                        "path traversal denied".to_string(),
-                    ));
+                    return Err(SecretsError::ProviderError("path traversal denied".to_string()));
                 }
                 std::fs::read(&canonical)
                     .map(SecretValue::new)

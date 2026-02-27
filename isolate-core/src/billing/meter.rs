@@ -25,10 +25,8 @@ impl BillingEvent {
         resource_usage: &ResourceUsage,
         exit_code: i32,
     ) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        let now =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
 
         Self {
             tenant_id,
@@ -81,15 +79,9 @@ impl BillingMeter {
 
     /// Record a billing event.
     pub fn record(&self, event: BillingEvent) {
-        self.inner
-            .total_fuel
-            .fetch_add(event.fuel_consumed, Ordering::Relaxed);
-        self.inner
-            .total_bytes_read
-            .fetch_add(event.bytes_read, Ordering::Relaxed);
-        self.inner
-            .total_bytes_written
-            .fetch_add(event.bytes_written, Ordering::Relaxed);
+        self.inner.total_fuel.fetch_add(event.fuel_consumed, Ordering::Relaxed);
+        self.inner.total_bytes_read.fetch_add(event.bytes_read, Ordering::Relaxed);
+        self.inner.total_bytes_written.fetch_add(event.bytes_written, Ordering::Relaxed);
         self.inner.total_events.fetch_add(1, Ordering::Relaxed);
 
         let mut events = self.inner.events.lock();
@@ -131,9 +123,7 @@ impl Default for BillingMeter {
 
 impl Clone for BillingMeter {
     fn clone(&self) -> Self {
-        Self {
-            inner: Arc::clone(&self.inner),
-        }
+        Self { inner: Arc::clone(&self.inner) }
     }
 }
 

@@ -144,10 +144,7 @@ impl PreWarmEngine {
     }
 
     /// Evaluate all modules and produce pre-warming decisions.
-    pub fn evaluate(
-        &mut self,
-        current_counts: &HashMap<String, usize>,
-    ) -> Vec<PreWarmDecision> {
+    pub fn evaluate(&mut self, current_counts: &HashMap<String, usize>) -> Vec<PreWarmDecision> {
         self.last_evaluation = Some(Instant::now());
         let mut decisions = Vec::new();
 
@@ -168,14 +165,14 @@ impl PreWarmEngine {
                 action: action.clone(),
                 reason: match &action {
                     PreWarmAction::ScaleUp(n) => {
-                        format!("need {} more instances (target={}, current={})", n, target, current)
+                        format!(
+                            "need {} more instances (target={}, current={})",
+                            n, target, current
+                        )
                     }
                     PreWarmAction::NoChange => "at target level".to_string(),
                     PreWarmAction::ScaleDown(n) => {
-                        format!(
-                            "{} excess instances (target={}, current={})",
-                            n, target, current
-                        )
+                        format!("{} excess instances (target={}, current={})", n, target, current)
                     }
                 },
             });
@@ -185,16 +182,9 @@ impl PreWarmEngine {
     }
 
     /// Evaluate a single module.
-    pub fn evaluate_module(
-        &mut self,
-        module_name: &str,
-        current_count: usize,
-    ) -> PreWarmDecision {
-        let strategy = self
-            .config
-            .module_strategies
-            .get(module_name)
-            .unwrap_or(&self.config.default_strategy);
+    pub fn evaluate_module(&mut self, module_name: &str, current_count: usize) -> PreWarmDecision {
+        let strategy =
+            self.config.module_strategies.get(module_name).unwrap_or(&self.config.default_strategy);
 
         let target = self.compute_target(module_name, strategy);
         let action = self.compute_action(module_name, current_count, target);
@@ -213,7 +203,11 @@ impl PreWarmEngine {
     }
 
     /// Update the strategy for a module at runtime.
-    pub fn set_module_strategy(&mut self, module_name: impl Into<String>, strategy: PreWarmStrategy) {
+    pub fn set_module_strategy(
+        &mut self,
+        module_name: impl Into<String>,
+        strategy: PreWarmStrategy,
+    ) {
         self.config.module_strategies.insert(module_name.into(), strategy);
     }
 
@@ -221,11 +215,8 @@ impl PreWarmEngine {
         match strategy {
             PreWarmStrategy::Fixed { target_count } => *target_count,
             PreWarmStrategy::RateBased { window, lead_time, min_instances, max_instances } => {
-                let rate = self
-                    .trackers
-                    .get(module_name)
-                    .map(|t| t.request_rate(*window))
-                    .unwrap_or(0.0);
+                let rate =
+                    self.trackers.get(module_name).map(|t| t.request_rate(*window)).unwrap_or(0.0);
                 let needed = (rate * lead_time.as_secs_f64()).ceil() as usize;
                 needed.clamp(*min_instances, *max_instances)
             }
@@ -401,10 +392,8 @@ mod tests {
 
     #[test]
     fn test_should_evaluate_timing() {
-        let config = PreWarmConfig {
-            evaluation_interval: Duration::from_millis(10),
-            ..Default::default()
-        };
+        let config =
+            PreWarmConfig { evaluation_interval: Duration::from_millis(10), ..Default::default() };
         let mut engine = PreWarmEngine::new(config);
 
         assert!(engine.should_evaluate()); // never evaluated

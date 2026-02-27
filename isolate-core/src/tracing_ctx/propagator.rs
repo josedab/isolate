@@ -94,10 +94,7 @@ impl TraceContextPropagator {
 
     /// Inject trace context into a header map.
     pub fn inject_into_headers(&self, ctx: &SpanContext) -> Vec<(String, String)> {
-        let mut headers = vec![(
-            "traceparent".to_string(),
-            self.inject_traceparent(ctx),
-        )];
+        let mut headers = vec![("traceparent".to_string(), self.inject_traceparent(ctx))];
 
         if !ctx.trace_state().is_empty() {
             let tracestate: String = ctx
@@ -183,10 +180,7 @@ mod tests {
             .extract_traceparent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
             .unwrap();
         let header = prop.inject_traceparent(&ctx);
-        assert_eq!(
-            header,
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-        );
+        assert_eq!(header, "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
     }
 
     #[test]

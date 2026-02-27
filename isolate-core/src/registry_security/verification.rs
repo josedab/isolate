@@ -56,10 +56,8 @@ impl SignatureVerifier {
         signatures: &[ModuleSignature],
         key: &[u8],
     ) -> ChainVerificationResult {
-        let results: Vec<VerificationResult> = signatures
-            .iter()
-            .map(|sig| Self::verify_signature(module_bytes, sig, key))
-            .collect();
+        let results: Vec<VerificationResult> =
+            signatures.iter().map(|sig| Self::verify_signature(module_bytes, sig, key)).collect();
         let all_valid = !results.is_empty() && results.iter().all(|r| r.valid);
         ChainVerificationResult { all_valid, results }
     }

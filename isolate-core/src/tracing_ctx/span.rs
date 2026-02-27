@@ -126,10 +126,7 @@ pub struct SpanRecorder {
 
 impl SpanRecorder {
     pub fn new(max_spans: usize) -> Self {
-        Self {
-            spans: parking_lot::Mutex::new(Vec::with_capacity(max_spans.min(256))),
-            max_spans,
-        }
+        Self { spans: parking_lot::Mutex::new(Vec::with_capacity(max_spans.min(256))), max_spans }
     }
 
     /// Record a completed span.
@@ -198,8 +195,7 @@ mod tests {
         let span = SpanBuilder::new("op").build_with_status(SpanStatus::Ok);
         assert!(matches!(span.status, SpanStatus::Ok));
 
-        let span =
-            SpanBuilder::new("op").build_with_status(SpanStatus::Error("timeout".into()));
+        let span = SpanBuilder::new("op").build_with_status(SpanStatus::Error("timeout".into()));
         assert!(matches!(span.status, SpanStatus::Error(_)));
     }
 

@@ -67,11 +67,7 @@ pub struct WarmingRecommendation {
 impl AccessTracker {
     /// Create a new access tracker.
     pub fn new(config: AutoWarmConfig) -> Self {
-        Self {
-            config,
-            modules: RwLock::new(HashMap::new()),
-            total_accesses: AtomicU64::new(0),
-        }
+        Self { config, modules: RwLock::new(HashMap::new()), total_accesses: AtomicU64::new(0) }
     }
 
     /// Record an access to a module.

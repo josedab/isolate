@@ -100,7 +100,10 @@ impl SafetyLayer {
                 IRInstruction::Load(..) | IRInstruction::Store(..) => memory_accesses += 1,
                 IRInstruction::MemoryGrow => memory_accesses += 1,
                 IRInstruction::CallIndirect(_) => indirect_calls += 1,
-                IRInstruction::DivS(_) | IRInstruction::DivU(_) | IRInstruction::RemS(_) | IRInstruction::RemU(_) => divisions += 1,
+                IRInstruction::DivS(_)
+                | IRInstruction::DivU(_)
+                | IRInstruction::RemS(_)
+                | IRInstruction::RemU(_) => divisions += 1,
                 _ => {}
             }
         }
@@ -113,19 +116,18 @@ impl SafetyLayer {
         };
 
         let total_instructions = func.body.len();
-        let fuel_checks_needed = if self.config.insert_fuel_checks && self.config.fuel_check_interval > 0 {
-            total_instructions / self.config.fuel_check_interval as usize
-        } else {
-            0
-        };
+        let fuel_checks_needed =
+            if self.config.insert_fuel_checks && self.config.fuel_check_interval > 0 {
+                total_instructions / self.config.fuel_check_interval as usize
+            } else {
+                0
+            };
 
-        let stack_checks_needed = if self.config.insert_stack_checks {
-            func.call_count()
-        } else {
-            0
-        };
+        let stack_checks_needed =
+            if self.config.insert_stack_checks { func.call_count() } else { 0 };
 
-        let total_checks = bounds_checks_needed + fuel_checks_needed + stack_checks_needed + divisions;
+        let total_checks =
+            bounds_checks_needed + fuel_checks_needed + stack_checks_needed + divisions;
         let overhead = if total_instructions > 0 {
             total_checks as f64 / total_instructions as f64 * 100.0
         } else {
@@ -197,10 +199,7 @@ mod tests {
             bounds_check: BoundsCheckMode::GuardPages,
             ..Default::default()
         });
-        let func = make_func(vec![
-            IRInstruction::Load(IRType::I32, 0, 2),
-            IRInstruction::Return,
-        ]);
+        let func = make_func(vec![IRInstruction::Load(IRType::I32, 0, 2), IRInstruction::Return]);
 
         let check = layer.analyze_function(&func);
         assert_eq!(check.memory_accesses, 1);
@@ -209,10 +208,8 @@ mod tests {
 
     #[test]
     fn test_fuel_check_interval() {
-        let layer = SafetyLayer::new(SafetyConfig {
-            fuel_check_interval: 10,
-            ..Default::default()
-        });
+        let layer =
+            SafetyLayer::new(SafetyConfig { fuel_check_interval: 10, ..Default::default() });
 
         let body: Vec<IRInstruction> = (0..50).map(|_| IRInstruction::Nop).collect();
         let func = make_func(body);
@@ -282,10 +279,8 @@ mod tests {
 
     #[test]
     fn test_config_access() {
-        let config = SafetyConfig {
-            bounds_check: BoundsCheckMode::GuardPages,
-            ..Default::default()
-        };
+        let config =
+            SafetyConfig { bounds_check: BoundsCheckMode::GuardPages, ..Default::default() };
         let layer = SafetyLayer::new(config);
         assert_eq!(layer.config().bounds_check, BoundsCheckMode::GuardPages);
     }

@@ -42,36 +42,35 @@
 // This module is experimental and not all APIs are used yet.
 // Allow dead code until the feature stabilizes.
 
-
 pub mod auto_warm;
 pub mod checkout_pool;
 pub mod checkpoint;
 pub mod clone_pool;
 pub mod cow;
+pub mod instant_clone;
 pub mod live;
 pub mod live_migration;
 pub mod manager;
 pub mod orchestrator;
 mod pool;
 pub mod s3_store;
-pub mod instant_clone;
 pub mod serialization;
 pub mod storage;
 
 pub use auto_warm::{AccessTracker, AutoWarmConfig, WarmingRecommendation};
+pub use clone_pool::{ClonePool, ClonePoolConfig, ClonePoolStats};
+pub use cow::{
+    CowMemoryStore, CowSnapshot, CowSnapshotDiff, CowStats, PageHash, SnapshotVersioner,
+};
 pub use instant_clone::{
-    InstantCloneEngine, CloneTemplate, CloneInstance, CrossNodeRestore, DiskSnapshotPersistence,
+    CloneInstance, CloneTemplate, CrossNodeRestore, DiskSnapshotPersistence, InstantCloneEngine,
 };
 pub use live::{
-    LiveSnapshotManager, LiveSnapshotConfig, LiveSnapshotMetrics, HealthStatus, LiveSnapshotState,
+    HealthStatus, LiveSnapshotConfig, LiveSnapshotManager, LiveSnapshotMetrics, LiveSnapshotState,
 };
 pub use live_migration::{
     FailoverPolicy, FailoverRegistry, FrozenState, LiveMigration, LiveMigrationConfig,
     LiveMigrationState, MigrationProgress,
-};
-pub use clone_pool::{ClonePool, ClonePoolConfig, ClonePoolStats};
-pub use cow::{
-    CowMemoryStore, CowSnapshot, CowSnapshotDiff, CowStats, PageHash, SnapshotVersioner,
 };
 pub use manager::{
     GcResult, RestoredState, SnapshotInfo, SnapshotManager, SnapshotManagerConfig,

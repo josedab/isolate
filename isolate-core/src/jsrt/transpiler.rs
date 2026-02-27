@@ -46,11 +46,7 @@ impl Default for TsTranspiler {
 impl TsTranspiler {
     /// Create a new transpiler.
     pub fn new() -> Self {
-        Self {
-            strip_interfaces: true,
-            strip_type_aliases: true,
-            strip_enums: false,
-        }
+        Self { strip_interfaces: true, strip_type_aliases: true, strip_enums: false }
     }
 
     /// Transpile TypeScript source to JavaScript.
@@ -237,13 +233,7 @@ fn strip_var_type(line: &str) -> String {
                     if let Some(eq_pos) = find_equals(after_colon) {
                         let name = before_colon.trim();
                         let value_part = &after_colon[eq_pos..];
-                        return format!(
-                            "{}{}{} {}",
-                            &line[..kw_pos],
-                            keyword,
-                            name,
-                            value_part
-                        );
+                        return format!("{}{}{} {}", &line[..kw_pos], keyword, name, value_part);
                     }
                 }
             }
@@ -279,7 +269,10 @@ fn strip_type_assertions(line: &str) -> String {
         let type_name = after[..end].trim();
         // Only strip if the "type" looks like a type (starts with uppercase or is a keyword)
         if type_name.starts_with(|c: char| c.is_uppercase())
-            || matches!(type_name, "string" | "number" | "boolean" | "any" | "unknown" | "never" | "void")
+            || matches!(
+                type_name,
+                "string" | "number" | "boolean" | "any" | "unknown" | "never" | "void"
+            )
         {
             result = format!("{}{}", &result[..pos], &result[pos + 4 + end..]);
         } else {
@@ -316,9 +309,8 @@ mod tests {
     #[test]
     fn test_strip_interface() {
         let transpiler = TsTranspiler::new();
-        let result = transpiler.transpile(
-            "interface User {\n  name: string;\n  age: number;\n}\nconst x = 1;",
-        );
+        let result = transpiler
+            .transpile("interface User {\n  name: string;\n  age: number;\n}\nconst x = 1;");
 
         assert!(result.success);
         assert!(!result.js_code.contains("interface"));

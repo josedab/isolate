@@ -134,10 +134,7 @@ impl FunctionRouter {
             }
 
             if let Some(params) = match_path_pattern(&route.path, path) {
-                return Some(RouteMatch {
-                    route: route.clone(),
-                    params,
-                });
+                return Some(RouteMatch { route: route.clone(), params });
             }
         }
         None
@@ -148,7 +145,8 @@ impl FunctionRouter {
         // Global rate limit — check and increment inside the lock to prevent TOCTOU
         let now = std::time::Instant::now();
         {
-            let mut window = self.global_window.lock().expect("global rate limit window lock poisoned");
+            let mut window =
+                self.global_window.lock().expect("global rate limit window lock poisoned");
             if now.duration_since(*window).as_secs() >= 1 {
                 *window = now;
                 self.global_counter.store(0, Ordering::Release);
@@ -164,7 +162,8 @@ impl FunctionRouter {
             let route = self.routes.iter().find(|r| r.path == path);
             if let Some(route) = route {
                 if let Some(limit) = route.rate_limit_rps {
-                    let mut window = state.window_start.lock().expect("route rate limit window lock poisoned");
+                    let mut window =
+                        state.window_start.lock().expect("route rate limit window lock poisoned");
                     if now.duration_since(*window).as_secs() >= 1 {
                         *window = now;
                         state.counter.store(0, Ordering::Release);
@@ -233,22 +232,14 @@ impl FunctionResponse {
     pub fn ok(body: Vec<u8>) -> Self {
         let mut headers = HashMap::new();
         headers.insert("content-type".to_string(), "application/octet-stream".to_string());
-        Self {
-            status: 200,
-            headers,
-            body,
-        }
+        Self { status: 200, headers, body }
     }
 
     /// Create a JSON 200 OK response.
     pub fn json(body: &impl Serialize) -> Self {
         let mut headers = HashMap::new();
         headers.insert("content-type".to_string(), "application/json".to_string());
-        Self {
-            status: 200,
-            headers,
-            body: serde_json::to_vec(body).unwrap_or_default(),
-        }
+        Self { status: 200, headers, body: serde_json::to_vec(body).unwrap_or_default() }
     }
 
     /// Create an error response.
@@ -256,11 +247,7 @@ impl FunctionResponse {
         let body = serde_json::json!({"error": message});
         let mut headers = HashMap::new();
         headers.insert("content-type".to_string(), "application/json".to_string());
-        Self {
-            status,
-            headers,
-            body: serde_json::to_vec(&body).unwrap_or_default(),
-        }
+        Self { status, headers, body: serde_json::to_vec(&body).unwrap_or_default() }
     }
 }
 
@@ -463,10 +450,7 @@ mod tests {
         let data = serde_json::json!({"key": "value"});
         let resp = FunctionResponse::json(&data);
         assert_eq!(resp.status, 200);
-        assert_eq!(
-            resp.headers.get("content-type").unwrap(),
-            "application/json"
-        );
+        assert_eq!(resp.headers.get("content-type").unwrap(), "application/json");
         let parsed: serde_json::Value = serde_json::from_slice(&resp.body).unwrap();
         assert_eq!(parsed["key"], "value");
     }

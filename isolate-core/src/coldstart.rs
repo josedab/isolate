@@ -109,9 +109,9 @@ impl PrecompileCache {
             .map_err(|e| Error::Compilation(e.to_string()))?;
 
         // Serialize the compiled module
-        let serialized = module.serialize().map_err(|e| Error::Engine(format!(
-            "Failed to serialize compiled module: {}", e
-        )))?;
+        let serialized = module
+            .serialize()
+            .map_err(|e| Error::Engine(format!("Failed to serialize compiled module: {}", e)))?;
 
         // Write hash file for integrity verification
         let hash_path = self.hash_path(&hash)?;
@@ -123,10 +123,8 @@ impl PrecompileCache {
         std::fs::write(&path, &serialized)?;
 
         // Track in memory cache
-        self.memory_cache.insert(hash.clone(), CacheEntry {
-            loaded_at: Instant::now(),
-            access_count: 0,
-        });
+        self.memory_cache
+            .insert(hash.clone(), CacheEntry { loaded_at: Instant::now(), access_count: 0 });
 
         // Evict oldest if over capacity
         if self.memory_cache.len() > self.max_entries {
@@ -155,9 +153,7 @@ impl PrecompileCache {
         if let Ok(expected_hex) = std::fs::read_to_string(&hash_path) {
             let actual = hex::encode(Sha256::digest(&bytes));
             if actual != expected_hex.trim() {
-                return Err(Error::Engine(
-                    "Module cache integrity check failed".to_string(),
-                ));
+                return Err(Error::Engine("Module cache integrity check failed".to_string()));
             }
         } else {
             return Err(Error::Engine(
@@ -177,10 +173,8 @@ impl PrecompileCache {
         if let Some(mut entry) = self.memory_cache.get_mut(hash) {
             entry.access_count += 1;
         } else {
-            self.memory_cache.insert(hash.clone(), CacheEntry {
-                loaded_at: Instant::now(),
-                access_count: 1,
-            });
+            self.memory_cache
+                .insert(hash.clone(), CacheEntry { loaded_at: Instant::now(), access_count: 1 });
         }
 
         self.stats.hits.fetch_add(1, Ordering::Relaxed);
@@ -237,11 +231,7 @@ impl PrecompileCache {
     }
 
     fn validate_hash_name(name: &str) -> Result<&str> {
-        if name.is_empty()
-            || !name
-                .chars()
-                .all(|c| c.is_ascii_hexdigit() || c == '_' || c == '-')
-        {
+        if name.is_empty() || !name.chars().all(|c| c.is_ascii_hexdigit() || c == '_' || c == '-') {
             return Err(Error::Execution(
                 "invalid hash format: must contain only hex digits, underscores, or hyphens"
                     .to_string(),

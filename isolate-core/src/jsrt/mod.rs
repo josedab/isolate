@@ -42,9 +42,8 @@
 #![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
-
-mod runtime;
 pub mod module_system;
+mod runtime;
 pub mod transpiler;
 
 pub use runtime::{

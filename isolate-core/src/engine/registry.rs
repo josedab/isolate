@@ -125,15 +125,10 @@ impl ModuleRegistry {
     /// Create a new module registry.
     pub fn new(config: RegistryConfig) -> Result<Self> {
         // Ensure cache directory exists
-        std::fs::create_dir_all(&config.cache_dir).map_err(|e| {
-            Error::Engine(format!("Failed to create registry cache dir: {}", e))
-        })?;
+        std::fs::create_dir_all(&config.cache_dir)
+            .map_err(|e| Error::Engine(format!("Failed to create registry cache dir: {}", e)))?;
 
-        Ok(Self {
-            config,
-            memory_cache: Arc::new(DashMap::new()),
-            stats: RegistryStats::default(),
-        })
+        Ok(Self { config, memory_cache: Arc::new(DashMap::new()), stats: RegistryStats::default() })
     }
 
     /// Create an in-memory-only registry (no disk persistence).
@@ -159,13 +154,13 @@ impl ModuleRegistry {
         let hash = ModuleHash::from_bytes(wasm_bytes);
 
         // Compile the module
-        let module = Module::new(engine, wasm_bytes)
-            .map_err(|e| Error::Compilation(e.to_string()))?;
+        let module =
+            Module::new(engine, wasm_bytes).map_err(|e| Error::Compilation(e.to_string()))?;
 
         // Serialize for disk storage
-        let compiled_bytes = module.serialize().map_err(|e| {
-            Error::Engine(format!("Failed to serialize module: {}", e))
-        })?;
+        let compiled_bytes = module
+            .serialize()
+            .map_err(|e| Error::Engine(format!("Failed to serialize module: {}", e)))?;
 
         let now = SystemTime::now();
 
@@ -175,18 +170,14 @@ impl ModuleRegistry {
             if let Some(parent) = artifact_path.parent() {
                 std::fs::create_dir_all(parent).ok();
             }
-            std::fs::write(&artifact_path, &compiled_bytes).map_err(|e| {
-                Error::Engine(format!("Failed to write compiled artifact: {}", e))
-            })?;
+            std::fs::write(&artifact_path, &compiled_bytes)
+                .map_err(|e| Error::Engine(format!("Failed to write compiled artifact: {}", e)))?;
         }
 
         // Store in memory cache
         self.evict_if_needed();
-        let entry = Arc::new(MemoryCacheEntry {
-            module,
-            _stored_at: now,
-            hit_count: AtomicU64::new(0),
-        });
+        let entry =
+            Arc::new(MemoryCacheEntry { module, _stored_at: now, hit_count: AtomicU64::new(0) });
         self.memory_cache.insert(hash.0.clone(), entry);
 
         self.stats.stores.fetch_add(1, Ordering::Relaxed);
@@ -290,9 +281,7 @@ impl ModuleRegistry {
     pub fn remove(&self, hash: &str) -> bool {
         let mem_removed = self.memory_cache.remove(hash).is_some();
         let disk_removed = if self.config.max_disk_bytes > 0 {
-            self.artifact_path(hash)
-                .map(|p| std::fs::remove_file(p).is_ok())
-                .unwrap_or(false)
+            self.artifact_path(hash).map(|p| std::fs::remove_file(p).is_ok()).unwrap_or(false)
         } else {
             false
         };
@@ -350,11 +339,7 @@ impl ModuleRegistry {
 
     fn artifact_path(&self, hash: &str) -> Result<PathBuf> {
         // Validate hash contains only safe characters (hex digits, underscores, hyphens)
-        if hash.is_empty()
-            || !hash
-                .chars()
-                .all(|c| c.is_ascii_hexdigit() || c == '_' || c == '-')
-        {
+        if hash.is_empty() || !hash.chars().all(|c| c.is_ascii_hexdigit() || c == '_' || c == '-') {
             return Err(Error::Execution(
                 "invalid hash format: must contain only hex digits, underscores, or hyphens"
                     .to_string(),

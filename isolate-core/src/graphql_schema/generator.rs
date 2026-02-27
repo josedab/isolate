@@ -14,11 +14,7 @@ pub struct SchemaGeneratorConfig {
 
 impl Default for SchemaGeneratorConfig {
     fn default() -> Self {
-        Self {
-            include_descriptions: true,
-            generate_input_types: true,
-            include_typename: false,
-        }
+        Self { include_descriptions: true, generate_input_types: true, include_typename: false }
     }
 }
 
@@ -51,10 +47,7 @@ impl GeneratedSchema {
 
     /// Find a field by name.
     pub fn find_field(&self, name: &str) -> Option<&GraphQLField> {
-        self.queries
-            .iter()
-            .chain(self.mutations.iter())
-            .find(|f| f.name == name)
+        self.queries.iter().chain(self.mutations.iter()).find(|f| f.name == name)
     }
 }
 
@@ -65,9 +58,7 @@ pub struct SchemaGenerator {
 
 impl SchemaGenerator {
     pub fn new() -> Self {
-        Self {
-            config: SchemaGeneratorConfig::default(),
-        }
+        Self { config: SchemaGeneratorConfig::default() }
     }
 
     pub fn with_config(config: SchemaGeneratorConfig) -> Self {
@@ -90,11 +81,7 @@ impl SchemaGenerator {
 
         let sdl = self.build_sdl(&queries, &mutations);
 
-        GeneratedSchema {
-            sdl,
-            queries,
-            mutations,
-        }
+        GeneratedSchema { sdl, queries, mutations }
     }
 
     fn export_to_field(&self, export: &WasmExport) -> GraphQLField {
@@ -248,11 +235,7 @@ mod tests {
         let gen = SchemaGenerator::new();
         let exports = vec![WasmExport::function_named(
             "compute",
-            vec![
-                ("x", WasmType::F64),
-                ("y", WasmType::F64),
-                ("label", WasmType::String),
-            ],
+            vec![("x", WasmType::F64), ("y", WasmType::F64), ("label", WasmType::String)],
             Some(WasmType::F64),
         )];
         let schema = gen.generate(&exports);

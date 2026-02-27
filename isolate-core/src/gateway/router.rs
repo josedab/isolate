@@ -333,12 +333,8 @@ impl GatewayRouter {
         );
 
         self.routes.push(
-            Route::new(
-                HttpMethod::Get,
-                format!("{}/metrics", prefix),
-                RouteHandler::GetMetrics,
-            )
-            .with_auth(true),
+            Route::new(HttpMethod::Get, format!("{}/metrics", prefix), RouteHandler::GetMetrics)
+                .with_auth(true),
         );
 
         self.routes.push(Route::new(

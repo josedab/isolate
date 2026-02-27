@@ -36,23 +36,95 @@ impl CompatibilityShim {
     fn register_standard_mappings(&mut self) {
         let standard = vec![
             // Filesystem
-            ("wasi_snapshot_preview1", "fd_read", "wasi:filesystem/types", "read", "Preview 1 fd_read → Preview 2 read via resource handle"),
-            ("wasi_snapshot_preview1", "fd_write", "wasi:filesystem/types", "write", "Preview 1 fd_write → Preview 2 write via resource handle"),
-            ("wasi_snapshot_preview1", "fd_close", "wasi:filesystem/types", "drop-descriptor", "Preview 1 fd_close → Preview 2 resource drop"),
-            ("wasi_snapshot_preview1", "fd_seek", "wasi:filesystem/types", "seek", "Preview 1 fd_seek → Preview 2 seek with stream position"),
-            ("wasi_snapshot_preview1", "path_open", "wasi:filesystem/types", "open-at", "Preview 1 path_open → Preview 2 open-at via descriptor"),
+            (
+                "wasi_snapshot_preview1",
+                "fd_read",
+                "wasi:filesystem/types",
+                "read",
+                "Preview 1 fd_read → Preview 2 read via resource handle",
+            ),
+            (
+                "wasi_snapshot_preview1",
+                "fd_write",
+                "wasi:filesystem/types",
+                "write",
+                "Preview 1 fd_write → Preview 2 write via resource handle",
+            ),
+            (
+                "wasi_snapshot_preview1",
+                "fd_close",
+                "wasi:filesystem/types",
+                "drop-descriptor",
+                "Preview 1 fd_close → Preview 2 resource drop",
+            ),
+            (
+                "wasi_snapshot_preview1",
+                "fd_seek",
+                "wasi:filesystem/types",
+                "seek",
+                "Preview 1 fd_seek → Preview 2 seek with stream position",
+            ),
+            (
+                "wasi_snapshot_preview1",
+                "path_open",
+                "wasi:filesystem/types",
+                "open-at",
+                "Preview 1 path_open → Preview 2 open-at via descriptor",
+            ),
             // Clocks
-            ("wasi_snapshot_preview1", "clock_time_get", "wasi:clocks/wall-clock", "now", "Preview 1 clock_time_get → Preview 2 wall-clock.now or monotonic-clock.now"),
+            (
+                "wasi_snapshot_preview1",
+                "clock_time_get",
+                "wasi:clocks/wall-clock",
+                "now",
+                "Preview 1 clock_time_get → Preview 2 wall-clock.now or monotonic-clock.now",
+            ),
             // Random
-            ("wasi_snapshot_preview1", "random_get", "wasi:random/random", "get-random-bytes", "Preview 1 random_get → Preview 2 get-random-bytes"),
+            (
+                "wasi_snapshot_preview1",
+                "random_get",
+                "wasi:random/random",
+                "get-random-bytes",
+                "Preview 1 random_get → Preview 2 get-random-bytes",
+            ),
             // Environment
-            ("wasi_snapshot_preview1", "environ_get", "wasi:cli/environment", "get-environment", "Preview 1 environ_get → Preview 2 get-environment"),
-            ("wasi_snapshot_preview1", "environ_sizes_get", "wasi:cli/environment", "get-environment", "Merged into get-environment in Preview 2"),
+            (
+                "wasi_snapshot_preview1",
+                "environ_get",
+                "wasi:cli/environment",
+                "get-environment",
+                "Preview 1 environ_get → Preview 2 get-environment",
+            ),
+            (
+                "wasi_snapshot_preview1",
+                "environ_sizes_get",
+                "wasi:cli/environment",
+                "get-environment",
+                "Merged into get-environment in Preview 2",
+            ),
             // Process
-            ("wasi_snapshot_preview1", "proc_exit", "wasi:cli/exit", "exit", "Preview 1 proc_exit → Preview 2 exit"),
-            ("wasi_snapshot_preview1", "args_get", "wasi:cli/environment", "get-arguments", "Preview 1 args_get → Preview 2 get-arguments"),
+            (
+                "wasi_snapshot_preview1",
+                "proc_exit",
+                "wasi:cli/exit",
+                "exit",
+                "Preview 1 proc_exit → Preview 2 exit",
+            ),
+            (
+                "wasi_snapshot_preview1",
+                "args_get",
+                "wasi:cli/environment",
+                "get-arguments",
+                "Preview 1 args_get → Preview 2 get-arguments",
+            ),
             // I/O
-            ("wasi_snapshot_preview1", "fd_prestat_get", "wasi:filesystem/preopens", "get-directories", "Preopens are handled differently in Preview 2"),
+            (
+                "wasi_snapshot_preview1",
+                "fd_prestat_get",
+                "wasi:filesystem/preopens",
+                "get-directories",
+                "Preopens are handled differently in Preview 2",
+            ),
         ];
 
         for (p1_mod, p1_name, p2_iface, p2_func, notes) in standard {
@@ -87,17 +159,14 @@ impl CompatibilityShim {
         let key = (module.to_string(), name.to_string());
         let result = self.mappings.get(&key);
         if result.is_none() {
-            self.unmapped_imports
-                .lock()
-                .push((module.to_string(), name.to_string()));
+            self.unmapped_imports.lock().push((module.to_string(), name.to_string()));
         }
         result
     }
 
     /// Check if a Preview 1 import has a known Preview 2 mapping.
     pub fn has_mapping(&self, module: &str, name: &str) -> bool {
-        self.mappings
-            .contains_key(&(module.to_string(), name.to_string()))
+        self.mappings.contains_key(&(module.to_string(), name.to_string()))
     }
 
     /// Get all registered mappings.
@@ -135,9 +204,7 @@ mod tests {
     #[test]
     fn test_translate_fd_read() {
         let shim = CompatibilityShim::new();
-        let mapping = shim
-            .translate("wasi_snapshot_preview1", "fd_read")
-            .unwrap();
+        let mapping = shim.translate("wasi_snapshot_preview1", "fd_read").unwrap();
         assert_eq!(mapping.preview2_interface, "wasi:filesystem/types");
         assert_eq!(mapping.preview2_function, "read");
     }
@@ -145,18 +212,14 @@ mod tests {
     #[test]
     fn test_translate_clock() {
         let shim = CompatibilityShim::new();
-        let mapping = shim
-            .translate("wasi_snapshot_preview1", "clock_time_get")
-            .unwrap();
+        let mapping = shim.translate("wasi_snapshot_preview1", "clock_time_get").unwrap();
         assert_eq!(mapping.preview2_interface, "wasi:clocks/wall-clock");
     }
 
     #[test]
     fn test_translate_unknown() {
         let shim = CompatibilityShim::new();
-        assert!(shim
-            .translate("wasi_snapshot_preview1", "nonexistent")
-            .is_none());
+        assert!(shim.translate("wasi_snapshot_preview1", "nonexistent").is_none());
         assert_eq!(shim.unmapped_imports().len(), 1);
     }
 
@@ -185,9 +248,7 @@ mod tests {
     #[test]
     fn test_translate_proc_exit() {
         let shim = CompatibilityShim::new();
-        let mapping = shim
-            .translate("wasi_snapshot_preview1", "proc_exit")
-            .unwrap();
+        let mapping = shim.translate("wasi_snapshot_preview1", "proc_exit").unwrap();
         assert_eq!(mapping.preview2_interface, "wasi:cli/exit");
         assert_eq!(mapping.preview2_function, "exit");
     }
@@ -196,14 +257,16 @@ mod tests {
     fn test_all_standard_functions_covered() {
         let shim = CompatibilityShim::new();
         let critical = [
-            "fd_read", "fd_write", "fd_close", "clock_time_get", "random_get",
-            "environ_get", "proc_exit",
+            "fd_read",
+            "fd_write",
+            "fd_close",
+            "clock_time_get",
+            "random_get",
+            "environ_get",
+            "proc_exit",
         ];
         for func in critical {
-            assert!(
-                shim.has_mapping("wasi_snapshot_preview1", func),
-                "missing mapping for {func}"
-            );
+            assert!(shim.has_mapping("wasi_snapshot_preview1", func), "missing mapping for {func}");
         }
     }
 }

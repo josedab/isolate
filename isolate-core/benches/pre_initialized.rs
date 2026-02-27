@@ -77,9 +77,7 @@ fn bench_warm_start(c: &mut Criterion) {
             let caps = CapabilitySet::default();
             let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
             let meter = ResourceMeter::new(ResourceLimits::default());
-            let inst = pool
-                .try_instantiate(&config_minimal, enforcer, meter, None)
-                .unwrap();
+            let inst = pool.try_instantiate(&config_minimal, enforcer, meter, None).unwrap();
             black_box(inst);
         })
     });
@@ -90,9 +88,7 @@ fn bench_warm_start(c: &mut Criterion) {
             caps.grant(Capability::stdout());
             let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
             let meter = ResourceMeter::new(ResourceLimits::default());
-            let inst = pool
-                .try_instantiate(&config_hello, enforcer, meter, None)
-                .unwrap();
+            let inst = pool.try_instantiate(&config_hello, enforcer, meter, None).unwrap();
             black_box(inst);
         })
     });
@@ -128,9 +124,7 @@ fn bench_cold_vs_warm(c: &mut Criterion) {
             caps.grant(Capability::stdout());
             let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
             let meter = ResourceMeter::new(ResourceLimits::default());
-            let inst = pool
-                .try_instantiate(&config, enforcer, meter, None)
-                .unwrap();
+            let inst = pool.try_instantiate(&config, enforcer, meter, None).unwrap();
             black_box(inst);
         })
     });

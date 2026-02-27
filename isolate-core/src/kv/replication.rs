@@ -14,8 +14,6 @@
 //!
 //! Vector clocks provide causal ordering of events across nodes.
 
-
-
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::{Duration, SystemTime};
@@ -147,12 +145,7 @@ pub struct OrSet {
 impl OrSet {
     /// Create a new empty OR-Set.
     pub fn new(node: NodeId) -> Self {
-        Self {
-            elements: HashMap::new(),
-            tombstones: HashSet::new(),
-            tag_counter: 0,
-            node,
-        }
+        Self { elements: HashMap::new(), tombstones: HashSet::new(), tag_counter: 0, node }
     }
 
     /// Add an element to the set.
@@ -173,10 +166,7 @@ impl OrSet {
 
     /// Check if an element is in the set.
     pub fn contains(&self, element: &str) -> bool {
-        self.elements
-            .get(element)
-            .map(|tags| !tags.is_empty())
-            .unwrap_or(false)
+        self.elements.get(element).map(|tags| !tags.is_empty()).unwrap_or(false)
     }
 
     /// Get all elements in the set.

@@ -136,10 +136,7 @@ fn skip_whitespace_and_comments(
     }
 }
 
-fn read_identifier(
-    chars: &mut std::iter::Peekable<std::str::Chars>,
-    col: &mut usize,
-) -> String {
+fn read_identifier(chars: &mut std::iter::Peekable<std::str::Chars>, col: &mut usize) -> String {
     let mut ident = String::new();
     while let Some(&c) = chars.peek() {
         if c.is_alphanumeric() || c == '_' || c == '-' {
@@ -161,13 +158,7 @@ fn read_string(
     // Consume opening quote
     match chars.next() {
         Some('"') => *col += 1,
-        _ => {
-            return Err(ParseError {
-                message: "expected '\"'".into(),
-                line: *line,
-                col: *col,
-            })
-        }
+        _ => return Err(ParseError { message: "expected '\"'".into(), line: *line, col: *col }),
     }
 
     let mut s = String::new();
@@ -192,10 +183,7 @@ fn read_string(
     }
 }
 
-fn read_number(
-    chars: &mut std::iter::Peekable<std::str::Chars>,
-    col: &mut usize,
-) -> u64 {
+fn read_number(chars: &mut std::iter::Peekable<std::str::Chars>, col: &mut usize) -> u64 {
     let mut n = String::new();
     while let Some(&c) = chars.peek() {
         if c.is_ascii_digit() || c == '_' {
@@ -259,10 +247,7 @@ fn read_string_list(
     }
 }
 
-fn read_bool(
-    chars: &mut std::iter::Peekable<std::str::Chars>,
-    col: &mut usize,
-) -> bool {
+fn read_bool(chars: &mut std::iter::Peekable<std::str::Chars>, col: &mut usize) -> bool {
     let ident = read_identifier(chars, col);
     ident == "true"
 }
@@ -277,12 +262,7 @@ fn parse_sandbox_policy(
     skip_whitespace_and_comments(chars, line, col);
     expect_char(chars, '{', line, col)?;
 
-    let mut policy = SandboxPolicy {
-        name,
-        resource: None,
-        capability: None,
-        network: None,
-    };
+    let mut policy = SandboxPolicy { name, resource: None, capability: None, network: None };
 
     loop {
         skip_whitespace_and_comments(chars, line, col);
@@ -330,7 +310,9 @@ fn parse_resource_block(
         skip_whitespace_and_comments(chars, line, col);
 
         match key.as_str() {
-            "memory_limit" | "memory-limit" => block.memory_limit = Some(read_string(chars, line, col)?),
+            "memory_limit" | "memory-limit" => {
+                block.memory_limit = Some(read_string(chars, line, col)?)
+            }
             "fuel" => block.fuel = Some(read_number(chars, col)),
             "timeout" => block.timeout = Some(read_string(chars, line, col)?),
             "max_io_bytes" | "max-io-bytes" => block.max_io_bytes = Some(read_number(chars, col)),
@@ -518,11 +500,7 @@ mod tests {
 
     #[test]
     fn test_parse_error_display() {
-        let err = ParseError {
-            message: "test error".into(),
-            line: 5,
-            col: 10,
-        };
+        let err = ParseError { message: "test error".into(), line: 5, col: 10 };
         assert_eq!(format!("{err}"), "parse error at 5:10: test error");
     }
 

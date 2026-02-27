@@ -17,10 +17,9 @@
 #![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
-
+pub mod api_keys;
 mod health;
 mod overview;
-pub mod api_keys;
 
 pub use api_keys::{
     Action, ApiKey, ApiKeyManager, QuotaStatus, Role, Team, TeamMember, UsageQuota, UsageRecord,

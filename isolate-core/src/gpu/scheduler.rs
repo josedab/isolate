@@ -3,8 +3,6 @@
 //! Manages GPU resources across multiple sandboxes, providing fair scheduling,
 //! VRAM quota enforcement, and batched inference for AI workloads.
 
-
-
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
@@ -260,7 +258,7 @@ pub struct SchedulerConfig {
 impl Default for SchedulerConfig {
     fn default() -> Self {
         Self {
-            total_vram: 8 * 1024 * 1024 * 1024, // 8 GB
+            total_vram: 8 * 1024 * 1024 * 1024,    // 8 GB
             default_vram_quota: 512 * 1024 * 1024, // 512 MB
             default_compute_budget: 100_000,
             budget_window: Duration::from_secs(60),
@@ -302,11 +300,9 @@ impl GpuScheduler {
         self.quotas
             .entry(sandbox_id.to_string())
             .or_insert_with(|| VramQuota::new(self.config.default_vram_quota));
-        self.budgets
-            .entry(sandbox_id.to_string())
-            .or_insert_with(|| {
-                ComputeBudget::new(self.config.default_compute_budget, self.config.budget_window)
-            });
+        self.budgets.entry(sandbox_id.to_string()).or_insert_with(|| {
+            ComputeBudget::new(self.config.default_compute_budget, self.config.budget_window)
+        });
     }
 
     /// Register with custom quota.
@@ -517,10 +513,8 @@ mod tests {
 
     #[test]
     fn test_gpu_scheduler_basic() {
-        let mut scheduler = GpuScheduler::new(SchedulerConfig {
-            max_concurrent: 2,
-            ..Default::default()
-        });
+        let mut scheduler =
+            GpuScheduler::new(SchedulerConfig { max_concurrent: 2, ..Default::default() });
 
         scheduler.register_sandbox("sb-1");
 
@@ -536,10 +530,8 @@ mod tests {
 
     #[test]
     fn test_gpu_scheduler_priority() {
-        let mut scheduler = GpuScheduler::new(SchedulerConfig {
-            max_concurrent: 1,
-            ..Default::default()
-        });
+        let mut scheduler =
+            GpuScheduler::new(SchedulerConfig { max_concurrent: 1, ..Default::default() });
 
         scheduler.register_sandbox("sb-1");
 
@@ -561,18 +553,13 @@ mod tests {
         let mut scheduler = GpuScheduler::default();
 
         let task = GpuTask::new("unknown", 1024, 10);
-        assert!(matches!(
-            scheduler.submit(task),
-            Err(GpuSchedulerError::SandboxNotRegistered(_))
-        ));
+        assert!(matches!(scheduler.submit(task), Err(GpuSchedulerError::SandboxNotRegistered(_))));
     }
 
     #[test]
     fn test_gpu_scheduler_vram_limit() {
-        let mut scheduler = GpuScheduler::new(SchedulerConfig {
-            max_concurrent: 10,
-            ..Default::default()
-        });
+        let mut scheduler =
+            GpuScheduler::new(SchedulerConfig { max_concurrent: 10, ..Default::default() });
 
         scheduler.register_sandbox_with_quota("sb-1", 1024);
 

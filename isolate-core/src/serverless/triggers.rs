@@ -55,12 +55,7 @@ pub struct WebhookConfig {
 impl WebhookConfig {
     /// Create a basic webhook config.
     pub fn new(path: impl Into<String>) -> Self {
-        Self {
-            path: path.into(),
-            methods: vec!["POST".into()],
-            secret: None,
-            filter: None,
-        }
+        Self { path: path.into(), methods: vec!["POST".into()], secret: None, filter: None }
     }
 
     /// Add HMAC secret for webhook signature verification.
@@ -99,11 +94,7 @@ pub struct CronConfig {
 impl CronConfig {
     /// Create a cron config with the given expression.
     pub fn new(expression: impl Into<String>) -> Self {
-        Self {
-            expression: expression.into(),
-            timezone: None,
-            payload: None,
-        }
+        Self { expression: expression.into(), timezone: None, payload: None }
     }
 
     /// Validate the cron expression format (basic check).
@@ -338,10 +329,7 @@ impl TriggerManager {
                 if trigger.retry_policy.should_retry(next_attempt) {
                     self.stats.retried.fetch_add(1, Ordering::Relaxed);
                     // Return a retry event
-                    Some(TriggerEvent {
-                        attempt: next_attempt,
-                        ..event.clone()
-                    })
+                    Some(TriggerEvent { attempt: next_attempt, ..event.clone() })
                 } else if trigger.dead_letter_enabled {
                     self.stats.dead_lettered.fetch_add(1, Ordering::Relaxed);
                     self.add_to_dlq(event, error, next_attempt);
@@ -486,10 +474,7 @@ mod tests {
         mgr.register(make_webhook_trigger("t1"));
 
         let event = make_event("t1");
-        let outcome = EventOutcome::Success {
-            exit_code: 0,
-            duration_ms: 100,
-        };
+        let outcome = EventOutcome::Success { exit_code: 0, duration_ms: 100 };
 
         let retry = mgr.process_outcome(&event, &outcome);
         assert!(retry.is_none());
@@ -504,10 +489,7 @@ mod tests {
         mgr.register(make_webhook_trigger("t1"));
 
         let event = make_event("t1");
-        let outcome = EventOutcome::Failed {
-            error: "timeout".into(),
-            duration_ms: 5000,
-        };
+        let outcome = EventOutcome::Failed { error: "timeout".into(), duration_ms: 5000 };
 
         // First failure should trigger retry
         let retry = mgr.process_outcome(&event, &outcome);
@@ -526,10 +508,7 @@ mod tests {
         mgr.register(trigger);
 
         let mut event = make_event("t1");
-        let outcome = EventOutcome::Failed {
-            error: "error".into(),
-            duration_ms: 100,
-        };
+        let outcome = EventOutcome::Failed { error: "error".into(), duration_ms: 100 };
 
         // Attempt 0 -> retry (next_attempt=1 < max_retries=2)
         let retry = mgr.process_outcome(&event, &outcome).unwrap();
@@ -556,10 +535,7 @@ mod tests {
         for i in 0..3 {
             let mut event = make_event("t1");
             event.event_id = format!("evt-{i}");
-            let outcome = EventOutcome::Failed {
-                error: "err".into(),
-                duration_ms: 100,
-            };
+            let outcome = EventOutcome::Failed { error: "err".into(), duration_ms: 100 };
             mgr.process_outcome(&event, &outcome);
         }
 
@@ -629,20 +605,8 @@ mod tests {
         mgr.register(make_webhook_trigger("t1"));
 
         let event = make_event("t1");
-        mgr.process_outcome(
-            &event,
-            &EventOutcome::Success {
-                exit_code: 0,
-                duration_ms: 50,
-            },
-        );
-        mgr.process_outcome(
-            &event,
-            &EventOutcome::Success {
-                exit_code: 0,
-                duration_ms: 30,
-            },
-        );
+        mgr.process_outcome(&event, &EventOutcome::Success { exit_code: 0, duration_ms: 50 });
+        mgr.process_outcome(&event, &EventOutcome::Success { exit_code: 0, duration_ms: 30 });
 
         let stats = mgr.statistics();
         assert_eq!(stats.total_events, 2);

@@ -150,9 +150,8 @@ mod tests {
 
     #[test]
     fn test_provider_config_builder() {
-        let config = ProviderConfig::new(CloudProvider::Gcp)
-            .with_priority(10)
-            .add_region(ProviderRegion {
+        let config =
+            ProviderConfig::new(CloudProvider::Gcp).with_priority(10).add_region(ProviderRegion {
                 provider: CloudProvider::Gcp,
                 region_id: "us-central1".into(),
                 display_name: "Iowa".into(),

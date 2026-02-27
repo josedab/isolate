@@ -12,15 +12,9 @@ pub struct MetricSample {
 
 impl MetricSample {
     pub fn new(rps: f64, utilization: f64) -> Self {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
-        Self {
-            timestamp_epoch_ms: now,
-            requests_per_sec: rps,
-            pool_utilization: utilization,
-        }
+        let now =
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+        Self { timestamp_epoch_ms: now, requests_per_sec: rps, pool_utilization: utilization }
     }
 }
 
@@ -34,10 +28,7 @@ pub struct MetricsRing {
 
 impl MetricsRing {
     pub fn new(max_samples: usize) -> Self {
-        Self {
-            samples: parking_lot::Mutex::new(VecDeque::with_capacity(max_samples)),
-            max_samples,
-        }
+        Self { samples: parking_lot::Mutex::new(VecDeque::with_capacity(max_samples)), max_samples }
     }
 
     /// Add a new sample, evicting oldest if at capacity.
@@ -75,20 +66,12 @@ impl MetricsRing {
 
     /// Peak RPS in the window.
     pub fn peak_rps(&self) -> f64 {
-        self.samples
-            .lock()
-            .iter()
-            .map(|s| s.requests_per_sec)
-            .fold(0.0f64, f64::max)
+        self.samples.lock().iter().map(|s| s.requests_per_sec).fold(0.0f64, f64::max)
     }
 
     /// Current (latest) utilization.
     pub fn current_utilization(&self) -> f64 {
-        self.samples
-            .lock()
-            .back()
-            .map(|s| s.pool_utilization)
-            .unwrap_or(0.0)
+        self.samples.lock().back().map(|s| s.pool_utilization).unwrap_or(0.0)
     }
 
     /// Clear all samples.

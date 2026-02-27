@@ -1,6 +1,8 @@
 //! HCL code generation from policy IR.
 
-use super::ir::{BlockKind, CapabilityBlock, NetworkBlock, PolicyIR, ResourceBlock, EnvironmentBlock};
+use super::ir::{
+    BlockKind, CapabilityBlock, EnvironmentBlock, NetworkBlock, PolicyIR, ResourceBlock,
+};
 
 /// Generates HCL policy code from a policy IR.
 pub struct PolicyCodegen;
@@ -56,9 +58,15 @@ impl PolicyCodegen {
 
     fn gen_capability(&self, c: &CapabilityBlock, out: &mut String) {
         out.push_str("  capability {\n");
-        if c.stdout { out.push_str("    stdout = true\n"); }
-        if c.stderr { out.push_str("    stderr = true\n"); }
-        if c.stdin { out.push_str("    stdin = true\n"); }
+        if c.stdout {
+            out.push_str("    stdout = true\n");
+        }
+        if c.stderr {
+            out.push_str("    stderr = true\n");
+        }
+        if c.stdin {
+            out.push_str("    stdin = true\n");
+        }
         for path in &c.filesystem_read {
             out.push_str(&format!("    fs_read = \"{}\"\n", path));
         }
@@ -149,13 +157,15 @@ mod tests {
 
     #[test]
     fn test_generate_network_block() {
-        let ir = PolicyIR::new("net-test")
-            .add_block(PolicyBlock::new("net", BlockKind::Network(NetworkBlock {
+        let ir = PolicyIR::new("net-test").add_block(PolicyBlock::new(
+            "net",
+            BlockKind::Network(NetworkBlock {
                 allow_outbound: true,
                 allowed_hosts: vec!["api.example.com".into()],
                 allowed_ports: vec![443],
                 max_connections: Some(10),
-            })));
+            }),
+        ));
 
         let codegen = PolicyCodegen::new();
         let hcl = codegen.generate(&ir);
@@ -167,8 +177,9 @@ mod tests {
 
     #[test]
     fn test_disabled_block_commented_out() {
-        let ir = PolicyIR::new("test")
-            .add_block(PolicyBlock::new("disabled", BlockKind::Resource(ResourceBlock::default())).disabled());
+        let ir = PolicyIR::new("test").add_block(
+            PolicyBlock::new("disabled", BlockKind::Resource(ResourceBlock::default())).disabled(),
+        );
 
         let codegen = PolicyCodegen::new();
         let hcl = codegen.generate(&ir);
@@ -186,12 +197,14 @@ mod tests {
 
     #[test]
     fn test_generate_environment() {
-        let ir = PolicyIR::new("env-test")
-            .add_block(PolicyBlock::new("env", BlockKind::Environment(EnvironmentBlock {
+        let ir = PolicyIR::new("env-test").add_block(PolicyBlock::new(
+            "env",
+            BlockKind::Environment(EnvironmentBlock {
                 inherit: false,
                 variables: vec![("KEY".into(), "value".into())],
                 passthrough: vec!["HOME".into()],
-            })));
+            }),
+        ));
 
         let codegen = PolicyCodegen::new();
         let hcl = codegen.generate(&ir);

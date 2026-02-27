@@ -61,21 +61,12 @@ impl WasmExport {
         let params: Vec<WasmParam> = param_types
             .into_iter()
             .enumerate()
-            .map(|(i, t)| WasmParam {
-                name: format!("arg{}", i),
-                wasm_type: t,
-            })
+            .map(|(i, t)| WasmParam { name: format!("arg{}", i), wasm_type: t })
             .collect();
 
         let is_mutation = return_type.is_none();
 
-        Self {
-            name: name.into(),
-            params,
-            return_type,
-            is_mutation,
-            description: None,
-        }
+        Self { name: name.into(), params, return_type, is_mutation, description: None }
     }
 
     /// Create a function export with named parameters.
@@ -84,21 +75,10 @@ impl WasmExport {
         params: Vec<(impl Into<String>, WasmType)>,
         return_type: Option<WasmType>,
     ) -> Self {
-        let params: Vec<WasmParam> = params
-            .into_iter()
-            .map(|(n, t)| WasmParam {
-                name: n.into(),
-                wasm_type: t,
-            })
-            .collect();
+        let params: Vec<WasmParam> =
+            params.into_iter().map(|(n, t)| WasmParam { name: n.into(), wasm_type: t }).collect();
 
-        Self {
-            name: name.into(),
-            params,
-            return_type,
-            is_mutation: false,
-            description: None,
-        }
+        Self { name: name.into(), params, return_type, is_mutation: false, description: None }
     }
 
     pub fn with_description(mut self, desc: impl Into<String>) -> Self {
@@ -140,28 +120,16 @@ pub struct GraphQLType {
 
 impl GraphQLType {
     pub fn scalar(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            non_null: true,
-            list: false,
-        }
+        Self { name: name.to_string(), non_null: true, list: false }
     }
 
     pub fn nullable(name: &str) -> Self {
-        Self {
-            name: name.to_string(),
-            non_null: false,
-            list: false,
-        }
+        Self { name: name.to_string(), non_null: false, list: false }
     }
 
     /// Format as GraphQL SDL type reference.
     pub fn to_sdl(&self) -> String {
-        let base = if self.list {
-            format!("[{}]", self.name)
-        } else {
-            self.name.clone()
-        };
+        let base = if self.list { format!("[{}]", self.name) } else { self.name.clone() };
         if self.non_null {
             format!("{base}!")
         } else {
@@ -184,7 +152,8 @@ mod tests {
 
     #[test]
     fn test_wasm_export_function() {
-        let f = WasmExport::function("add", vec![WasmType::I32, WasmType::I32], Some(WasmType::I32));
+        let f =
+            WasmExport::function("add", vec![WasmType::I32, WasmType::I32], Some(WasmType::I32));
         assert_eq!(f.name, "add");
         assert_eq!(f.params.len(), 2);
         assert_eq!(f.params[0].name, "arg0");
@@ -212,11 +181,7 @@ mod tests {
     fn test_graphql_type_sdl() {
         assert_eq!(GraphQLType::scalar("Int").to_sdl(), "Int!");
         assert_eq!(GraphQLType::nullable("String").to_sdl(), "String");
-        let list = GraphQLType {
-            name: "Int".into(),
-            non_null: true,
-            list: true,
-        };
+        let list = GraphQLType { name: "Int".into(), non_null: true, list: true };
         assert_eq!(list.to_sdl(), "[Int]!");
     }
 

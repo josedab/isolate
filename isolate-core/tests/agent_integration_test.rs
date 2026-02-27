@@ -6,10 +6,9 @@
 #![cfg(feature = "agent")]
 
 use isolate_core::agent::{
-    AgentConfig, AgentSession, CodeExecutionRequest, ExecutionStatus, GuardrailConfig,
-    ContentFilter, ChainDepthTracker, JsonSchema, ProtocolAdapter, ProtocolFormat,
-    ProtocolMessage, ProtocolValidator, ToolDefinition,
-    ViolationKind, SessionRateLimiter,
+    AgentConfig, AgentSession, ChainDepthTracker, CodeExecutionRequest, ContentFilter,
+    ExecutionStatus, GuardrailConfig, JsonSchema, ProtocolAdapter, ProtocolFormat, ProtocolMessage,
+    ProtocolValidator, SessionRateLimiter, ToolDefinition, ViolationKind,
 };
 
 const HELLO_WASM: &[u8] = include_bytes!("fixtures/hello.wasm");
@@ -30,11 +29,8 @@ async fn test_agent_session_execute_hello() {
     let mut session = AgentSession::new(config);
     session.register_tool(ToolDefinition::code_execute());
 
-    let request = CodeExecutionRequest::tool_call(
-        HELLO_WASM.to_vec(),
-        "code_execute",
-        serde_json::json!({}),
-    );
+    let request =
+        CodeExecutionRequest::tool_call(HELLO_WASM.to_vec(), "code_execute", serde_json::json!({}));
 
     let result = session.execute(request).await.unwrap();
     assert_eq!(result.status, ExecutionStatus::Success);
@@ -44,10 +40,8 @@ async fn test_agent_session_execute_hello() {
 
 #[tokio::test]
 async fn test_agent_session_nonzero_exit() {
-    let config = AgentConfig::builder()
-        .memory_limit(64 * 1024 * 1024)
-        .fuel_budget(10_000_000)
-        .build();
+    let config =
+        AgentConfig::builder().memory_limit(64 * 1024 * 1024).fuel_budget(10_000_000).build();
 
     let mut session = AgentSession::new(config);
     let request = CodeExecutionRequest::new(EXIT_42_WASM.to_vec(), serde_json::json!({}));
@@ -88,9 +82,7 @@ async fn test_agent_session_tool_call_budget() {
 
 #[test]
 fn test_guardrails_input_size_enforcement() {
-    let config = GuardrailConfig::builder()
-        .max_input_bytes(100)
-        .build();
+    let config = GuardrailConfig::builder().max_input_bytes(100).build();
     let filter = ContentFilter::new(&config);
 
     let small = "a".repeat(50);
@@ -98,14 +90,16 @@ fn test_guardrails_input_size_enforcement() {
 
     let large = "a".repeat(200);
     assert!(!filter.check_input(&large).allowed);
-    assert!(filter.check_input(&large).violations.iter().any(|v| v.kind == ViolationKind::InputTooLarge));
+    assert!(filter
+        .check_input(&large)
+        .violations
+        .iter()
+        .any(|v| v.kind == ViolationKind::InputTooLarge));
 }
 
 #[test]
 fn test_guardrails_output_size_enforcement() {
-    let config = GuardrailConfig::builder()
-        .max_output_bytes(100)
-        .build();
+    let config = GuardrailConfig::builder().max_output_bytes(100).build();
     let filter = ContentFilter::new(&config);
 
     let large = "x".repeat(200);
@@ -141,16 +135,19 @@ fn test_guardrails_chain_depth_limit() {
 
 #[test]
 fn test_guardrails_rate_limiter() {
-    let config = GuardrailConfig::builder()
-        .max_calls_per_minute(3)
-        .max_total_cost(10.0)
-        .build();
+    let config = GuardrailConfig::builder().max_calls_per_minute(3).max_total_cost(10.0).build();
     let limiter = SessionRateLimiter::new(&config);
 
     for _ in 0..3 {
-        assert!(matches!(limiter.try_acquire(), isolate_core::agent::guardrails::RateLimitResult::Allowed { .. }));
+        assert!(matches!(
+            limiter.try_acquire(),
+            isolate_core::agent::guardrails::RateLimitResult::Allowed { .. }
+        ));
     }
-    assert!(!matches!(limiter.try_acquire(), isolate_core::agent::guardrails::RateLimitResult::Allowed { .. }));
+    assert!(!matches!(
+        limiter.try_acquire(),
+        isolate_core::agent::guardrails::RateLimitResult::Allowed { .. }
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -267,8 +264,7 @@ fn test_tool_custom_schema_validation() {
         .required_property("limit", JsonSchema::integer())
         .build();
 
-    let tool = ToolDefinition::new("search", "Search things")
-        .with_input_schema(schema);
+    let tool = ToolDefinition::new("search", "Search things").with_input_schema(schema);
 
     let valid = serde_json::json!({"query": "rust wasm", "limit": 10});
     assert!(tool.validate_input(&valid).is_empty());
@@ -306,10 +302,8 @@ fn test_session_save_and_load() {
 
 #[test]
 fn test_session_snapshot_preserves_state() {
-    let config = AgentConfig::builder()
-        .memory_limit(128 * 1024 * 1024)
-        .fuel_budget(1_000_000)
-        .build();
+    let config =
+        AgentConfig::builder().memory_limit(128 * 1024 * 1024).fuel_budget(1_000_000).build();
 
     let session = AgentSession::new(config);
     let id = session.id();
@@ -331,15 +325,11 @@ fn test_protocol_validator_with_schemas() {
     let mut validator = ProtocolValidator::new();
     validator.register_input_schema(
         "code_execute",
-        JsonSchema::object()
-            .required_property("code", JsonSchema::string())
-            .build(),
+        JsonSchema::object().required_property("code", JsonSchema::string()).build(),
     );
     validator.register_output_schema(
         "code_execute",
-        JsonSchema::object()
-            .required_property("result", JsonSchema::string())
-            .build(),
+        JsonSchema::object().required_property("result", JsonSchema::string()).build(),
     );
 
     let valid_req = ProtocolMessage::AgentRequest {

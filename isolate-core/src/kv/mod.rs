@@ -27,9 +27,8 @@
 #![allow(missing_docs)]
 // This module is experimental and not all APIs are used yet.
 
-
-mod store;
 pub mod replication;
+mod store;
 
 pub use store::{
     Entry, KvConfig, KvError, KvStore, Namespace, NamespaceId, NamespaceStats, SetOptions,

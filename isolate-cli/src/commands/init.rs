@@ -338,12 +338,8 @@ mod tests {
     #[test]
     fn test_init_default_project_name_from_dir() {
         let dir = tempfile::tempdir().unwrap();
-        let args = InitArgs {
-            path: dir.path().to_path_buf(),
-            name: None,
-            examples: false,
-            force: false,
-        };
+        let args =
+            InitArgs { path: dir.path().to_path_buf(), name: None, examples: false, force: false };
         init_command(args, true).unwrap();
         let config = std::fs::read_to_string(dir.path().join(".isolate.toml")).unwrap();
         // Should contain the tempdir name as project name
