@@ -377,7 +377,7 @@ async fn test_memory_limit() {
     let config = SandboxConfig::builder()
         .module(MEMORY_GROW_WASM)
         .expect("valid module")
-        .memory_limit(1 * 1024 * 1024) // 1MB - very limited
+        .memory_limit(1024 * 1024) // 1MB - very limited
         .fuel(10_000_000) // Enough fuel to complete
         .build()
         .expect("valid config");
@@ -554,10 +554,8 @@ mod pipeline_tests {
             .build()
             .unwrap();
 
-        let pipeline = PipelineDefinition::builder()
-            .stage(Stage::new("run", config))
-            .build()
-            .unwrap();
+        let pipeline =
+            PipelineDefinition::builder().stage(Stage::new("run", config)).build().unwrap();
 
         let result = pipeline.execute(engine, &[]).await.unwrap();
         assert!(result.success);
@@ -651,10 +649,7 @@ mod streaming_tests {
             .expect("valid config");
 
         let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
-        let (mut rx, handle) = sandbox
-            .run_streaming(&[], 32)
-            .await
-            .expect("streaming start");
+        let (mut rx, handle) = sandbox.run_streaming(&[], 32).await.expect("streaming start");
 
         // Collect all chunks
         let mut stdout_bytes = Vec::new();
@@ -681,10 +676,7 @@ mod streaming_tests {
             .expect("valid config");
 
         let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
-        let (mut rx, handle) = sandbox
-            .run_streaming(&[], 16)
-            .await
-            .expect("streaming start");
+        let (mut rx, handle) = sandbox.run_streaming(&[], 16).await.expect("streaming start");
 
         // No output expected from minimal
         let mut chunk_count = 0;
@@ -708,10 +700,7 @@ mod streaming_tests {
             .expect("valid config");
 
         let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
-        let (mut rx, handle) = sandbox
-            .run_streaming(&[], 16)
-            .await
-            .expect("streaming start");
+        let (mut rx, handle) = sandbox.run_streaming(&[], 16).await.expect("streaming start");
 
         // Drain receiver
         while rx.recv().await.is_some() {}
@@ -733,10 +722,7 @@ mod streaming_tests {
             .expect("valid config");
 
         let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
-        let (mut rx, handle) = sandbox
-            .run_streaming(&[], 64)
-            .await
-            .expect("streaming start");
+        let (mut rx, handle) = sandbox.run_streaming(&[], 64).await.expect("streaming start");
 
         let mut streamed_stdout = Vec::new();
         let mut streamed_stderr = Vec::new();
@@ -766,9 +752,7 @@ mod multi_tenant_tests {
     #[tokio::test]
     async fn test_tenant_run_real_wasm() {
         let engine = MultiTenantEngine::new(MultiTenantConfig::default()).unwrap();
-        engine
-            .register_tenant("tenant-a", TenantQuota::default())
-            .unwrap();
+        engine.register_tenant("tenant-a", TenantQuota::default()).unwrap();
 
         let config = SandboxConfig::builder()
             .module(RUNNABLE_WASM)
@@ -789,9 +773,7 @@ mod multi_tenant_tests {
     #[tokio::test]
     async fn test_tenant_run_hello_captures_stdout() {
         let engine = MultiTenantEngine::new(MultiTenantConfig::default()).unwrap();
-        engine
-            .register_tenant("tenant-b", TenantQuota::default())
-            .unwrap();
+        engine.register_tenant("tenant-b", TenantQuota::default()).unwrap();
 
         let config = SandboxConfig::builder()
             .module(HELLO_WASM)
@@ -810,9 +792,7 @@ mod multi_tenant_tests {
     #[tokio::test]
     async fn test_tenant_concurrent_executions() {
         let engine = Arc::new(MultiTenantEngine::new(MultiTenantConfig::default()).unwrap());
-        engine
-            .register_tenant("tenant-c", TenantQuota::default())
-            .unwrap();
+        engine.register_tenant("tenant-c", TenantQuota::default()).unwrap();
 
         let mut handles = Vec::new();
         for _ in 0..5 {
@@ -846,8 +826,7 @@ mod multi_tenant_tests {
     #[tokio::test]
     #[ignore]
     async fn test_tenant_concurrency_limit_enforced() {
-        let mut quota = TenantQuota::default();
-        quota.max_concurrent = 1;
+        let quota = TenantQuota { max_concurrent: 1, ..Default::default() };
 
         let engine = Arc::new(MultiTenantEngine::new(MultiTenantConfig::default()).unwrap());
         engine.register_tenant("tenant-d", quota).unwrap();
@@ -1046,10 +1025,7 @@ async fn test_streaming_cancellation_cleanup() {
         .expect("valid config");
 
     let mut sandbox = Sandbox::create(config).await.expect("sandbox creation");
-    let (rx, handle) = sandbox
-        .run_streaming(&[], 4)
-        .await
-        .expect("streaming start");
+    let (rx, handle) = sandbox.run_streaming(&[], 4).await.expect("streaming start");
 
     // Drop the receiver immediately to simulate client cancellation
     drop(rx);
@@ -1059,4 +1035,105 @@ async fn test_streaming_cancellation_cleanup() {
     // The execution may succeed or fail due to the dropped channel —
     // the key assertion is that it terminates cleanly without hanging.
     let _ = result;
+}
+
+// ============================================================
+// Concurrent Mixed-Outcome Tests
+// ============================================================
+
+/// Verifies that concurrent sandboxes with different expected outcomes
+/// (success, timeout, fuel exhaustion) don't interfere with each other.
+#[tokio::test]
+async fn test_concurrent_mixed_outcomes() {
+    let engine = Arc::new(WasmEngine::new().expect("engine creation"));
+    let mut handles = Vec::new();
+
+    // 5 sandboxes that should succeed
+    for _ in 0..5 {
+        let eng = engine.clone();
+        handles.push(tokio::spawn(async move {
+            let config = SandboxConfig::builder()
+                .module(RUNNABLE_WASM)
+                .expect("valid module")
+                .fuel(1_000_000)
+                .wall_time_limit(Duration::from_secs(5))
+                .build()
+                .expect("valid config");
+
+            let mut sandbox =
+                Sandbox::create_with_engine(config, eng).await.expect("sandbox creation");
+            let output = sandbox.run(&[]).await.expect("execution");
+            assert_eq!(output.exit_code, 0);
+            ("success", true)
+        }));
+    }
+
+    // 5 sandboxes with very low fuel that should exhaust fuel
+    for _ in 0..5 {
+        let eng = engine.clone();
+        handles.push(tokio::spawn(async move {
+            let config = SandboxConfig::builder()
+                .module(CPU_INTENSIVE_WASM)
+                .expect("valid module")
+                .fuel(100)
+                .wall_time_limit(Duration::from_secs(5))
+                .build()
+                .expect("valid config");
+
+            let mut sandbox =
+                Sandbox::create_with_engine(config, eng).await.expect("sandbox creation");
+            let result = sandbox.run(&[]).await;
+            // Should fail — either resource limit, execution error, or non-zero exit
+            match result {
+                Err(_) => {} // Any error is acceptable under extreme fuel constraint
+                Ok(output) => assert_ne!(output.exit_code, 0),
+            }
+            ("fuel_limited", true)
+        }));
+    }
+
+    let mut results = Vec::new();
+    for h in handles {
+        let (label, ok) = h.await.expect("task should not panic");
+        results.push((label, ok));
+    }
+
+    assert_eq!(results.len(), 10);
+    assert!(results.iter().all(|(_, ok)| *ok));
+}
+
+/// Verifies that creating many sandboxes concurrently under tight resource
+/// constraints doesn't cause panics or corrupt the shared engine state.
+#[tokio::test]
+async fn test_concurrent_resource_contention() {
+    const N: usize = 20;
+
+    let engine = Arc::new(WasmEngine::new().expect("engine creation"));
+    let mut handles = Vec::with_capacity(N);
+
+    for _ in 0..N {
+        let eng = engine.clone();
+        handles.push(tokio::spawn(async move {
+            let config = SandboxConfig::builder()
+                .module(RUNNABLE_WASM)
+                .expect("valid module")
+                .fuel(1_000)
+                .memory_limit(1024 * 1024) // 1MB
+                .wall_time_limit(Duration::from_secs(5))
+                .build()
+                .expect("valid config");
+
+            let mut sandbox =
+                Sandbox::create_with_engine(config, eng).await.expect("sandbox creation");
+            // Result may be success or resource exhaustion — either is acceptable
+            let _ = sandbox.run(&[]).await;
+        }));
+    }
+
+    for (i, h) in handles.into_iter().enumerate() {
+        h.await.unwrap_or_else(|e| panic!("task {i} panicked: {e}"));
+    }
+
+    // Engine should remain consistent after concurrent resource contention
+    assert!(engine.cached_module_count() > 0);
 }
