@@ -8,12 +8,14 @@ use crate::proto::{
     TerminateSandboxRequest, TerminateSandboxResponse,
 };
 
+use isolate_core::dashboard::DashboardState;
+use isolate_core::ratelimit::{RateLimitConfig, SharedRateLimiter};
 use isolate_core::{
     capability::Capability, engine::WasmEngine, metrics::global_registry, Sandbox, SandboxConfig,
 };
-use isolate_core::dashboard::DashboardState;
 
 use dashmap::DashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
@@ -32,17 +34,28 @@ pub struct IsolateServiceImpl {
     max_sandboxes: usize,
     /// Dashboard state (shared with HTTP endpoints).
     dashboard: Arc<DashboardState>,
+    /// Total requests received (for metrics).
+    total_requests: AtomicUsize,
+    /// Service-level rate limiter.
+    rate_limiter: SharedRateLimiter,
 }
 
 impl IsolateServiceImpl {
     /// Create a new service.
     pub fn new(max_sandboxes: usize) -> Self {
+        let rate_config = RateLimitConfig {
+            requests_per_second: Some(100),
+            burst_size: Some(200),
+            ..Default::default()
+        };
         Self {
             engine: Arc::new(WasmEngine::new().expect("Failed to create WASM engine")),
             sandboxes: DashMap::new(),
             semaphore: Arc::new(Semaphore::new(max_sandboxes)),
             max_sandboxes,
             dashboard: Arc::new(DashboardState::new(1000)),
+            total_requests: AtomicUsize::new(0),
+            rate_limiter: SharedRateLimiter::new(rate_config),
         }
     }
 
@@ -130,6 +143,18 @@ impl IsolateService for IsolateServiceImpl {
         request: Request<CreateSandboxRequest>,
     ) -> Result<Response<CreateSandboxResponse>, Status> {
         let req = request.into_inner();
+
+        // Request validation
+        if req.module.is_empty() {
+            return Err(Status::invalid_argument("WASM module cannot be empty"));
+        }
+
+        self.total_requests.fetch_add(1, Ordering::Relaxed);
+
+        // Rate limit check
+        if let Err(_e) = self.rate_limiter.try_acquire() {
+            return Err(Status::resource_exhausted("Rate limit exceeded, try again later"));
+        }
 
         // Acquire semaphore permit
         let _permit = self
@@ -418,7 +443,11 @@ impl IsolateService for IsolateServiceImpl {
 
         // Apply pagination
         let offset = req.offset.max(0) as usize;
-        let limit = if req.limit > 0 { req.limit as usize } else { sandboxes.len() };
+        let limit = if req.limit > 0 {
+            (req.limit as usize).min(100) // Cap pagination at 100
+        } else {
+            sandboxes.len()
+        };
 
         let sandboxes: Vec<_> = sandboxes.into_iter().skip(offset).take(limit).collect();
 
@@ -498,6 +527,7 @@ impl IsolateService for IsolateServiceImpl {
                     stream: stream_name.to_string(),
                     data: chunk.data,
                     timestamp: chrono::Utc::now().timestamp(),
+                    resource_snapshot: None,
                 };
 
                 if tx.send(Ok(proto_chunk)).await.is_err() {
@@ -535,10 +565,14 @@ impl IsolateService for IsolateServiceImpl {
 
         let data = match req.format.as_str() {
             "json" => {
-                // Return basic stats as JSON
+                // Return basic stats as JSON including backpressure info
+                let available_slots = self.semaphore.available_permits();
                 let stats = serde_json::json!({
                     "sandboxes_active": self.sandboxes.len(),
                     "max_sandboxes": self.max_sandboxes,
+                    "available_slots": available_slots,
+                    "total_requests": self.total_requests.load(Ordering::Relaxed),
+                    "cached_modules": self.engine.cached_module_count(),
                 });
                 serde_json::to_string(&stats).unwrap_or_default()
             }
@@ -564,10 +598,7 @@ mod tests {
 
     #[test]
     fn test_parse_capabilities_stdout() {
-        let caps = vec![proto::Capability {
-            r#type: "stdout".into(),
-            value: String::new(),
-        }];
+        let caps = vec![proto::Capability { r#type: "stdout".into(), value: String::new() }];
         let result = IsolateServiceImpl::parse_capabilities(&caps).unwrap();
         assert_eq!(result.len(), 1);
     }
@@ -593,10 +624,7 @@ mod tests {
 
     #[test]
     fn test_parse_capabilities_unknown_type() {
-        let caps = vec![proto::Capability {
-            r#type: "nonexistent".into(),
-            value: String::new(),
-        }];
+        let caps = vec![proto::Capability { r#type: "nonexistent".into(), value: String::new() }];
         let result = IsolateServiceImpl::parse_capabilities(&caps);
         assert!(result.is_err());
     }
@@ -632,6 +660,8 @@ mod tests {
         let req = Request::new(CreateSandboxRequest {
             module: MINIMAL_WASM.to_vec(),
             config: None,
+            module_signature: vec![],
+            module_ref: String::new(),
         });
         let resp = service.create_sandbox(req).await.unwrap();
         let inner = resp.into_inner();
@@ -645,6 +675,8 @@ mod tests {
         let service = IsolateServiceImpl::new(10);
         let req = Request::new(CreateSandboxRequest {
             module: MINIMAL_WASM.to_vec(),
+            module_signature: vec![],
+            module_ref: String::new(),
             config: Some(proto::SandboxConfig {
                 memory_limit: 1024 * 1024,
                 fuel_limit: 100_000,
@@ -668,6 +700,8 @@ mod tests {
         let req = Request::new(CreateSandboxRequest {
             module: vec![0, 1, 2, 3],
             config: None,
+            module_signature: vec![],
+            module_ref: String::new(),
         });
         let result = service.create_sandbox(req).await;
         assert!(result.is_err());
@@ -681,6 +715,8 @@ mod tests {
         let create_resp = service
             .create_sandbox(Request::new(CreateSandboxRequest {
                 module: HELLO_WASM.to_vec(),
+                module_signature: vec![],
+                module_ref: String::new(),
                 config: Some(proto::SandboxConfig {
                     memory_limit: 0,
                     fuel_limit: 1_000_000,
@@ -703,6 +739,7 @@ mod tests {
                 sandbox_id: sandbox_id.clone(),
                 input: vec![],
                 entry_point: String::new(),
+                timeout_secs: 0,
             }))
             .await
             .unwrap();
@@ -719,6 +756,7 @@ mod tests {
                 sandbox_id: "nonexistent".into(),
                 input: vec![],
                 entry_point: String::new(),
+                timeout_secs: 0,
             }))
             .await;
         assert!(result.is_err());
@@ -733,15 +771,15 @@ mod tests {
             .create_sandbox(Request::new(CreateSandboxRequest {
                 module: MINIMAL_WASM.to_vec(),
                 config: None,
+                module_signature: vec![],
+                module_ref: String::new(),
             }))
             .await
             .unwrap();
         let sandbox_id = create_resp.into_inner().sandbox_id;
 
         let get_resp = service
-            .get_sandbox(Request::new(GetSandboxRequest {
-                sandbox_id: sandbox_id.clone(),
-            }))
+            .get_sandbox(Request::new(GetSandboxRequest { sandbox_id: sandbox_id.clone() }))
             .await
             .unwrap();
         let info = get_resp.into_inner().sandbox.unwrap();
@@ -753,9 +791,7 @@ mod tests {
     async fn test_get_sandbox_not_found() {
         let service = IsolateServiceImpl::new(10);
         let result = service
-            .get_sandbox(Request::new(GetSandboxRequest {
-                sandbox_id: "nonexistent".into(),
-            }))
+            .get_sandbox(Request::new(GetSandboxRequest { sandbox_id: "nonexistent".into() }))
             .await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().code(), tonic::Code::NotFound);
@@ -769,6 +805,8 @@ mod tests {
             .create_sandbox(Request::new(CreateSandboxRequest {
                 module: MINIMAL_WASM.to_vec(),
                 config: None,
+                module_signature: vec![],
+                module_ref: String::new(),
             }))
             .await
             .unwrap();
@@ -783,9 +821,7 @@ mod tests {
         assert!(term_resp.into_inner().terminated);
 
         // Verify sandbox is removed
-        let get_result = service
-            .get_sandbox(Request::new(GetSandboxRequest { sandbox_id }))
-            .await;
+        let get_result = service.get_sandbox(Request::new(GetSandboxRequest { sandbox_id })).await;
         assert!(get_result.is_err());
     }
 
@@ -826,6 +862,8 @@ mod tests {
                 .create_sandbox(Request::new(CreateSandboxRequest {
                     module: MINIMAL_WASM.to_vec(),
                     config: None,
+                    module_signature: vec![],
+                    module_ref: String::new(),
                 }))
                 .await
                 .unwrap();
@@ -851,6 +889,8 @@ mod tests {
                 .create_sandbox(Request::new(CreateSandboxRequest {
                     module: MINIMAL_WASM.to_vec(),
                     config: None,
+                    module_signature: vec![],
+                    module_ref: String::new(),
                 }))
                 .await
                 .unwrap();
@@ -873,9 +913,7 @@ mod tests {
     async fn test_get_metrics_json() {
         let service = IsolateServiceImpl::new(10);
         let resp = service
-            .get_metrics(Request::new(GetMetricsRequest {
-                format: "json".into(),
-            }))
+            .get_metrics(Request::new(GetMetricsRequest { format: "json".into() }))
             .await
             .unwrap();
         let data = resp.into_inner().data;
@@ -888,9 +926,7 @@ mod tests {
     async fn test_get_metrics_prometheus() {
         let service = IsolateServiceImpl::new(10);
         let resp = service
-            .get_metrics(Request::new(GetMetricsRequest {
-                format: "prometheus".into(),
-            }))
+            .get_metrics(Request::new(GetMetricsRequest { format: "prometheus".into() }))
             .await
             .unwrap();
         let _ = resp.into_inner().data;
@@ -903,6 +939,8 @@ mod tests {
         let create_resp = service
             .create_sandbox(Request::new(CreateSandboxRequest {
                 module: EXIT_42_WASM.to_vec(),
+                module_signature: vec![],
+                module_ref: String::new(),
                 config: Some(proto::SandboxConfig {
                     memory_limit: 0,
                     fuel_limit: 1_000_000,
@@ -922,6 +960,7 @@ mod tests {
                 sandbox_id,
                 input: vec![],
                 entry_point: String::new(),
+                timeout_secs: 0,
             }))
             .await
             .unwrap();
@@ -933,6 +972,8 @@ mod tests {
         let service = IsolateServiceImpl::new(10);
         let req = Request::new(CreateSandboxRequest {
             module: MINIMAL_WASM.to_vec(),
+            module_signature: vec![],
+            module_ref: String::new(),
             config: Some(proto::SandboxConfig {
                 memory_limit: 0,
                 fuel_limit: 0,
@@ -959,6 +1000,8 @@ mod tests {
         let create_resp = service
             .create_sandbox(Request::new(CreateSandboxRequest {
                 module: MINIMAL_WASM.to_vec(),
+                module_signature: vec![],
+                module_ref: String::new(),
                 config: Some(proto::SandboxConfig {
                     memory_limit: 0,
                     fuel_limit: 1_000_000,
@@ -975,9 +1018,7 @@ mod tests {
 
         // Get
         let info = service
-            .get_sandbox(Request::new(GetSandboxRequest {
-                sandbox_id: sandbox_id.clone(),
-            }))
+            .get_sandbox(Request::new(GetSandboxRequest { sandbox_id: sandbox_id.clone() }))
             .await
             .unwrap()
             .into_inner()
@@ -991,6 +1032,7 @@ mod tests {
                 sandbox_id: sandbox_id.clone(),
                 input: vec![],
                 entry_point: String::new(),
+                timeout_secs: 0,
             }))
             .await
             .unwrap();

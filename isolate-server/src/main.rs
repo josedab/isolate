@@ -55,6 +55,7 @@
 //!   periodSeconds: 10
 //! ```
 
+mod auth;
 mod service;
 
 use clap::Parser;
@@ -72,7 +73,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
-use tonic::transport::Server;
+use tokio::signal;
+use tonic::transport::{Certificate, Identity, Server, ServerTlsConfig};
 use tonic_health::server::health_reporter;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -80,9 +82,9 @@ pub mod proto {
     tonic::include_proto!("isolate.v1");
 }
 
+use isolate_core::dashboard::DashboardState;
 use proto::isolate_service_server::IsolateServiceServer;
 use service::IsolateServiceImpl;
-use isolate_core::dashboard::DashboardState;
 
 /// Isolate gRPC Server
 #[derive(Parser, Debug)]
@@ -137,6 +139,32 @@ struct Args {
     /// Disable OpenTelemetry tracing
     #[arg(long, env = "ISOLATE_NO_TRACING")]
     no_tracing: bool,
+
+    // TLS options
+    /// Path to TLS certificate file (PEM format)
+    #[arg(long, env = "ISOLATE_TLS_CERT")]
+    tls_cert: Option<String>,
+
+    /// Path to TLS private key file (PEM format)
+    #[arg(long, env = "ISOLATE_TLS_KEY")]
+    tls_key: Option<String>,
+
+    /// Path to TLS CA certificate for client verification (enables mTLS)
+    #[arg(long, env = "ISOLATE_TLS_CA")]
+    tls_ca: Option<String>,
+
+    // Shutdown options
+    /// Graceful shutdown timeout in seconds
+    #[arg(long, default_value = "30", env = "ISOLATE_SHUTDOWN_TIMEOUT")]
+    shutdown_timeout: u64,
+
+    /// Maximum WASM module upload size in bytes (default: 50MB)
+    #[arg(long, default_value = "52428800", env = "ISOLATE_MAX_MODULE_SIZE")]
+    max_module_size: usize,
+
+    /// API key for gRPC authentication (if unset, all requests allowed)
+    #[arg(long, env = "ISOLATE_API_KEY")]
+    api_key: Option<String>,
 }
 
 /// HTTP health check and dashboard API handler.
@@ -148,13 +176,11 @@ async fn health_handler(
     let path = req.uri().path();
 
     let response = match path {
-        "/healthz" | "/health" | "/livez" => {
-            Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Full::new(Bytes::from(r#"{"status":"healthy"}"#)))
-                .expect("static health response")
-        }
+        "/healthz" | "/health" | "/livez" => Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "application/json")
+            .body(Full::new(Bytes::from(r#"{"status":"healthy"}"#)))
+            .expect("static health response"),
         "/readyz" | "/ready" => {
             if service_healthy.load(std::sync::atomic::Ordering::Relaxed) {
                 Response::builder()
@@ -170,6 +196,22 @@ async fn health_handler(
                     .expect("static not_ready response")
             }
         }
+        // Deep readiness check — same as /readyz but with engine verification info
+        "/readyz/deep" => {
+            let healthy = service_healthy.load(std::sync::atomic::Ordering::Relaxed);
+            let sandboxes = dashboard.overview();
+            let status = if healthy { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+            let json = serde_json::json!({
+                "status": if healthy { "ready" } else { "not_ready" },
+                "active_sandboxes": sandboxes.active_sandboxes,
+                "total_created": sandboxes.total_created,
+            });
+            Response::builder()
+                .status(status)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json.to_string())))
+                .expect("deep readyz response")
+        }
         path if path == "/api/dashboard/overview"
             || path == "/api/dashboard/sandboxes"
             || path == "/api/dashboard/events"
@@ -178,22 +220,19 @@ async fn health_handler(
             // Validate API key for all dashboard endpoints
             let api_key_valid = match std::env::var("ISOLATE_DASHBOARD_API_KEY") {
                 Ok(expected_key) if !expected_key.is_empty() => {
-                    req.headers()
-                        .get("x-api-key")
-                        .and_then(|v| v.to_str().ok())
-                        .is_some_and(|k| {
-                            // Constant-time comparison to prevent timing attacks
-                            let k_bytes = k.as_bytes();
-                            let expected_bytes = expected_key.as_bytes();
-                            if k_bytes.len() != expected_bytes.len() {
-                                return false;
-                            }
-                            let mut result = 0u8;
-                            for (a, b) in k_bytes.iter().zip(expected_bytes.iter()) {
-                                result |= a ^ b;
-                            }
-                            result == 0
-                        })
+                    req.headers().get("x-api-key").and_then(|v| v.to_str().ok()).is_some_and(|k| {
+                        // Constant-time comparison to prevent timing attacks
+                        let k_bytes = k.as_bytes();
+                        let expected_bytes = expected_key.as_bytes();
+                        if k_bytes.len() != expected_bytes.len() {
+                            return false;
+                        }
+                        let mut result = 0u8;
+                        for (a, b) in k_bytes.iter().zip(expected_bytes.iter()) {
+                            result |= a ^ b;
+                        }
+                        result == 0
+                    })
                 }
                 _ => false, // No API key configured; deny access
             };
@@ -238,8 +277,7 @@ async fn health_handler(
                         match id_str.parse::<isolate_core::sandbox::SandboxId>() {
                             Ok(id) => match dashboard.get_sandbox(&id) {
                                 Some(sandbox) => {
-                                    let json =
-                                        serde_json::to_string(&sandbox).unwrap_or_default();
+                                    let json = serde_json::to_string(&sandbox).unwrap_or_default();
                                     Response::builder()
                                         .status(StatusCode::OK)
                                         .header("Content-Type", "application/json")
@@ -257,15 +295,72 @@ async fn health_handler(
                             Err(_) => Response::builder()
                                 .status(StatusCode::BAD_REQUEST)
                                 .header("Content-Type", "application/json")
-                                .body(Full::new(Bytes::from(
-                                    r#"{"error":"invalid sandbox id"}"#,
-                                )))
+                                .body(Full::new(Bytes::from(r#"{"error":"invalid sandbox id"}"#)))
                                 .expect("static bad_request response"),
                         }
                     }
                     _ => unreachable!(),
                 }
             }
+        }
+        // v1 API endpoints (alias for dashboard data)
+        "/api/v1/overview" => {
+            let overview = dashboard.overview();
+            let json = serde_json::to_string(&overview).unwrap_or_default();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .expect("v1 overview response")
+        }
+        "/api/v1/sandboxes" => {
+            let sandboxes = dashboard.list_sandboxes();
+            let json = serde_json::to_string(&sandboxes).unwrap_or_default();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .expect("v1 sandboxes response")
+        }
+        "/api/v1/events" => {
+            let events = dashboard.recent_events(100);
+            let json = serde_json::to_string(&events).unwrap_or_default();
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .expect("v1 events response")
+        }
+        "/api/v1/health" => {
+            let healthy = service_healthy.load(std::sync::atomic::Ordering::Relaxed);
+            let status_code =
+                if healthy { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+            let json = format!(r#"{{"healthy":{healthy}}}"#);
+            Response::builder()
+                .status(status_code)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(json)))
+                .expect("v1 health response")
+        }
+        "/api/v1/ws/events" => {
+            // WebSocket endpoint metadata — actual upgrade requires tokio-tungstenite
+            let info = serde_json::json!({
+                "protocol": "websocket",
+                "status": "planned",
+                "channels": [
+                    "sandbox.created",
+                    "sandbox.completed",
+                    "sandbox.failed",
+                    "resource.threshold",
+                    "alert.triggered"
+                ],
+                "note": "WebSocket upgrade not yet implemented. Use /api/v1/events for polling."
+            });
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .body(Full::new(Bytes::from(info.to_string())))
+                .expect("ws info response")
         }
         _ => Response::builder()
             .status(StatusCode::NOT_FOUND)
@@ -420,13 +515,72 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Start the gRPC server with health service
-    Server::builder()
+    let mut builder = Server::builder();
+
+    // Configure TLS if cert and key are provided
+    if let (Some(cert_path), Some(key_path)) = (&args.tls_cert, &args.tls_key) {
+        let cert = tokio::fs::read(cert_path).await?;
+        let key = tokio::fs::read(key_path).await?;
+        let identity = Identity::from_pem(cert, key);
+        let mut tls_config = ServerTlsConfig::new().identity(identity);
+
+        if let Some(ca_path) = &args.tls_ca {
+            let ca = tokio::fs::read(ca_path).await?;
+            tls_config = tls_config.client_ca_root(Certificate::from_pem(ca));
+            tracing::info!("mTLS enabled (client certificate verification)");
+        }
+
+        builder = builder.tls_config(tls_config)?;
+        tracing::info!("TLS enabled for gRPC server");
+    }
+
+    let interceptor = auth::AuthInterceptor::new(args.api_key.clone());
+    if args.api_key.is_some() {
+        tracing::info!("gRPC API key authentication enabled");
+    }
+
+    let svc = IsolateServiceServer::new(service).max_decoding_message_size(args.max_module_size);
+    let svc = tonic::service::interceptor::InterceptedService::new(svc, interceptor);
+
+    let shutdown_timeout = Duration::from_secs(args.shutdown_timeout);
+
+    builder
         .add_service(health_service)
-        .add_service(IsolateServiceServer::new(service))
-        .serve(args.addr)
+        .add_service(svc)
+        .serve_with_shutdown(args.addr, async move {
+            shutdown_signal().await;
+            tracing::info!(
+                timeout_secs = shutdown_timeout.as_secs(),
+                "Shutdown signal received, draining in-flight requests..."
+            );
+        })
         .await?;
 
+    tracing::info!("Server shut down gracefully");
+
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("failed to listen for ctrl+c");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to listen for SIGTERM")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
 
 #[cfg(test)]
@@ -452,6 +606,7 @@ mod tests {
     }
 
     /// Test with an authenticated dashboard request.
+    #[allow(clippy::disallowed_methods)]
     async fn test_dashboard_request(path: &str) -> (StatusCode, String) {
         std::env::set_var("ISOLATE_DASHBOARD_API_KEY", TEST_API_KEY);
         test_request_with_headers(
@@ -502,10 +657,8 @@ mod tests {
         let req = builder.body(Empty::<Bytes>::new()).unwrap();
         let resp = sender.send_request(req).await.unwrap();
         let status = resp.status();
-        let body_bytes = http_body_util::BodyExt::collect(resp.into_body())
-            .await
-            .unwrap()
-            .to_bytes();
+        let body_bytes =
+            http_body_util::BodyExt::collect(resp.into_body()).await.unwrap().to_bytes();
         (status, String::from_utf8_lossy(&body_bytes).to_string())
     }
 
@@ -536,7 +689,8 @@ mod tests {
     #[tokio::test]
     async fn test_readyz_returns_503_when_not_healthy() {
         let healthy = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let (status, _) = test_request_with_headers("/readyz", healthy, default_dashboard(), vec![]).await;
+        let (status, _) =
+            test_request_with_headers("/readyz", healthy, default_dashboard(), vec![]).await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     }
 
@@ -548,7 +702,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_malformed_sandbox_id_returns_400() {
-        let (status, body) = test_dashboard_request("/api/dashboard/sandboxes/not-a-valid-uuid").await;
+        let (status, body) =
+            test_dashboard_request("/api/dashboard/sandboxes/not-a-valid-uuid").await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(body.contains("invalid sandbox id"));
     }
@@ -580,6 +735,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::disallowed_methods)]
     async fn test_dashboard_rejects_unauthenticated() {
         std::env::set_var("ISOLATE_DASHBOARD_API_KEY", TEST_API_KEY);
         let (status, body) = test_request("/api/dashboard/overview").await;
