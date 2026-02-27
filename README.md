@@ -17,6 +17,38 @@ A lightweight, secure sandbox runtime written in Rust for executing untrusted WA
 |:-----------------|:-------------|
 | Core sandbox, capabilities, resource limits, metrics, pool, networking, policy engine | Snapshots, WASI Preview2, GPU, distributed mesh, hot-patching, enclave, chaos testing |
 
+### Feature Flag Maturity
+
+Enable optional modules with `cargo add isolate-core --features <flag>`:
+
+| Feature Flag | Status | Description |
+|:-------------|:------:|:------------|
+| *(default)* | ✅ Stable | Core sandbox, capabilities, resource limits, metrics |
+| `pool` | ✅ Stable | Warm sandbox pool with predictive autoscaling |
+| `networking` | ✅ Stable | HTTP client and network policy enforcement |
+| `agent` | ✅ Stable | AI agent framework for tool-using sandboxes |
+| `policy-engine` | ✅ Stable | Policy rules, audit logging, composition |
+| `platform` | ✅ Stable | Admin, storage, workflow, marketplace, hosting, infra |
+| `observability` | ✅ Stable | Dashboard, distributed tracing, WASM analytics |
+| `billing` | ✅ Stable | Multi-tenant billing and cloud cost tracking |
+| `deployment` | ✅ Stable | Auto-scaling, registries, hot reload |
+| `federation` | ✅ Stable | Federated registry with geo-replication |
+| `extras` | ✅ Stable | AI sandbox, carbon tracking, JS runtime, and more |
+| `snapshots` | 🧪 Experimental | Copy-on-write snapshot/restore |
+| `wasi-preview2` | 🧪 Experimental | WASI Component Model support |
+| `kubernetes` | 🧪 Experimental | K8s operator and CRD support |
+| `otel-telemetry` | 🧪 Experimental | OpenTelemetry distributed tracing |
+| `debug-support` | 🧪 Experimental | Live debugging and time-travel replay |
+| `module-signing` | 🧪 Experimental | Cryptographic module signing |
+| `gpu-compute` | ⚠️ Simulated | GPU acceleration (not real hardware) |
+| `distributed-mesh` | ⚠️ Simulated | Multi-node clustering (network stubs only) |
+| `hotpatch` | ⚠️ Simulated | Hot code patching (simulated only) |
+| `chaos-testing` | 🧪 Experimental | Fault injection for resilience testing |
+| `full` | — | Meta-feature: enables everything above |
+
+> Features marked ⚠️ **Simulated** are included for API design feedback only.
+> Do not rely on them for production workloads.
+
 - **Fast Cold Start**: <5ms sandbox creation (vs 125ms+ for microVMs)
 - **Memory Safety**: Rust implementation eliminates runtime vulnerabilities
 - **Multi-Language**: Execute any WASM-compiled language (Rust, C/C++, Go, AssemblyScript, etc.)

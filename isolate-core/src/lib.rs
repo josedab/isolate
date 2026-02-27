@@ -70,7 +70,7 @@
 //! | `platform-admin` | `admin`, `gateway`, `orchestrator` | Admin, gateway, orchestrator |
 //! | `platform-storage` | `kv`, `sandbox_kv`, `vfs`, `secrets` | KV store, VFS, secrets |
 //! | `platform-workflow` | `workflow`, `workflow_engine`, `pipeline` | Workflows and pipelines |
-//! | `platform-marketplace` | `marketplace`, `plugin`, `provenance` | Marketplace and plugins |
+//! | `platform-provenance` | `provenance` | Supply-chain provenance tracking |
 //! | `platform-comm` | `ipc`, `rpc`, `graphql_schema` | IPC, RPC, GraphQL |
 //! | `platform-hosting` | `serverless`, `playground`, `saas` | Serverless and hosting |
 //! | `platform-infra` | `iac` | Infrastructure as code |
@@ -80,18 +80,18 @@
 //! | `deployment` | `autoscale`, `deploy`, `hot_reload`, `module_registry`, `oci_registry` | Deployment and registry tools |
 //! | `federation` | `federation`, `georep` | Federation and geo-replication |
 //!
-//! ### Experimental Feature-Gated Modules
+//! ### Advanced Feature-Gated Modules
 //!
-//! | Feature | Module | Description |
-//! |---------|--------|-------------|
-//! | `snapshots` | [`snapshot`] | Copy-on-write snapshots for warm starts |
-//! | `wasi-preview2` | [`wasi2`] | WASI Preview 2 (Component Model) support |
-//! | `debug-support` | [`debug`] | Live debugging and time-travel replay |
-//! | `module-signing` | [`signing`] | Cryptographic module signing |
-//! | `kubernetes` | [`k8s`] | Kubernetes operator and Helm charts |
-//! | `otel-telemetry` | [`telemetry`] | OpenTelemetry tracing integration |
-//! | `distributed-mesh` | [`mesh`] | Distributed sandbox clustering |
-//! | `gpu-compute` | [`gpu`] | GPU acceleration (experimental) |
+//! | Feature | Module | Status | Description |
+//! |---------|--------|--------|-------------|
+//! | `snapshots` | [`snapshot`] | 🧪 Experimental | Copy-on-write snapshots for warm starts |
+//! | `wasi-preview2` | [`wasi2`] | 🧪 Experimental | WASI Preview 2 (Component Model) support |
+//! | `debug-support` | [`debug`] | 🧪 Experimental | Live debugging and time-travel replay |
+//! | `module-signing` | [`signing`] | 🧪 Experimental | Cryptographic module signing and verification |
+//! | `kubernetes` | [`k8s`] | 🧪 Experimental | Kubernetes operator, CRDs, and Helm charts |
+//! | `otel-telemetry` | [`telemetry`] | 🧪 Experimental | OpenTelemetry tracing integration |
+//! | `distributed-mesh` | [`mesh`] | ⚠️ Simulated | Distributed sandbox clustering (stubs) |
+//! | `gpu-compute` | [`gpu`] | ⚠️ Simulated | GPU acceleration (simulated) |
 //!
 //! ## Execution Flow
 //!
@@ -148,7 +148,7 @@
 //! - `platform-admin` - Admin, gateway, orchestrator
 //! - `platform-storage` - KV store, VFS, secrets
 //! - `platform-workflow` - Workflows and pipelines
-//! - `platform-marketplace` - Marketplace and plugins
+//! - `platform-provenance` - Supply-chain provenance
 //! - `platform-comm` - IPC, RPC, GraphQL
 //! - `platform-hosting` - Serverless, playground, SaaS
 //! - `platform-infra` - Infrastructure as code
@@ -233,17 +233,13 @@ pub mod iac;
 pub mod ipc;
 #[cfg(any(feature = "platform", feature = "platform-storage"))]
 pub mod kv;
-#[cfg(any(feature = "platform", feature = "platform-marketplace"))]
-pub mod marketplace;
 #[cfg(any(feature = "platform", feature = "platform-admin"))]
 pub mod orchestrator;
 #[cfg(any(feature = "platform", feature = "platform-workflow"))]
 pub mod pipeline;
 #[cfg(any(feature = "platform", feature = "platform-hosting"))]
 pub mod playground;
-#[cfg(any(feature = "platform", feature = "platform-marketplace"))]
-pub mod plugin;
-#[cfg(any(feature = "platform", feature = "platform-marketplace"))]
+#[cfg(any(feature = "platform", feature = "platform-provenance"))]
 pub mod provenance;
 #[cfg(any(feature = "platform", feature = "platform-comm"))]
 pub mod rpc;
@@ -251,7 +247,7 @@ pub mod rpc;
 pub mod sandbox_kv;
 #[cfg(any(feature = "platform", feature = "platform-storage"))]
 pub mod secrets;
-#[cfg(any(feature = "platform", feature = "platform-hosting"))]
+#[cfg(any(feature = "platform", feature = "platform-hosting", feature = "serverless"))]
 pub mod serverless;
 #[cfg(any(feature = "platform", feature = "platform-storage"))]
 pub mod vfs;
@@ -278,10 +274,12 @@ pub mod jsrt;
 #[cfg(feature = "extras")]
 pub mod replay;
 #[cfg(feature = "extras")]
+#[doc(hidden)]
 pub mod security;
 #[cfg(feature = "extras")]
 pub mod transpiler;
 #[cfg(feature = "extras")]
+#[doc(hidden)]
 pub mod verify;
 
 #[cfg(feature = "extras")]
@@ -347,12 +345,15 @@ pub mod ai;
 pub mod nlp;
 
 #[cfg(feature = "hotpatch")]
+#[doc(hidden)]
 pub mod hotpatch;
 
 #[cfg(feature = "distributed-mesh")]
+#[doc(hidden)]
 pub mod mesh;
 
 #[cfg(feature = "gpu-compute")]
+#[doc(hidden)]
 pub mod gpu;
 
 #[cfg(feature = "chaos-testing")]

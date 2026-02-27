@@ -30,7 +30,7 @@ platform = [
     "platform-admin",
     "platform-storage",
     "platform-workflow",
-    "platform-marketplace",
+    "platform-provenance",
     "platform-comm",
     "platform-hosting",
     "platform-infra",
@@ -41,14 +41,16 @@ platform-admin = ["dep:serde_yaml"]
 platform-storage = ["dep:serde_yaml"]
 ## Workflow orchestration engine and multi-sandbox pipelines.
 platform-workflow = ["dep:serde_yaml"]
-## Module marketplace with plugin system and provenance tracking.
-platform-marketplace = ["dep:serde_yaml"]
+## Module provenance and supply-chain tracking.
+platform-provenance = ["dep:serde_yaml"]
 ## Inter-sandbox IPC, RPC framework, and GraphQL schema generation.
 platform-comm = ["dep:serde_yaml"]
 ## Serverless function adapters, web playground, and SaaS multi-tenancy.
 platform-hosting = ["dep:serde_yaml"]
 ## Infrastructure as code provider support (Terraform, Pulumi).
 platform-infra = ["dep:serde_yaml"]
+## Standalone serverless adapter (OpenFaaS, Knative, Fission, AWS SAM).
+serverless = []
 ## Observability dashboard, distributed tracing context, and WASM analytics.
 observability = []
 ## Multi-tenant billing, metering, and cloud cost optimization.
@@ -119,6 +121,7 @@ full = [
     "billing",
     "deployment",
     "federation",
+    "serverless",
     "snapshots",
     "wasi-preview2",
     "debug-support",
@@ -195,6 +198,7 @@ harness = false
 [[bench]]
 name = "capability_io"
 harness = false
+required-features = ["extras"]
 
 [[bench]]
 name = "coldstart"
