@@ -2,6 +2,12 @@ syntax = "proto3";
 
 package isolate.v1;
 
+// API Compatibility Policy:
+// - Fields 1-99 are stable and will not be removed or retyped.
+// - Fields 100-199 are reserved for future internal use.
+// - New fields are always added with the next available ID.
+// - Deprecated fields are marked with [deprecated=true] and kept for 2 minor versions.
+
 /// The Isolate sandbox service provides secure WebAssembly execution
 /// with capability-based security and resource controls.
 service IsolateService {
@@ -40,6 +46,18 @@ message CreateSandboxRequest {
   /// Sandbox configuration including resource limits and capabilities.
   /// If omitted, default limits are applied with no capabilities granted.
   SandboxConfig config = 2;
+
+  /// Optional cryptographic signature of the module for verification.
+  /// When the server is configured with a signing policy, unsigned modules
+  /// or modules with invalid signatures will be rejected.
+  bytes module_signature = 3;
+
+  /// Optional OCI image reference (e.g., "ghcr.io/user/module:v1").
+  /// When provided, `module` bytes may be empty — the server will pull
+  /// the module from the registry.
+  string module_ref = 4;
+
+  reserved 100 to 199;
 }
 
 /// Response returned after successfully creating a sandbox.
@@ -69,6 +87,10 @@ message RunSandboxRequest {
   /// Entry point function name to invoke. Defaults to "_start" for WASI
   /// modules if left empty.
   string entry_point = 3;
+
+  /// Per-request timeout override in seconds.
+  /// If set to 0 or omitted, uses the sandbox's configured wall_time_limit.
+  uint32 timeout_secs = 4;
 }
 
 /// Response returned after a sandbox execution completes.
@@ -164,6 +186,30 @@ message OutputChunk {
 
   /// Unix timestamp in nanoseconds when this chunk was captured.
   int64 timestamp = 3;
+
+  /// Optional resource snapshot at the time this chunk was emitted.
+  ResourceSnapshot resource_snapshot = 4;
+}
+
+/// Point-in-time snapshot of sandbox resource consumption.
+message ResourceSnapshot {
+  /// Current memory usage in bytes.
+  uint64 current_memory_bytes = 1;
+
+  /// Peak memory usage in bytes.
+  uint64 peak_memory_bytes = 2;
+
+  /// Total fuel consumed so far.
+  uint64 fuel_consumed = 3;
+
+  /// Wall-clock time elapsed in milliseconds.
+  double wall_time_ms = 4;
+
+  /// Total bytes read.
+  uint64 bytes_read = 5;
+
+  /// Total bytes written.
+  uint64 bytes_written = 6;
 }
 
 /// Request to retrieve server metrics.
@@ -296,4 +342,17 @@ message SandboxMetrics {
 
   /// Duration of the most recent run, in milliseconds.
   double last_run_duration_ms = 5;
+}
+
+/// Structured error details attached to gRPC error responses.
+/// Included in the Status.details field for machine-readable error handling.
+message IsolateErrorDetail {
+  /// Machine-readable error code.
+  string error_code = 1;
+
+  /// Human-readable recovery suggestion (maps to Error::suggestion()).
+  string suggestion = 2;
+
+  /// Optional contextual key-value pairs (e.g., sandbox_id, path, host).
+  map<string, string> context = 3;
 }
