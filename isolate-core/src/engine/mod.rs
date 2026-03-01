@@ -70,4 +70,7 @@ pub use pre_initialized::{PreInitConfig, PreInitStats, PreInitializedPool};
 pub use streaming::{
     channel, ChannelError, GuestHalf, HostHalf, RingReader, RingWriter, StreamingChannel,
 };
-pub use wasm::{CompiledModule, WasmEngine, WasmInstance};
+pub use wasm::{
+    CompatibilityIssue, CompatibilityReport, CompiledModule, IssueSeverity, WasmEngine,
+    WasmInstance,
+};

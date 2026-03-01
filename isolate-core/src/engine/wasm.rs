@@ -27,11 +27,22 @@ pub struct WasmEngineConfig {
     pub enable_epoch_interruption: bool,
     /// Maximum number of cached modules.
     pub max_cached_modules: usize,
+    /// Epoch tick interval in milliseconds (default 10ms).
+    /// Lower values give more precise timeouts but increase overhead.
+    pub epoch_tick_ms: u64,
+    /// Maximum WASM module size in bytes (0 = unlimited).
+    pub max_module_bytes: usize,
 }
 
 impl Default for WasmEngineConfig {
     fn default() -> Self {
-        Self { enable_fuel: true, enable_epoch_interruption: true, max_cached_modules: 100 }
+        Self {
+            enable_fuel: true,
+            enable_epoch_interruption: true,
+            max_cached_modules: 100,
+            epoch_tick_ms: 10,
+            max_module_bytes: 50 * 1024 * 1024, // 50MB
+        }
     }
 }
 
@@ -57,6 +68,308 @@ impl CompiledModule {
     pub(crate) fn module_ref(&self) -> &Module {
         &self.module
     }
+
+    /// List all imports the module requires.
+    ///
+    /// Each import has a module name, field name, and type. Use this to
+    /// determine what capabilities or WASI functions the module needs.
+    pub fn required_imports(&self) -> Vec<ImportDescriptor> {
+        self.module
+            .imports()
+            .map(|import| ImportDescriptor {
+                module: import.module().to_string(),
+                name: import.name().to_string(),
+                kind: match import.ty() {
+                    wasmtime::ExternType::Func(_) => ImportKind::Function,
+                    wasmtime::ExternType::Global(_) => ImportKind::Global,
+                    wasmtime::ExternType::Table(_) => ImportKind::Table,
+                    wasmtime::ExternType::Memory(_) => ImportKind::Memory,
+                },
+            })
+            .collect()
+    }
+
+    /// List all exports the module provides.
+    pub fn exported_functions(&self) -> Vec<ExportDescriptor> {
+        self.module
+            .exports()
+            .map(|export| ExportDescriptor {
+                name: export.name().to_string(),
+                kind: match export.ty() {
+                    wasmtime::ExternType::Func(_) => ExportKind::Function,
+                    wasmtime::ExternType::Global(_) => ExportKind::Global,
+                    wasmtime::ExternType::Table(_) => ExportKind::Table,
+                    wasmtime::ExternType::Memory(_) => ExportKind::Memory,
+                },
+            })
+            .collect()
+    }
+
+    /// Get the module's memory requirements.
+    ///
+    /// Returns the initial and maximum memory pages declared in the module.
+    /// Each page is 64 KiB.
+    pub fn memory_requirements(&self) -> Option<MemoryRequirements> {
+        for export in self.module.exports() {
+            if let wasmtime::ExternType::Memory(mem_ty) = export.ty() {
+                return Some(MemoryRequirements {
+                    initial_pages: mem_ty.minimum(),
+                    maximum_pages: mem_ty.maximum(),
+                    initial_bytes: mem_ty.minimum() * 65536,
+                    maximum_bytes: mem_ty.maximum().map(|m| m * 65536),
+                });
+            }
+        }
+        None
+    }
+
+    /// Check compatibility between this module and a sandbox configuration.
+    ///
+    /// Returns a report detailing whether the module is likely to run
+    /// successfully with the given config. Catches mismatches that would
+    /// otherwise surface as runtime errors.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use isolate_core::{SandboxConfig, engine::WasmEngine, capability::Capability, config::WasmModule};
+    /// # async fn example() -> isolate_core::Result<()> {
+    /// let engine = WasmEngine::new()?;
+    /// let wasm = std::fs::read("module.wasm")?;
+    /// let wasm_module = WasmModule::from_bytes(wasm.clone())?;
+    /// let module = engine.compile(&wasm_module)?;
+    ///
+    /// let config = SandboxConfig::builder()
+    ///     .module(&wasm)?
+    ///     .capability(Capability::stdout())
+    ///     .build()?;
+    ///
+    /// let report = module.check_compatibility(&config);
+    /// if !report.is_compatible() {
+    ///     for issue in &report.issues {
+    ///         eprintln!("⚠ {}", issue);
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn check_compatibility(
+        &self,
+        config: &crate::config::SandboxConfig,
+    ) -> CompatibilityReport {
+        let mut issues = Vec::new();
+
+        // Check entry point exists
+        if !self.has_export(&config.entry_point) {
+            let available: Vec<_> = self
+                .exported_functions()
+                .iter()
+                .filter(|e| e.kind == ExportKind::Function)
+                .map(|e| e.name.clone())
+                .collect();
+            issues.push(CompatibilityIssue {
+                severity: IssueSeverity::Error,
+                category: "entry_point".to_string(),
+                message: format!(
+                    "Entry point '{}' not found in module exports",
+                    config.entry_point
+                ),
+                suggestion: if available.is_empty() {
+                    "Module exports no functions".to_string()
+                } else {
+                    format!("Available functions: {}", available.join(", "))
+                },
+            });
+        }
+
+        // Check memory compatibility
+        if let Some(mem_req) = self.memory_requirements() {
+            let configured = config.resources.memory.heap_max as u64;
+            if mem_req.initial_bytes > configured {
+                issues.push(CompatibilityIssue {
+                    severity: IssueSeverity::Error,
+                    category: "memory".to_string(),
+                    message: format!(
+                        "Module requires {} bytes initial memory, but config allows only {} bytes",
+                        mem_req.initial_bytes, configured
+                    ),
+                    suggestion: format!(
+                        "Increase memory_limit to at least {}",
+                        mem_req.initial_bytes
+                    ),
+                });
+            } else if mem_req.initial_bytes as f64 / configured as f64 > 0.8 {
+                issues.push(CompatibilityIssue {
+                    severity: IssueSeverity::Warning,
+                    category: "memory".to_string(),
+                    message: format!(
+                        "Module's initial memory ({} bytes) uses >80% of configured limit ({} bytes)",
+                        mem_req.initial_bytes, configured
+                    ),
+                    suggestion: "Consider increasing memory_limit to leave room for runtime allocations".to_string(),
+                });
+            }
+        }
+
+        // Check WASI import requirements
+        let imports = self.required_imports();
+        let non_wasi: Vec<_> =
+            imports.iter().filter(|i| i.module != "wasi_snapshot_preview1").collect();
+        if !non_wasi.is_empty() {
+            for imp in &non_wasi {
+                issues.push(CompatibilityIssue {
+                    severity: IssueSeverity::Warning,
+                    category: "imports".to_string(),
+                    message: format!(
+                        "Module imports '{}::{}' which is not a standard WASI function",
+                        imp.module, imp.name
+                    ),
+                    suggestion:
+                        "Register a host function for this import or use a WASI-only module"
+                            .to_string(),
+                });
+            }
+        }
+
+        CompatibilityReport {
+            compatible: !issues.iter().any(|i| i.severity == IssueSeverity::Error),
+            issues,
+        }
+    }
+}
+
+/// Describes a WASM module import.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ImportDescriptor {
+    /// Module the import comes from (e.g., "wasi_snapshot_preview1").
+    pub module: String,
+    /// Name of the imported item.
+    pub name: String,
+    /// Kind of import.
+    pub kind: ImportKind,
+}
+
+/// Kind of WASM import or export.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub enum ImportKind {
+    /// A function import.
+    Function,
+    /// A global variable import.
+    Global,
+    /// A table import.
+    Table,
+    /// A memory import.
+    Memory,
+}
+
+/// Describes a WASM module export.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ExportDescriptor {
+    /// Name of the exported item.
+    pub name: String,
+    /// Kind of export.
+    pub kind: ExportKind,
+}
+
+/// Kind of WASM export.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub enum ExportKind {
+    /// A function export.
+    Function,
+    /// A global variable export.
+    Global,
+    /// A table export.
+    Table,
+    /// A memory export.
+    Memory,
+}
+
+/// Memory requirements of a WASM module.
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub struct MemoryRequirements {
+    /// Initial memory pages (each page = 64 KiB).
+    pub initial_pages: u64,
+    /// Maximum memory pages, if declared.
+    pub maximum_pages: Option<u64>,
+    /// Initial memory in bytes.
+    pub initial_bytes: u64,
+    /// Maximum memory in bytes, if declared.
+    pub maximum_bytes: Option<u64>,
+}
+
+/// Report from a module compatibility check.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CompatibilityReport {
+    /// Whether the module is expected to run successfully.
+    pub compatible: bool,
+    /// Individual issues found.
+    pub issues: Vec<CompatibilityIssue>,
+}
+
+impl CompatibilityReport {
+    /// Whether the module is compatible with the configuration.
+    pub fn is_compatible(&self) -> bool {
+        self.compatible
+    }
+
+    /// Get only error-severity issues.
+    pub fn errors(&self) -> Vec<&CompatibilityIssue> {
+        self.issues.iter().filter(|i| i.severity == IssueSeverity::Error).collect()
+    }
+
+    /// Get only warning-severity issues.
+    pub fn warnings(&self) -> Vec<&CompatibilityIssue> {
+        self.issues.iter().filter(|i| i.severity == IssueSeverity::Warning).collect()
+    }
+}
+
+impl std::fmt::Display for CompatibilityReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.compatible {
+            write!(f, "Compatible")?;
+        } else {
+            write!(f, "Incompatible")?;
+        }
+        if !self.issues.is_empty() {
+            write!(f, " ({} issues)", self.issues.len())?;
+        }
+        for issue in &self.issues {
+            write!(f, "\n  {}", issue)?;
+        }
+        Ok(())
+    }
+}
+
+/// A single compatibility issue.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CompatibilityIssue {
+    /// Severity of the issue.
+    pub severity: IssueSeverity,
+    /// Category (e.g., "entry_point", "memory", "imports").
+    pub category: String,
+    /// Description of the issue.
+    pub message: String,
+    /// Suggested fix.
+    pub suggestion: String,
+}
+
+impl std::fmt::Display for CompatibilityIssue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let icon = match self.severity {
+            IssueSeverity::Error => "✗",
+            IssueSeverity::Warning => "⚠",
+        };
+        write!(f, "{} [{}] {}", icon, self.category, self.message)
+    }
+}
+
+/// Severity of a compatibility issue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub enum IssueSeverity {
+    /// Will prevent execution.
+    Error,
+    /// May cause unexpected behavior.
+    Warning,
 }
 
 /// A cached module entry with a sequence counter for LRU eviction.
@@ -74,6 +387,8 @@ pub struct WasmEngine {
     config: WasmEngineConfig,
     /// Whether the global epoch ticker has been started.
     epoch_ticker_started: Arc<AtomicBool>,
+    /// Signal to stop the epoch ticker task.
+    epoch_ticker_shutdown: Arc<AtomicBool>,
     /// Monotonic counter for LRU eviction ordering.
     access_counter: Arc<std::sync::atomic::AtomicU64>,
 }
@@ -111,12 +426,24 @@ impl WasmEngine {
             module_cache: Arc::new(DashMap::new()),
             config,
             epoch_ticker_started: Arc::new(AtomicBool::new(false)),
+            epoch_ticker_shutdown: Arc::new(AtomicBool::new(false)),
             access_counter: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         })
     }
 
     /// Compile a WASM module.
     pub fn compile(&self, wasm_module: &WasmModule) -> Result<CompiledModule> {
+        // Enforce module size limit
+        if self.config.max_module_bytes > 0
+            && wasm_module.bytes().len() > self.config.max_module_bytes
+        {
+            return Err(Error::ModuleValidation(format!(
+                "Module size {} bytes exceeds limit of {} bytes",
+                wasm_module.bytes().len(),
+                self.config.max_module_bytes
+            )));
+        }
+
         let hash = wasm_module.hash().clone();
 
         // Check cache first
@@ -129,8 +456,18 @@ impl WasmEngine {
         tracing::debug!(module_hash = %hash, "module cache miss — compiling");
 
         // Compile the module
-        let module = Module::new(&self.engine, wasm_module.bytes())
-            .map_err(|e| Error::Compilation(e.to_string()))?;
+        let module = Module::new(&self.engine, wasm_module.bytes()).map_err(|e| {
+            let detail = e.to_string();
+            let phase =
+                if detail.contains("failed to parse") || detail.contains("unexpected content") {
+                    "parsing"
+                } else if detail.contains("validation") || detail.contains("type mismatch") {
+                    "validation"
+                } else {
+                    "compilation"
+                };
+            Error::Compilation(format!("{} error: {}", phase, detail))
+        })?;
 
         // Evict LRU entry when cache is full
         if self.module_cache.len() >= self.config.max_cached_modules {
@@ -216,13 +553,25 @@ impl WasmEngine {
             return; // Already started
         }
         let engine = self.engine.clone();
+        let tick_ms = self.config.epoch_tick_ms;
+        let shutdown = self.epoch_ticker_shutdown.clone();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_millis(10));
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(tick_ms));
             loop {
                 interval.tick().await;
+                if shutdown.load(Ordering::Relaxed) {
+                    break;
+                }
                 engine.increment_epoch();
             }
         });
+    }
+
+    /// Signal the epoch ticker to stop.
+    ///
+    /// The ticker task will exit on its next tick after this is called.
+    pub fn shutdown_epoch_ticker(&self) {
+        self.epoch_ticker_shutdown.store(true, Ordering::Relaxed);
     }
 
     /// Clear the module cache.
@@ -234,6 +583,23 @@ impl WasmEngine {
     pub fn cached_module_count(&self) -> usize {
         self.module_cache.len()
     }
+
+    /// Get cache statistics.
+    pub fn cache_stats(&self) -> CacheStats {
+        CacheStats {
+            cached_modules: self.module_cache.len(),
+            max_modules: self.config.max_cached_modules,
+        }
+    }
+}
+
+/// Module cache statistics.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CacheStats {
+    /// Number of currently cached modules.
+    pub cached_modules: usize,
+    /// Maximum cache capacity.
+    pub max_modules: usize,
 }
 
 impl Default for WasmEngine {
@@ -613,8 +979,10 @@ impl WasmInstance {
                 );
 
                 if error_msg.contains("out of fuel") {
-                    let limit = self.store.get_fuel().unwrap_or(0);
-                    return Err(Error::FuelExhausted { limit });
+                    let remaining = self.store.get_fuel().unwrap_or(0);
+                    let consumed = self.fuel_consumed().unwrap_or(0);
+                    let limit = consumed.saturating_add(remaining);
+                    return Err(Error::FuelExhausted { limit, consumed });
                 }
 
                 if error_msg.contains("epoch") {
@@ -921,6 +1289,7 @@ mod tests {
             enable_fuel: false,
             enable_epoch_interruption: false,
             max_cached_modules: 5,
+            ..Default::default()
         };
         let engine = WasmEngine::with_config(config).unwrap();
         assert_eq!(engine.cached_module_count(), 0);
@@ -966,5 +1335,157 @@ mod tests {
 
         assert!(compiled.has_export("_start"));
         assert!(!compiled.has_export("nonexistent_function"));
+    }
+
+    #[test]
+    fn test_required_imports() {
+        let engine = WasmEngine::new().unwrap();
+        let wasm_module = WasmModule::from_bytes(RUNNABLE_WASM.to_vec()).unwrap();
+        let compiled = engine.compile(&wasm_module).unwrap();
+
+        let imports = compiled.required_imports();
+        // WASI module should import from wasi_snapshot_preview1
+        assert!(!imports.is_empty());
+        assert!(imports.iter().any(|i| i.module.contains("wasi")));
+        // All WASI imports should be functions
+        assert!(imports.iter().all(|i| i.kind == ImportKind::Function));
+    }
+
+    #[test]
+    fn test_exported_functions() {
+        let engine = WasmEngine::new().unwrap();
+        let wasm_module = WasmModule::from_bytes(RUNNABLE_WASM.to_vec()).unwrap();
+        let compiled = engine.compile(&wasm_module).unwrap();
+
+        let exports = compiled.exported_functions();
+        assert!(!exports.is_empty());
+        // Should have _start and memory exports
+        assert!(exports.iter().any(|e| e.name == "_start" && e.kind == ExportKind::Function));
+        assert!(exports.iter().any(|e| e.name == "memory" && e.kind == ExportKind::Memory));
+    }
+
+    #[test]
+    fn test_memory_requirements() {
+        let engine = WasmEngine::new().unwrap();
+        let wasm_module = WasmModule::from_bytes(RUNNABLE_WASM.to_vec()).unwrap();
+        let compiled = engine.compile(&wasm_module).unwrap();
+
+        let mem = compiled.memory_requirements();
+        assert!(mem.is_some());
+        let mem = mem.unwrap();
+        assert!(mem.initial_pages >= 1);
+        assert_eq!(mem.initial_bytes, mem.initial_pages * 65536);
+    }
+
+    #[test]
+    fn test_cache_stats() {
+        let config = WasmEngineConfig { max_cached_modules: 10, ..Default::default() };
+        let engine = WasmEngine::with_config(config).unwrap();
+
+        let stats = engine.cache_stats();
+        assert_eq!(stats.cached_modules, 0);
+        assert_eq!(stats.max_modules, 10);
+
+        let wasm_module = WasmModule::from_bytes(RUNNABLE_WASM.to_vec()).unwrap();
+        engine.compile(&wasm_module).unwrap();
+
+        let stats = engine.cache_stats();
+        assert_eq!(stats.cached_modules, 1);
+    }
+
+    #[test]
+    fn test_module_size_limit() {
+        let config = WasmEngineConfig {
+            max_module_bytes: 10, // very small limit
+            ..Default::default()
+        };
+        let engine = WasmEngine::with_config(config).unwrap();
+        let wasm_module = WasmModule::from_bytes(RUNNABLE_WASM.to_vec()).unwrap();
+        let result = engine.compile(&wasm_module);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compatibility_report_minimal_module() {
+        let engine = WasmEngine::new().unwrap();
+        let module = WasmModule::from_bytes(MINIMAL_WASM.to_vec()).unwrap();
+        let compiled = engine.compile(&module).unwrap();
+
+        // Minimal WASM has no _start — entry point check should fail
+        let config = SandboxConfig::builder().module(MINIMAL_WASM).unwrap().build().unwrap();
+
+        let report = compiled.check_compatibility(&config);
+        assert!(!report.is_compatible());
+        assert!(report.errors().iter().any(|i| i.category == "entry_point"));
+    }
+
+    #[test]
+    fn test_compatibility_report_runnable_module() {
+        let engine = WasmEngine::new().unwrap();
+        let module = WasmModule::from_bytes(RUNNABLE_WASM.to_vec()).unwrap();
+        let compiled = engine.compile(&module).unwrap();
+
+        let config = SandboxConfig::builder()
+            .module(RUNNABLE_WASM)
+            .unwrap()
+            .memory_limit(64 * 1024 * 1024) // 64MB — plenty
+            .build()
+            .unwrap();
+
+        let report = compiled.check_compatibility(&config);
+        // Should be compatible (has _start, sufficient memory)
+        assert!(report.is_compatible(), "Expected compatible, got: {}", report);
+    }
+
+    #[test]
+    fn test_compatibility_report_display() {
+        let report = CompatibilityReport {
+            compatible: false,
+            issues: vec![CompatibilityIssue {
+                severity: IssueSeverity::Error,
+                category: "entry_point".to_string(),
+                message: "Missing _start".to_string(),
+                suggestion: "Add _start export".to_string(),
+            }],
+        };
+        let display = format!("{}", report);
+        assert!(display.contains("Incompatible"));
+        assert!(display.contains("Missing _start"));
+    }
+
+    #[test]
+    fn test_compatibility_issue_display() {
+        let issue = CompatibilityIssue {
+            severity: IssueSeverity::Warning,
+            category: "memory".to_string(),
+            message: "High memory usage".to_string(),
+            suggestion: "Increase limit".to_string(),
+        };
+        let display = format!("{}", issue);
+        assert!(display.contains("⚠"));
+        assert!(display.contains("memory"));
+    }
+
+    #[test]
+    fn test_compatibility_report_accessors() {
+        let report = CompatibilityReport {
+            compatible: false,
+            issues: vec![
+                CompatibilityIssue {
+                    severity: IssueSeverity::Error,
+                    category: "entry_point".to_string(),
+                    message: "missing".to_string(),
+                    suggestion: "fix".to_string(),
+                },
+                CompatibilityIssue {
+                    severity: IssueSeverity::Warning,
+                    category: "memory".to_string(),
+                    message: "tight".to_string(),
+                    suggestion: "increase".to_string(),
+                },
+            ],
+        };
+        assert_eq!(report.errors().len(), 1);
+        assert_eq!(report.warnings().len(), 1);
     }
 }
