@@ -1137,3 +1137,283 @@ async fn test_concurrent_resource_contention() {
     // Engine should remain consistent after concurrent resource contention
     assert!(engine.cached_module_count() > 0);
 }
+
+// ---------------------------------------------------------------------------
+// Sandbox reset and reuse
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_sandbox_reset_and_rerun() {
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .capability(Capability::stdout())
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+
+    // First run
+    let output1 = sandbox.run(&[]).await.expect("first run");
+    assert_eq!(output1.exit_code, 0);
+    assert!(!output1.stdout.is_empty());
+    assert_eq!(sandbox.state(), SandboxState::Terminated);
+
+    // Reset and run again
+    sandbox.reset().await.expect("reset");
+    assert_eq!(sandbox.state(), SandboxState::Ready);
+
+    let output2 = sandbox.run(&[]).await.expect("second run");
+    assert_eq!(output2.exit_code, 0);
+    assert_eq!(output1.stdout, output2.stdout);
+}
+
+#[tokio::test]
+async fn test_sandbox_reset_clears_resource_usage() {
+    let config = SandboxConfig::builder()
+        .module(RUNNABLE_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+    let _ = sandbox.run(&[]).await.expect("run");
+
+    sandbox.reset().await.expect("reset");
+
+    // After reset, resource meter should be fresh
+    let usage = sandbox.meter().usage();
+    assert_eq!(usage.fuel_consumed, 0);
+    assert_eq!(usage.bytes_read, 0);
+    assert_eq!(usage.bytes_written, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Execution traces
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_execution_traces_recorded() {
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .capability(Capability::stdout())
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+
+    // No traces before first run
+    assert!(sandbox.execution_traces().is_empty());
+
+    let output = sandbox.run(&[]).await.expect("run");
+    assert_eq!(output.exit_code, 0);
+
+    // One trace after run
+    let traces = sandbox.execution_traces();
+    assert_eq!(traces.len(), 1);
+    assert_eq!(traces[0].exit_code, 0);
+    assert!(!traces[0].output_hash.is_empty());
+    assert!(!traces[0].module_hash.0.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Config file loading
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_config_file_with_sandbox() {
+    use isolate_core::config::ConfigFile;
+
+    let json = r#"{
+        "capabilities": { "stdout": true },
+        "resources": {
+            "memory": { "heap_max": "64MB" },
+            "cpu": { "fuel": 1000000 },
+            "timeout": "10s"
+        }
+    }"#;
+
+    let cfg = ConfigFile::from_json(json).expect("valid config file");
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .expect("valid module")
+        .apply_config_file(&cfg)
+        .expect("apply config")
+        .build()
+        .expect("build config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+    let output = sandbox.run(&[]).await.expect("run");
+
+    assert_eq!(output.exit_code, 0);
+    assert!(!output.stdout.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Batch execution
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_run_batch() {
+    let config = SandboxConfig::builder()
+        .module(RUNNABLE_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .build()
+        .expect("valid config");
+
+    let engine = Arc::new(WasmEngine::new().expect("engine"));
+    let mut sandbox = Sandbox::create_with_engine(config, engine).await.expect("creation");
+
+    let inputs = vec![vec![], vec![], vec![]];
+    let results = sandbox.run_batch(inputs).await.expect("batch run");
+
+    assert_eq!(results.len(), 3);
+    for result in &results {
+        assert!(result.is_ok());
+    }
+}
+
+#[tokio::test]
+async fn test_batch_with_nonzero_exit_codes() {
+    let engine = Arc::new(WasmEngine::new().expect("engine"));
+    let config = SandboxConfig::builder().module(EXIT_42_WASM).unwrap().build().expect("config");
+
+    let mut sandbox = Sandbox::create_with_engine(config, engine).await.expect("creation");
+
+    let inputs = vec![vec![], vec![]];
+    let results = sandbox.run_batch(inputs).await.expect("batch run");
+
+    assert_eq!(results.len(), 2);
+    for result in &results {
+        let output = result.as_ref().expect("each batch item should succeed");
+        assert_eq!(output.exit_code, 42);
+    }
+
+    // Sandbox should be terminated after batch
+    assert_eq!(sandbox.state(), SandboxState::Terminated);
+}
+
+#[tokio::test]
+async fn test_batch_state_transitions() {
+    let engine = Arc::new(WasmEngine::new().expect("engine"));
+    let config = SandboxConfig::builder().module(RUNNABLE_WASM).unwrap().build().expect("config");
+
+    let mut sandbox = Sandbox::create_with_engine(config, engine).await.expect("creation");
+
+    assert_eq!(sandbox.state(), SandboxState::Ready);
+
+    let results = sandbox.run_batch(vec![vec![]]).await.expect("batch run");
+    assert_eq!(results.len(), 1);
+
+    // After batch, sandbox is terminated — calling run_batch again should fail
+    assert_eq!(sandbox.state(), SandboxState::Terminated);
+    let err = sandbox.run_batch(vec![vec![]]).await;
+    assert!(err.is_err());
+}
+
+// ── Import-capability mismatch warning tests ────────────────────────────────
+
+#[tokio::test]
+async fn test_import_capability_warns_on_missing_stdout() {
+    // hello.wasm imports fd_write — without stdout capability, we should get a warning
+    let engine = Arc::new(WasmEngine::new().expect("engine"));
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .unwrap()
+        // Deliberately no stdout capability
+        .build()
+        .unwrap();
+
+    let module = engine.compile(&config.module).expect("compile");
+    let warnings = config.validate_against_module(&module);
+
+    let has_stdio_warning = warnings.iter().any(|w| {
+        matches!(w.kind, isolate_core::config::ConfigWarningKind::InsufficientCapability)
+            && w.message.contains("fd_write")
+    });
+    assert!(
+        has_stdio_warning,
+        "Expected a warning about fd_write without Stdio capability, got: {:?}",
+        warnings
+    );
+}
+
+#[tokio::test]
+async fn test_import_capability_no_warning_with_stdout() {
+    // hello.wasm imports fd_write — with stdout capability, no warning expected
+    let engine = Arc::new(WasmEngine::new().expect("engine"));
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .unwrap()
+        .capability(Capability::stdout())
+        .build()
+        .unwrap();
+
+    let module = engine.compile(&config.module).expect("compile");
+    let warnings = config.validate_against_module(&module);
+
+    let has_stdio_warning = warnings.iter().any(|w| {
+        matches!(w.kind, isolate_core::config::ConfigWarningKind::InsufficientCapability)
+            && w.message.contains("fd_write")
+    });
+    assert!(
+        !has_stdio_warning,
+        "Should not warn about fd_write when Stdio capability is granted, got: {:?}",
+        warnings
+    );
+}
+
+#[tokio::test]
+async fn test_import_capability_warns_on_missing_clock() {
+    // clock_reader.wasm imports clock_time_get
+    let engine = Arc::new(WasmEngine::new().expect("engine"));
+    let config = SandboxConfig::builder()
+        .module(CLOCK_READER_WASM)
+        .unwrap()
+        .capability(Capability::stdout()) // grant stdout but not time
+        .build()
+        .unwrap();
+
+    let module = engine.compile(&config.module).expect("compile");
+    let warnings = config.validate_against_module(&module);
+
+    let has_time_warning = warnings.iter().any(|w| {
+        matches!(w.kind, isolate_core::config::ConfigWarningKind::InsufficientCapability)
+            && w.message.contains("clock_time_get")
+    });
+    assert!(
+        has_time_warning,
+        "Expected a warning about clock_time_get without Time capability, got: {:?}",
+        warnings
+    );
+}
+
+#[tokio::test]
+async fn test_import_capability_warns_on_missing_random() {
+    // random_reader.wasm imports random_get
+    let engine = Arc::new(WasmEngine::new().expect("engine"));
+    let config = SandboxConfig::builder()
+        .module(RANDOM_READER_WASM)
+        .unwrap()
+        .capability(Capability::stdout()) // grant stdout but not random
+        .build()
+        .unwrap();
+
+    let module = engine.compile(&config.module).expect("compile");
+    let warnings = config.validate_against_module(&module);
+
+    let has_random_warning = warnings.iter().any(|w| {
+        matches!(w.kind, isolate_core::config::ConfigWarningKind::InsufficientCapability)
+            && w.message.contains("random_get")
+    });
+    assert!(
+        has_random_warning,
+        "Expected a warning about random_get without Random capability, got: {:?}",
+        warnings
+    );
+}

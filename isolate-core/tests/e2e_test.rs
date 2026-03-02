@@ -236,3 +236,41 @@ async fn e2e_concurrent_sandboxes() {
         assert_eq!(output.exit_code, 0);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Full reset lifecycle test
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn e2e_reset_lifecycle() {
+    // Create → Run → verify terminated → Reset → Run again → Terminate with metrics
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .unwrap()
+        .capability(Capability::stdout())
+        .build()
+        .unwrap();
+
+    let mut sandbox = Sandbox::create(config).await.unwrap();
+    assert_eq!(sandbox.state(), isolate_core::SandboxState::Ready);
+
+    // First run
+    let output1 = sandbox.run(&[]).await.unwrap();
+    assert_eq!(output1.exit_code, 0);
+    assert_eq!(output1.stdout_str(), "Hello from WASM!\n");
+    assert_eq!(sandbox.state(), isolate_core::SandboxState::Terminated);
+
+    // Reset
+    sandbox.reset().await.unwrap();
+    assert_eq!(sandbox.state(), isolate_core::SandboxState::Ready);
+
+    // Second run after reset — should produce same output
+    let output2 = sandbox.run(&[]).await.unwrap();
+    assert_eq!(output2.exit_code, 0);
+    assert_eq!(output2.stdout_str(), "Hello from WASM!\n");
+    assert_eq!(sandbox.state(), isolate_core::SandboxState::Terminated);
+
+    // Terminate and collect metrics
+    let metrics = sandbox.terminate().await.unwrap();
+    assert!(metrics.run_count >= 2);
+}

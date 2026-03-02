@@ -244,7 +244,8 @@ proptest! {
     /// Fuel exhausted errors report correct limit.
     #[test]
     fn fuel_exhausted_error_limit(limit in any::<u64>()) {
-        let error = Error::FuelExhausted { limit };
+        let consumed = limit.saturating_add(1);
+        let error = Error::FuelExhausted { limit, consumed };
         prop_assert!(!error.is_timeout());
         prop_assert!(error.is_resource_limit());
         prop_assert!(!error.is_capability_error());
@@ -253,7 +254,8 @@ proptest! {
     /// Memory limit errors report correct values.
     #[test]
     fn memory_limit_error_values(limit in any::<usize>(), requested in any::<usize>()) {
-        let error = Error::MemoryLimitExceeded { limit, requested };
+        let current_usage = limit / 2;
+        let error = Error::MemoryLimitExceeded { limit, requested, current_usage };
         prop_assert!(error.is_resource_limit());
         prop_assert!(!error.is_capability_error());
     }

@@ -256,4 +256,78 @@ mod tests {
         cb.allow_request(); // rejected
         assert_eq!(cb.total_rejected(), 2);
     }
+
+    #[test]
+    fn test_open_to_half_open_timing_boundary() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_millis(30),
+            success_threshold: 1,
+            window_duration: Duration::from_secs(60),
+        };
+        let cb = CircuitBreaker::new(config);
+
+        cb.record_failure(); // → Open
+        assert_eq!(cb.state(), CircuitState::Open);
+
+        // Before open_duration elapsed — should stay Open
+        assert!(!cb.allow_request());
+        assert_eq!(cb.state(), CircuitState::Open);
+
+        // Wait past the open_duration
+        std::thread::sleep(Duration::from_millis(40));
+
+        // Now should transition to HalfOpen
+        assert!(cb.allow_request());
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+    }
+
+    #[test]
+    fn test_single_success_threshold() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_millis(10),
+            success_threshold: 1, // Single success closes
+            window_duration: Duration::from_secs(60),
+        };
+        let cb = CircuitBreaker::new(config);
+
+        cb.record_failure(); // → Open
+        std::thread::sleep(Duration::from_millis(15));
+        cb.allow_request(); // → HalfOpen
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+
+        cb.record_success(); // Single success → Closed
+        assert_eq!(cb.state(), CircuitState::Closed);
+    }
+
+    #[test]
+    fn test_no_rejected_count_when_closed() {
+        let cb = CircuitBreaker::new(test_config());
+
+        // All requests while closed should succeed, no rejections
+        for _ in 0..10 {
+            assert!(cb.allow_request());
+        }
+        assert_eq!(cb.total_rejected(), 0);
+    }
+
+    #[test]
+    fn test_half_open_allows_multiple_requests() {
+        let config = CircuitBreakerConfig {
+            failure_threshold: 1,
+            open_duration: Duration::from_millis(10),
+            success_threshold: 3,
+            window_duration: Duration::from_secs(60),
+        };
+        let cb = CircuitBreaker::new(config);
+
+        cb.record_failure(); // → Open
+        std::thread::sleep(Duration::from_millis(15));
+        cb.allow_request(); // → HalfOpen
+
+        // Subsequent requests in half-open should also be allowed
+        assert!(cb.allow_request());
+        assert!(cb.allow_request());
+    }
 }
