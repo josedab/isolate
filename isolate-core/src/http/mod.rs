@@ -88,6 +88,55 @@ pub struct HttpClientConfig {
     pub user_agent: String,
     /// Whether to allow insecure TLS connections (for testing only).
     pub allow_insecure_tls: bool,
+    /// Retry configuration for transient errors.
+    pub retry: RetryConfig,
+    /// Maximum concurrent connections per host.
+    pub max_connections_per_host: usize,
+}
+
+/// Configuration for automatic retries on transient HTTP errors.
+#[derive(Debug, Clone)]
+pub struct RetryConfig {
+    /// Maximum number of retry attempts (0 = no retries).
+    pub max_retries: u32,
+    /// Initial backoff delay.
+    pub initial_backoff: std::time::Duration,
+    /// Maximum backoff delay.
+    pub max_backoff: std::time::Duration,
+    /// Backoff multiplier (exponential backoff).
+    pub backoff_multiplier: f64,
+    /// Whether to retry on 5xx server errors.
+    pub retry_server_errors: bool,
+    /// Whether to retry on connection errors.
+    pub retry_connection_errors: bool,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: 3,
+            initial_backoff: std::time::Duration::from_millis(100),
+            max_backoff: std::time::Duration::from_secs(10),
+            backoff_multiplier: 2.0,
+            retry_server_errors: true,
+            retry_connection_errors: true,
+        }
+    }
+}
+
+impl RetryConfig {
+    /// No retries.
+    pub fn none() -> Self {
+        Self { max_retries: 0, ..Default::default() }
+    }
+
+    /// Calculate backoff duration for a given attempt.
+    pub fn backoff_for(&self, attempt: u32) -> std::time::Duration {
+        let base = self.initial_backoff.as_millis() as f64;
+        let delay = base * self.backoff_multiplier.powi(attempt as i32);
+        let capped = delay.min(self.max_backoff.as_millis() as f64);
+        std::time::Duration::from_millis(capped as u64)
+    }
 }
 
 impl Default for HttpClientConfig {
@@ -99,6 +148,8 @@ impl Default for HttpClientConfig {
             max_redirects: 10,
             user_agent: format!("isolate/{} (secure sandbox runtime)", env!("CARGO_PKG_VERSION")),
             allow_insecure_tls: false,
+            retry: RetryConfig::default(),
+            max_connections_per_host: 32,
         }
     }
 }

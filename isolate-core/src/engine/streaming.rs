@@ -86,6 +86,8 @@ pub enum ChannelError {
     Full,
     /// The buffer is empty (read would block).
     Empty,
+    /// Write timed out waiting for buffer space.
+    Timeout,
 }
 
 impl std::fmt::Display for ChannelError {
@@ -94,6 +96,7 @@ impl std::fmt::Display for ChannelError {
             Self::Closed => write!(f, "channel closed"),
             Self::Full => write!(f, "buffer full"),
             Self::Empty => write!(f, "buffer empty"),
+            Self::Timeout => write!(f, "write timed out"),
         }
     }
 }
@@ -149,11 +152,28 @@ impl RingWriter {
 
     /// Write all data, returning error if the channel closes before completion.
     pub fn write_all(&mut self, data: &[u8]) -> Result<(), ChannelError> {
+        self.write_all_timeout(data, None)
+    }
+
+    /// Write all data with an optional timeout for backpressure.
+    ///
+    /// If the buffer is full, retries until either all data is written,
+    /// the channel closes, or the timeout expires.
+    pub fn write_all_timeout(
+        &mut self,
+        data: &[u8],
+        timeout: Option<std::time::Duration>,
+    ) -> Result<(), ChannelError> {
+        let start = std::time::Instant::now();
         let mut offset = 0;
         while offset < data.len() {
             let written = self.write(&data[offset..])?;
             if written == 0 {
-                // Buffer full, try again (busy wait - in practice, yield or async)
+                if let Some(t) = timeout {
+                    if start.elapsed() > t {
+                        return Err(ChannelError::Timeout);
+                    }
+                }
                 std::thread::yield_now();
                 if self.inner.closed.load(Ordering::Acquire) {
                     return Err(ChannelError::Closed);

@@ -289,7 +289,14 @@ impl HostOutputStream for StreamingCaptureOutputStream {
         self.buffer.write().extend_from_slice(&bytes);
         // Send chunk to channel (non-blocking best-effort)
         let chunk = OutputChunk { source: self.source, data: bytes.to_vec() };
-        let _ = self.sender.try_send(chunk);
+        if let Err(e) = self.sender.try_send(chunk) {
+            tracing::warn!(
+                source = ?self.source,
+                bytes = bytes.len(),
+                "Streaming output chunk dropped: {}",
+                e
+            );
+        }
         Ok(())
     }
 

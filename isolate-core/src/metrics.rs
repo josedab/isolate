@@ -1,4 +1,19 @@
 //! Metrics and observability.
+//!
+//! # Cardinality Warning
+//!
+//! Several metrics in this module use `sandbox_id` as a label. In high-throughput
+//! deployments where thousands of sandboxes are created, this produces **unbounded
+//! label cardinality** — each unique sandbox_id creates a new time series that is
+//! never garbage-collected by the Prometheus registry.
+//!
+//! **Mitigation strategies:**
+//! - Use `module_hash` instead of `sandbox_id` for aggregation (finite set)
+//! - Configure Prometheus `metric_relabel_configs` to drop `sandbox_id` labels
+//! - Use recording rules to pre-aggregate per-module-hash metrics
+//! - Set sandbox pool size limits to bound the maximum cardinality
+//!
+//! Affected metrics: `memory_usage`, `fuel_consumed`, `sandbox_run_duration`.
 
 use crate::sandbox::SandboxId;
 use parking_lot::RwLock;
@@ -35,6 +50,19 @@ pub struct MetricsRegistry {
     // Capability metrics
     capability_checks: CounterVec,
     capability_denials: CounterVec,
+
+    // Module metrics
+    module_compilations: Counter,
+    module_compile_duration: Histogram,
+    module_runs: CounterVec,
+
+    // Pool metrics
+    pool_size: Gauge,
+    pool_hits: Counter,
+    pool_misses: Counter,
+
+    // Rate limiter metrics
+    rate_limit_decisions: CounterVec,
 }
 
 impl MetricsRegistry {
@@ -112,6 +140,46 @@ impl MetricsRegistry {
         registry.register(Box::new(capability_checks.clone())).ok();
         registry.register(Box::new(capability_denials.clone())).ok();
 
+        // Module metrics
+        let module_compilations =
+            Counter::new("isolate_module_compilations_total", "Total WASM module compilations")
+                .unwrap();
+
+        let module_compile_duration = Histogram::with_opts(
+            HistogramOpts::new(
+                "isolate_module_compile_seconds",
+                "WASM module compilation time in seconds",
+            )
+            .buckets(vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5]),
+        )
+        .unwrap();
+
+        let module_runs = CounterVec::new(
+            Opts::new("isolate_module_runs_total", "Runs per module hash"),
+            &["module_hash"],
+        )
+        .unwrap();
+
+        // Pool metrics
+        let pool_size = Gauge::new("isolate_pool_size", "Current warm pool size").unwrap();
+        let pool_hits = Counter::new("isolate_pool_hits_total", "Warm pool hits").unwrap();
+        let pool_misses = Counter::new("isolate_pool_misses_total", "Warm pool misses").unwrap();
+
+        // Rate limiter metrics
+        let rate_limit_decisions = CounterVec::new(
+            Opts::new("isolate_rate_limit_total", "Rate limit decisions"),
+            &["result"],
+        )
+        .unwrap();
+
+        registry.register(Box::new(module_compilations.clone())).ok();
+        registry.register(Box::new(module_compile_duration.clone())).ok();
+        registry.register(Box::new(module_runs.clone())).ok();
+        registry.register(Box::new(pool_size.clone())).ok();
+        registry.register(Box::new(pool_hits.clone())).ok();
+        registry.register(Box::new(pool_misses.clone())).ok();
+        registry.register(Box::new(rate_limit_decisions.clone())).ok();
+
         Self {
             registry,
             sandboxes_created,
@@ -123,6 +191,13 @@ impl MetricsRegistry {
             fuel_consumed,
             capability_checks,
             capability_denials,
+            module_compilations,
+            module_compile_duration,
+            module_runs,
+            pool_size,
+            pool_hits,
+            pool_misses,
+            rate_limit_decisions,
         }
     }
 
@@ -164,6 +239,38 @@ impl MetricsRegistry {
         if !allowed {
             self.capability_denials.with_label_values(&[capability]).inc();
         }
+    }
+
+    /// Record a module compilation.
+    pub fn record_module_compilation(&self, duration: Duration) {
+        self.module_compilations.inc();
+        self.module_compile_duration.observe(duration.as_secs_f64());
+    }
+
+    /// Record a module run.
+    pub fn record_module_run(&self, module_hash: &str) {
+        self.module_runs.with_label_values(&[module_hash]).inc();
+    }
+
+    /// Record pool hit.
+    pub fn record_pool_hit(&self) {
+        self.pool_hits.inc();
+    }
+
+    /// Record pool miss.
+    pub fn record_pool_miss(&self) {
+        self.pool_misses.inc();
+    }
+
+    /// Set the pool size.
+    pub fn set_pool_size(&self, size: usize) {
+        self.pool_size.set(size as f64);
+    }
+
+    /// Record a rate limit decision.
+    pub fn record_rate_limit(&self, allowed: bool) {
+        let result = if allowed { "allowed" } else { "denied" };
+        self.rate_limit_decisions.with_label_values(&[result]).inc();
     }
 
     /// Get the Prometheus registry.
