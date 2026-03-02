@@ -78,7 +78,8 @@ use tonic::transport::{Certificate, Identity, Server, ServerTlsConfig};
 use tonic_health::server::health_reporter;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-pub mod proto {
+#[allow(dead_code)]
+mod proto {
     tonic::include_proto!("isolate.v1");
 }
 

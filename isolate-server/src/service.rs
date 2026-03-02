@@ -22,6 +22,28 @@ use tokio::sync::Semaphore;
 use tonic::{Request, Response, Status};
 use tracing::{instrument, Span};
 
+/// Generate a unique request ID for tracing.
+fn generate_request_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+/// Extract or generate a request ID from gRPC metadata.
+fn extract_request_id<T>(request: &Request<T>) -> String {
+    request
+        .metadata()
+        .get("x-request-id")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+        .unwrap_or_else(generate_request_id)
+}
+
+/// Attach request ID to a gRPC response.
+fn attach_request_id<T>(response: &mut Response<T>, request_id: &str) {
+    if let Ok(val) = request_id.parse() {
+        response.metadata_mut().insert("x-request-id", val);
+    }
+}
+
 /// The Isolate gRPC service implementation.
 pub struct IsolateServiceImpl {
     /// Shared WASM engine.
@@ -142,7 +164,10 @@ impl IsolateService for IsolateServiceImpl {
         &self,
         request: Request<CreateSandboxRequest>,
     ) -> Result<Response<CreateSandboxResponse>, Status> {
+        let request_id = extract_request_id(&request);
         let req = request.into_inner();
+
+        tracing::info!(request_id = %request_id, "CreateSandbox request");
 
         // Request validation
         if req.module.is_empty() {
@@ -153,7 +178,9 @@ impl IsolateService for IsolateServiceImpl {
 
         // Rate limit check
         if let Err(_e) = self.rate_limiter.try_acquire() {
-            return Err(Status::resource_exhausted("Rate limit exceeded, try again later"));
+            return Err(Status::resource_exhausted(
+                "Rate limit exceeded. Retry after a short backoff (e.g., 1 second).",
+            ));
         }
 
         // Acquire semaphore permit
@@ -230,11 +257,13 @@ impl IsolateService for IsolateServiceImpl {
             "Sandbox created via gRPC"
         );
 
-        Ok(Response::new(CreateSandboxResponse {
+        let mut resp = Response::new(CreateSandboxResponse {
             sandbox_id: sandbox_id_str,
             module_hash,
             creation_time_ms: creation_time.as_secs_f64() * 1000.0,
-        }))
+        });
+        attach_request_id(&mut resp, &request_id);
+        Ok(resp)
     }
 
     /// Execute a sandbox and return its output.
@@ -260,7 +289,10 @@ impl IsolateService for IsolateServiceImpl {
         &self,
         request: Request<RunSandboxRequest>,
     ) -> Result<Response<RunSandboxResponse>, Status> {
+        let request_id = extract_request_id(&request);
         let req = request.into_inner();
+
+        tracing::info!(request_id = %request_id, sandbox_id = %req.sandbox_id, "RunSandbox request");
 
         let sandbox = self
             .sandboxes
@@ -270,10 +302,19 @@ impl IsolateService for IsolateServiceImpl {
 
         let mut guard = sandbox.lock().await;
 
-        let output = guard
-            .run(&req.input)
-            .await
-            .map_err(|e| Status::internal(format!("Execution failed: {}", e)))?;
+        // Use entry_point from request if provided, otherwise default _start
+        let output = if !req.entry_point.is_empty() && req.entry_point != "_start" {
+            return Err(Status::unimplemented(format!(
+                "Custom entry point '{}' is not yet supported for full output capture. \
+                 Use '_start' or omit entry_point.",
+                req.entry_point
+            )));
+        } else {
+            guard
+                .run(&req.input)
+                .await
+                .map_err(|e| Status::internal(format!("Execution failed: {}", e)))?
+        };
 
         // Record execution results in span
         Span::current().record("sandbox.exit_code", output.exit_code);
@@ -294,7 +335,7 @@ impl IsolateService for IsolateServiceImpl {
         );
 
         let usage = &output.resource_usage;
-        Ok(Response::new(RunSandboxResponse {
+        let mut resp = Response::new(RunSandboxResponse {
             exit_code: output.exit_code,
             stdout: output.stdout,
             stderr: output.stderr,
@@ -307,7 +348,9 @@ impl IsolateService for IsolateServiceImpl {
                 bytes_read: usage.bytes_read,
                 bytes_written: usage.bytes_written,
             }),
-        }))
+        });
+        attach_request_id(&mut resp, &request_id);
+        Ok(resp)
     }
 
     /// Retrieve information about a sandbox.
@@ -406,7 +449,7 @@ impl IsolateService for IsolateServiceImpl {
     /// List active sandboxes with optional state filtering and pagination.
     ///
     /// # Arguments
-    /// * `request` - Contains optional `state_filter`, `offset`, and `limit` fields.
+    /// * `request` - Contains optional `state_filter`, `page_token`, and `limit` fields.
     ///
     /// # Errors
     /// Returns an empty list if no sandboxes match the filter.
@@ -441,17 +484,26 @@ impl IsolateService for IsolateServiceImpl {
 
         let total = sandboxes.len() as i32;
 
-        // Apply pagination
-        let offset = req.offset.max(0) as usize;
-        let limit = if req.limit > 0 {
-            (req.limit as usize).min(100) // Cap pagination at 100
+        // Apply pagination — support both cursor-based and legacy offset
+        let offset = if !req.page_token.is_empty() {
+            // Decode cursor (base64-encoded offset for simplicity)
+            req.page_token.parse::<usize>().unwrap_or(0)
         } else {
-            sandboxes.len()
+            #[allow(deprecated)]
+            let o = req.offset;
+            o.max(0) as usize
         };
+        let limit = if req.limit > 0 { (req.limit as usize).min(100) } else { sandboxes.len() };
 
         let sandboxes: Vec<_> = sandboxes.into_iter().skip(offset).take(limit).collect();
 
-        Ok(Response::new(ListSandboxesResponse { sandboxes, total }))
+        let next_page_token = if offset + sandboxes.len() < total as usize {
+            (offset + sandboxes.len()).to_string()
+        } else {
+            String::new()
+        };
+
+        Ok(Response::new(ListSandboxesResponse { sandboxes, total, next_page_token }))
     }
 
     type StreamOutputStream = tokio_stream::wrappers::ReceiverStream<Result<OutputChunk, Status>>;
@@ -843,8 +895,9 @@ mod tests {
         let resp = service
             .list_sandboxes(Request::new(ListSandboxesRequest {
                 state_filter: String::new(),
-                offset: 0,
                 limit: 10,
+                page_token: String::new(),
+                ..Default::default()
             }))
             .await
             .unwrap();
@@ -872,8 +925,9 @@ mod tests {
         let resp = service
             .list_sandboxes(Request::new(ListSandboxesRequest {
                 state_filter: String::new(),
-                offset: 0,
                 limit: 10,
+                page_token: String::new(),
+                ..Default::default()
             }))
             .await
             .unwrap();
@@ -899,8 +953,9 @@ mod tests {
         let resp = service
             .list_sandboxes(Request::new(ListSandboxesRequest {
                 state_filter: String::new(),
-                offset: 0,
                 limit: 2,
+                page_token: String::new(),
+                ..Default::default()
             }))
             .await
             .unwrap();
@@ -1042,8 +1097,9 @@ mod tests {
         let list_resp = service
             .list_sandboxes(Request::new(ListSandboxesRequest {
                 state_filter: String::new(),
-                offset: 0,
                 limit: 10,
+                page_token: String::new(),
+                ..Default::default()
             }))
             .await
             .unwrap();
@@ -1062,8 +1118,9 @@ mod tests {
         let list_resp = service
             .list_sandboxes(Request::new(ListSandboxesRequest {
                 state_filter: String::new(),
-                offset: 0,
                 limit: 10,
+                page_token: String::new(),
+                ..Default::default()
             }))
             .await
             .unwrap();
