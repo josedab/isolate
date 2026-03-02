@@ -13,7 +13,9 @@ pub mod scheduler;
 pub mod wasm_profiler;
 
 pub use limits::{CpuLimits, IoLimits, MemoryLimits, ResourceLimits, TimeLimits};
-pub use metering::{ResourceMeter, ResourceUsage};
+pub use metering::{
+    format_bytes, format_duration, ResourceMeter, ResourceUsage, ResourceUtilization,
+};
 pub use profiler::{
     CloudProvider, CostEstimate, ExecutionProfile, PricingModel, ProfileSummary, Recommendation,
     ResourceProfiler,

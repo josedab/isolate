@@ -17,6 +17,67 @@ pub struct ResourceLimits {
 }
 
 impl ResourceLimits {
+    /// Validate that resource limits are internally consistent.
+    ///
+    /// Returns a list of validation errors. Empty means valid.
+    pub fn validate(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+
+        if self.memory.heap_max > self.memory.total_max {
+            errors.push(format!(
+                "heap_max ({}) exceeds total_max ({})",
+                self.memory.heap_max, self.memory.total_max
+            ));
+        }
+
+        if self.memory.stack_max > self.memory.total_max {
+            errors.push(format!(
+                "stack_max ({}) exceeds total_max ({})",
+                self.memory.stack_max, self.memory.total_max
+            ));
+        }
+
+        // Combined heap + stack should not exceed total
+        if self.memory.heap_max.saturating_add(self.memory.stack_max) > self.memory.total_max {
+            errors.push(format!(
+                "heap_max ({}) + stack_max ({}) exceeds total_max ({})",
+                self.memory.heap_max, self.memory.stack_max, self.memory.total_max
+            ));
+        }
+
+        if let (Some(cpu), Some(wall)) = (self.cpu.cpu_time, self.time.wall_time) {
+            if cpu > wall {
+                errors.push(format!("cpu_time ({:?}) exceeds wall_time ({:?})", cpu, wall));
+            }
+        }
+
+        // Duplicate cpu_time in CpuLimits and TimeLimits should be consistent
+        if let (Some(cpu_in_cpu), Some(cpu_in_time)) = (self.cpu.cpu_time, self.time.cpu_time) {
+            if cpu_in_cpu != cpu_in_time {
+                errors.push(format!(
+                    "cpu.cpu_time ({:?}) differs from time.cpu_time ({:?})",
+                    cpu_in_cpu, cpu_in_time
+                ));
+            }
+        }
+
+        // Preemption interval should be reasonable (1ms to 10s)
+        if self.cpu.preemption_interval < Duration::from_millis(1) {
+            errors.push(format!(
+                "preemption_interval ({:?}) is below 1ms minimum",
+                self.cpu.preemption_interval
+            ));
+        }
+        if self.cpu.preemption_interval > Duration::from_secs(10) {
+            errors.push(format!(
+                "preemption_interval ({:?}) exceeds 10s — timeouts may be very imprecise",
+                self.cpu.preemption_interval
+            ));
+        }
+
+        errors
+    }
+
     /// Create resource limits with sensible defaults for untrusted code.
     pub fn restrictive() -> Self {
         Self {
@@ -210,6 +271,74 @@ impl TimeLimits {
     }
 }
 
+impl std::fmt::Display for ResourceLimits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Resources({}, {}, {}, {})", self.memory, self.cpu, self.io, self.time)
+    }
+}
+
+impl std::fmt::Display for MemoryLimits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "mem[heap={}MB, stack={}KB, total={}MB]",
+            self.heap_max / (1024 * 1024),
+            self.stack_max / 1024,
+            self.total_max / (1024 * 1024),
+        )
+    }
+}
+
+impl std::fmt::Display for CpuLimits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (self.fuel, self.cpu_time) {
+            (Some(fuel), Some(time)) => write!(f, "cpu[fuel={fuel}, time={time:?}]"),
+            (Some(fuel), None) => write!(f, "cpu[fuel={fuel}]"),
+            (None, Some(time)) => write!(f, "cpu[time={time:?}]"),
+            (None, None) => write!(f, "cpu[unlimited]"),
+        }
+    }
+}
+
+impl std::fmt::Display for IoLimits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if !self.is_limited() {
+            return write!(f, "io[unlimited]");
+        }
+        write!(f, "io[")?;
+        let mut first = true;
+        if let Some(r) = self.read_bytes {
+            write!(f, "read={}KB", r / 1024)?;
+            first = false;
+        }
+        if let Some(w) = self.write_bytes {
+            if !first {
+                write!(f, ", ")?;
+            }
+            write!(f, "write={}KB", w / 1024)?;
+            first = false;
+        }
+        if let Some(iops) = self.iops {
+            if !first {
+                write!(f, ", ")?;
+            }
+            write!(f, "iops={iops}")?;
+        }
+        write!(f, "]")
+    }
+}
+
+impl std::fmt::Display for TimeLimits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (self.wall_time, self.cpu_time) {
+            (Some(wall), Some(cpu)) => write!(f, "time[wall={wall:?}, cpu={cpu:?}]"),
+            (Some(wall), None) => write!(f, "time[wall={wall:?}]"),
+            (None, Some(cpu)) => write!(f, "time[cpu={cpu:?}]"),
+            (None, None) => write!(f, "time[unlimited]"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +387,67 @@ mod tests {
 
         let unlimited = IoLimits::unlimited();
         assert!(!unlimited.is_limited());
+    }
+
+    #[test]
+    fn test_display_resource_limits() {
+        let limits = ResourceLimits::restrictive();
+        let display = format!("{}", limits);
+        assert!(display.contains("mem["));
+        assert!(display.contains("cpu["));
+        assert!(display.contains("io["));
+        assert!(display.contains("time["));
+    }
+
+    #[test]
+    fn test_display_unlimited() {
+        let limits = ResourceLimits::permissive();
+        let display = format!("{}", limits.cpu);
+        // Permissive has no fuel or cpu time limit
+        assert!(display.contains("unlimited"));
+    }
+
+    #[test]
+    fn test_validate_heap_plus_stack_exceeds_total() {
+        let limits = ResourceLimits {
+            memory: MemoryLimits {
+                heap_max: 200 * 1024 * 1024,
+                stack_max: 200 * 1024 * 1024,
+                total_max: 300 * 1024 * 1024,
+            },
+            ..Default::default()
+        };
+        let errors = limits.validate();
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("heap_max") && e.contains("stack_max") && e.contains("total_max")));
+    }
+
+    #[test]
+    fn test_validate_preemption_interval_too_small() {
+        let mut limits = ResourceLimits::restrictive();
+        limits.cpu.preemption_interval = Duration::from_nanos(100);
+        let errors = limits.validate();
+        assert!(errors.iter().any(|e| e.contains("preemption_interval") && e.contains("1ms")));
+    }
+
+    #[test]
+    fn test_validate_preemption_interval_too_large() {
+        let mut limits = ResourceLimits::restrictive();
+        limits.cpu.preemption_interval = Duration::from_secs(60);
+        let errors = limits.validate();
+        assert!(errors.iter().any(|e| e.contains("preemption_interval") && e.contains("10s")));
+    }
+
+    #[test]
+    fn test_validate_restrictive_is_valid() {
+        let limits = ResourceLimits::restrictive();
+        assert!(limits.validate().is_empty());
+    }
+
+    #[test]
+    fn test_validate_permissive_is_valid() {
+        let limits = ResourceLimits::permissive();
+        assert!(limits.validate().is_empty());
     }
 }

@@ -469,6 +469,47 @@ fn format_bytes(bytes: u64) -> String {
     }
 }
 
+/// Export execution profiles as Chrome DevTools Trace Event Format.
+///
+/// The output can be loaded in `chrome://tracing` or Perfetto UI.
+pub fn export_chrome_trace(profiles: &[ExecutionProfile]) -> serde_json::Value {
+    let mut events = Vec::new();
+
+    for (i, profile) in profiles.iter().enumerate() {
+        // Duration event for each execution
+        events.push(serde_json::json!({
+            "name": format!("run_{}", profile.id),
+            "cat": "sandbox",
+            "ph": "X",
+            "ts": i as u64 * profile.usage.wall_time.as_micros() as u64,
+            "dur": profile.usage.wall_time.as_micros() as u64,
+            "pid": 1,
+            "tid": 1,
+            "args": {
+                "fuel_consumed": profile.usage.fuel_consumed,
+                "peak_memory": profile.usage.peak_memory,
+                "bytes_read": profile.usage.bytes_read,
+                "bytes_written": profile.usage.bytes_written,
+            }
+        }));
+
+        // Counter event for memory
+        events.push(serde_json::json!({
+            "name": "peak_memory",
+            "cat": "memory",
+            "ph": "C",
+            "ts": i as u64 * profile.usage.wall_time.as_micros() as u64,
+            "pid": 1,
+            "args": { "bytes": profile.usage.peak_memory }
+        }));
+    }
+
+    serde_json::json!({
+        "traceEvents": events,
+        "displayTimeUnit": "us"
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -483,6 +524,10 @@ mod tests {
             bytes_read: 1024,
             bytes_written: 512,
             io_operations: 10,
+            io_read_ops: 5,
+            io_write_ops: 5,
+            fuel_per_function: Default::default(),
+            memory_timeline: Default::default(),
         }
     }
 
