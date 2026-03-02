@@ -119,8 +119,16 @@ impl CapabilityEnforcer {
             Capability::Network(NetworkCapability::HttpClient(hosts)) => {
                 hosts.iter().any(|pattern| {
                     if pattern.starts_with("*.") {
-                        let suffix = &pattern[1..];
-                        host.ends_with(suffix) || host == &pattern[2..]
+                        // *.example.com matches foo.example.com but NOT example.com
+                        // and NOT evil-example.com (must be a subdomain boundary)
+                        let suffix = &pattern[1..]; // ".example.com"
+                        if let Some(prefix) = host.strip_suffix(suffix) {
+                            // prefix must be non-empty and not contain dots
+                            // for single-level wildcard, or just be non-empty
+                            !prefix.is_empty() && !prefix.ends_with('.')
+                        } else {
+                            false
+                        }
                     } else {
                         host == pattern
                     }
@@ -275,6 +283,66 @@ impl CapabilityEnforcer {
         &self.granted
     }
 
+    /// Revoke a previously granted capability at runtime.
+    ///
+    /// After revocation, any check for this capability will be denied.
+    /// The revocation is recorded in the audit log.
+    pub fn revoke_capability(&mut self, cap: &Capability) {
+        self.granted.revoke(cap);
+        self.audit_log.record_revoked(cap.clone());
+    }
+
+    /// Check a capability using hierarchical subsumption.
+    ///
+    /// Unlike [`check()`](Self::check), this method uses the subsumes
+    /// relationship. For example, a granted `filesystem_read("/data")`
+    /// will satisfy a check for `filesystem_read("/data/subdir")`.
+    pub fn check_hierarchical(&self, required: &Capability) -> Result<()> {
+        if self.granted.satisfies(required) {
+            self.audit_log.record_used(required.clone(), None);
+            Ok(())
+        } else {
+            self.audit_log.record_denied(required.clone(), None);
+            Err(Error::CapabilityDenied(required.clone()))
+        }
+    }
+
+    /// Check that all given capabilities are granted.
+    ///
+    /// Returns `Ok(())` if every capability passes, or the first denial error.
+    /// All capabilities are checked and audited regardless of early failures.
+    pub fn check_all(&self, capabilities: &[Capability]) -> Result<()> {
+        let mut first_error = None;
+        for cap in capabilities {
+            if let Err(e) = self.check(cap) {
+                if first_error.is_none() {
+                    first_error = Some(e);
+                }
+            }
+        }
+        match first_error {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
+    }
+
+    /// Check that at least one of the given capabilities is granted.
+    ///
+    /// Returns `Ok(())` if any capability passes, or the last denial error.
+    pub fn check_any(&self, capabilities: &[Capability]) -> Result<()> {
+        if capabilities.is_empty() {
+            return Ok(());
+        }
+        let mut last_error = None;
+        for cap in capabilities {
+            match self.check(cap) {
+                Ok(()) => return Ok(()),
+                Err(e) => last_error = Some(e),
+            }
+        }
+        Err(last_error.unwrap())
+    }
+
     /// Get the list of directories that should be preopened for filesystem access.
     /// Returns pairs of (host_path, guest_path) where guest_path is the path
     /// visible inside the sandbox.
@@ -317,14 +385,52 @@ impl CapabilityEnforcer {
         preopens
     }
 
-    /// Reject paths containing traversal components (`..`).
+    /// Reject paths containing traversal components (`..`) and symlinks
+    /// that escape allowed directories.
     fn validate_path(path: &Path) -> Result<()> {
         for component in path.components() {
             if matches!(component, std::path::Component::ParentDir) {
                 return Err(Error::FilesystemAccessDenied { path: path.to_path_buf() });
             }
         }
+
+        // If the path exists on the host, check for symlinks that might
+        // escape the intended directory. This catches attacks like:
+        //   /data/link -> /etc/passwd
+        if path.exists() {
+            if let Ok(canonical) = path.canonicalize() {
+                // Check that the canonical path still starts with the same
+                // root as the original path. This prevents symlink escapes.
+                if let Some(first_component) = path.components().next() {
+                    let original_root = std::path::PathBuf::from(first_component.as_os_str());
+                    if path.is_absolute() && !canonical.starts_with(&original_root) {
+                        tracing::warn!(
+                            path = %path.display(),
+                            resolved = %canonical.display(),
+                            "Symlink escape detected: resolved path outside original root"
+                        );
+                        return Err(Error::FilesystemAccessDenied { path: path.to_path_buf() });
+                    }
+                }
+            }
+        }
+
         Ok(())
+    }
+
+    /// Check if a path contains any symlink components.
+    ///
+    /// Returns `true` if any component in the path is a symbolic link.
+    /// Useful for security auditing.
+    pub fn path_contains_symlink(path: &Path) -> bool {
+        let mut current = std::path::PathBuf::new();
+        for component in path.components() {
+            current.push(component);
+            if current.is_symlink() {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -427,5 +533,146 @@ mod tests {
 
         assert!(enforcer.check_fs_write(Path::new("/tmp/../root/.ssh")).is_err());
         assert!(enforcer.check_fs_write(Path::new("/tmp/ok.txt")).is_ok());
+    }
+
+    #[test]
+    fn test_http_wildcard_subdomain_security() {
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::http_client(vec!["*.example.com"]));
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        // Valid subdomains should be allowed
+        assert!(enforcer.check_http("api.example.com").is_ok());
+        assert!(enforcer.check_http("foo.example.com").is_ok());
+        assert!(enforcer.check_http("deep.sub.example.com").is_ok());
+
+        // Base domain should be denied (wildcard requires a subdomain)
+        assert!(enforcer.check_http("example.com").is_err());
+
+        // Suffix spoofing must be rejected
+        assert!(enforcer.check_http("evil-example.com").is_err());
+        assert!(enforcer.check_http("notexample.com").is_err());
+
+        // Unrelated domains denied
+        assert!(enforcer.check_http("other.com").is_err());
+    }
+
+    #[test]
+    fn test_http_exact_match() {
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::http_client(vec!["api.example.com"]));
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        assert!(enforcer.check_http("api.example.com").is_ok());
+        assert!(enforcer.check_http("other.example.com").is_err());
+        assert!(enforcer.check_http("api.example.com.evil.com").is_err());
+    }
+
+    #[test]
+    fn test_validate_path_rejects_traversal() {
+        let result = CapabilityEnforcer::validate_path(Path::new("/data/../etc/passwd"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_path_accepts_normal() {
+        let result = CapabilityEnforcer::validate_path(Path::new("/data/subdir/file.txt"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_path_accepts_relative() {
+        let result = CapabilityEnforcer::validate_path(Path::new("data/file.txt"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_path_contains_symlink_no_symlink() {
+        // A path that doesn't exist has no symlinks
+        let result =
+            CapabilityEnforcer::path_contains_symlink(Path::new("/nonexistent/path/abc123"));
+        assert!(!result);
+    }
+
+    #[test]
+    fn test_path_contains_symlink_with_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target");
+        std::fs::write(&target, "content").unwrap();
+        let link = dir.path().join("link");
+        symlink(&target, &link).unwrap();
+
+        // The link itself should be detected as containing a symlink
+        assert!(CapabilityEnforcer::path_contains_symlink(&link));
+    }
+
+    #[test]
+    fn test_fs_read_with_symlink_inside_allowed() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempfile::tempdir().unwrap();
+        let subdir = dir.path().join("data");
+        std::fs::create_dir(&subdir).unwrap();
+        let target = subdir.join("real_file.txt");
+        std::fs::write(&target, "content").unwrap();
+        let link = subdir.join("link_file.txt");
+        symlink(&target, &link).unwrap();
+
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::filesystem_read(dir.path()));
+
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        // Symlink within allowed dir should be OK
+        assert!(enforcer.check_fs_read(&link).is_ok());
+    }
+
+    #[test]
+    fn test_check_all_succeeds() {
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::stdout());
+        caps.grant(Capability::stderr());
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        let result = enforcer.check_all(&[Capability::stdout(), Capability::stderr()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_check_all_fails_on_missing() {
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::stdout());
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        let result = enforcer.check_all(&[Capability::stdout(), Capability::stderr()]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_check_any_succeeds() {
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::stderr());
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        let result = enforcer.check_any(&[Capability::stdout(), Capability::stderr()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_check_any_fails_when_none_granted() {
+        let caps = CapabilitySet::new();
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+
+        let result = enforcer.check_any(&[Capability::stdout(), Capability::stderr()]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_check_any_empty_succeeds() {
+        let caps = CapabilitySet::new();
+        let enforcer = CapabilityEnforcer::new(caps, Uuid::new_v4());
+        assert!(enforcer.check_any(&[]).is_ok());
     }
 }

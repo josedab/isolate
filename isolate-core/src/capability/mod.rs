@@ -72,7 +72,9 @@ mod enforcer;
 pub mod policy_engine;
 mod types;
 
-pub use audit::{AuditEvent, AuditLog};
+pub use audit::{
+    AuditBackend, AuditEvent, AuditEventType, AuditFilter, AuditLog, FileAuditBackend,
+};
 pub use enforcer::CapabilityEnforcer;
 pub use types::*;
 
@@ -136,11 +138,31 @@ impl CapabilitySet {
         self.capabilities.len()
     }
 
-    /// Merge another capability set into this one.
+    /// Merge another capability set into this one (union).
     pub fn merge(&mut self, other: &CapabilitySet) {
         for cap in &other.capabilities {
             self.capabilities.insert(cap.clone());
         }
+    }
+
+    /// Return a new set containing only capabilities present in both sets.
+    pub fn intersect(&self, other: &CapabilitySet) -> CapabilitySet {
+        CapabilitySet {
+            capabilities: self.capabilities.intersection(&other.capabilities).cloned().collect(),
+        }
+    }
+
+    /// Return capabilities in `self` that are not in `other`.
+    pub fn diff(&self, other: &CapabilitySet) -> CapabilitySet {
+        CapabilitySet {
+            capabilities: self.capabilities.difference(&other.capabilities).cloned().collect(),
+        }
+    }
+
+    /// Check if this set covers all capabilities needed by `required`,
+    /// using the subsumes relationship (hierarchical matching).
+    pub fn satisfies(&self, required: &Capability) -> bool {
+        self.capabilities.iter().any(|c| c.subsumes(required))
     }
 }
 
@@ -194,5 +216,100 @@ mod tests {
 
         assert!(caps1.has(&Capability::stdout()));
         assert!(caps1.has(&Capability::stderr()));
+    }
+
+    #[test]
+    fn test_capability_subsumes_exact_match() {
+        let cap = Capability::stdout();
+        assert!(cap.subsumes(&Capability::stdout()));
+        assert!(!cap.subsumes(&Capability::stderr()));
+    }
+
+    #[test]
+    fn test_capability_subsumes_fs_hierarchy() {
+        let parent = Capability::filesystem_read("/data");
+        let child = Capability::filesystem_read("/data/subdir");
+        let sibling = Capability::filesystem_read("/other");
+
+        assert!(parent.subsumes(&child));
+        assert!(parent.subsumes(&parent)); // self-subsumes
+        assert!(!parent.subsumes(&sibling));
+        assert!(!child.subsumes(&parent)); // child doesn't subsume parent
+    }
+
+    #[test]
+    fn test_capability_subsumes_fs_rw_subsumes_ro() {
+        let rw = Capability::filesystem_write("/data");
+        let ro = Capability::filesystem_read("/data/file.txt");
+
+        assert!(rw.subsumes(&ro)); // RW subsumes RO on child path
+        assert!(!ro.subsumes(&rw)); // RO does NOT subsume RW
+    }
+
+    #[test]
+    fn test_capability_subsumes_env_all() {
+        let all = Capability::env_all();
+        let specific = Capability::env_var("HOME");
+
+        assert!(all.subsumes(&specific));
+        assert!(all.subsumes(&all));
+        assert!(!specific.subsumes(&all));
+    }
+
+    #[test]
+    fn test_capability_set_intersect() {
+        let mut a = CapabilitySet::new();
+        a.grant(Capability::stdout());
+        a.grant(Capability::stderr());
+
+        let mut b = CapabilitySet::new();
+        b.grant(Capability::stderr());
+        b.grant(Capability::stdin());
+
+        let intersection = a.intersect(&b);
+        assert_eq!(intersection.len(), 1);
+        assert!(intersection.has(&Capability::stderr()));
+    }
+
+    #[test]
+    fn test_capability_set_diff() {
+        let mut a = CapabilitySet::new();
+        a.grant(Capability::stdout());
+        a.grant(Capability::stderr());
+
+        let mut b = CapabilitySet::new();
+        b.grant(Capability::stderr());
+
+        let diff = a.diff(&b);
+        assert_eq!(diff.len(), 1);
+        assert!(diff.has(&Capability::stdout()));
+    }
+
+    #[test]
+    fn test_capability_set_satisfies_hierarchical() {
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::filesystem_read("/data"));
+
+        assert!(caps.satisfies(&Capability::filesystem_read("/data/subdir")));
+        assert!(!caps.satisfies(&Capability::filesystem_read("/other")));
+    }
+
+    #[test]
+    fn test_wildcard_hostname_security() {
+        // Verify the wildcard bug fix: bare domain should NOT match *.domain
+        let mut caps = CapabilitySet::new();
+        caps.grant(Capability::http_client(vec!["*.example.com"]));
+
+        let enforcer = CapabilityEnforcer::new(caps, uuid::Uuid::new_v4());
+
+        // Subdomains should match
+        assert!(enforcer.check_http("api.example.com").is_ok());
+        assert!(enforcer.check_http("www.example.com").is_ok());
+
+        // Bare domain should NOT match wildcard
+        assert!(enforcer.check_http("example.com").is_err());
+
+        // Other domains should not match
+        assert!(enforcer.check_http("evil.com").is_err());
     }
 }

@@ -162,6 +162,40 @@ impl Capability {
             Self::HostFunction(hf) => hf.description(),
         }
     }
+
+    /// Check if this capability subsumes (is equal to or broader than) another.
+    ///
+    /// A capability subsumes another if granting the first would also
+    /// implicitly grant the second. For example, filesystem read-write
+    /// on "/data" subsumes read-only on "/data/subdir".
+    pub fn subsumes(&self, other: &Capability) -> bool {
+        match (self, other) {
+            // Filesystem: ReadWrite subsumes ReadOnly on same or child paths
+            (
+                Capability::Filesystem(FilesystemCapability::ReadWrite(a)),
+                Capability::Filesystem(FilesystemCapability::ReadOnly(b)),
+            ) => b.starts_with(a),
+            (
+                Capability::Filesystem(FilesystemCapability::ReadWrite(a)),
+                Capability::Filesystem(FilesystemCapability::ReadWrite(b)),
+            ) => b.starts_with(a),
+            (
+                Capability::Filesystem(FilesystemCapability::ReadOnly(a)),
+                Capability::Filesystem(FilesystemCapability::ReadOnly(b)),
+            ) => b.starts_with(a),
+            // Environment: ReadAll subsumes ReadVar
+            (
+                Capability::Environment(EnvironmentCapability::ReadAll),
+                Capability::Environment(EnvironmentCapability::ReadVar(_)),
+            ) => true,
+            (
+                Capability::Environment(EnvironmentCapability::ReadAll),
+                Capability::Environment(EnvironmentCapability::ReadAll),
+            ) => true,
+            // Exact match for all other types
+            _ => self == other,
+        }
+    }
 }
 
 impl std::fmt::Display for Capability {
