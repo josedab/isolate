@@ -48,21 +48,55 @@ echo '{"name": "World"}' | isolate run \
 
 ## API Reference
 
-### `read_input() -> dict`
+### Error Type
 
-Reads and parses JSON input from stdin.
+#### `GuestError`
 
-### `write_output(data) -> None`
+Exception class wrapping all guest SDK errors (JSON parsing, I/O, user).
+
+### Input
+
+#### `read_input() -> dict`
+
+Reads and parses JSON input from stdin. Returns `{}` on empty input.
+
+#### `read_input_as(cls) -> T`
+
+Typed convenience — reads JSON input (returns dict, type hint only).
+
+#### `read_raw() -> bytes`
+
+Reads raw bytes from stdin without JSON parsing.
+
+### Output
+
+#### `write_output(data) -> None`
 
 Serializes the value as JSON and writes it to stdout.
 
-### `get_env(name: str) -> Optional[str]`
+#### `write_raw(data: bytes) -> None`
+
+Writes raw bytes to stdout without JSON encoding.
+
+### Environment
+
+#### `get_env(name: str) -> Optional[str]`
 
 Returns the value of an environment variable, or `None` if not set.
 
-### `log_info(msg)`, `log_warn(msg)`, `log_error(msg)`
+#### `get_all_env() -> Dict[str, str]`
 
-Write structured log messages to stderr.
+Returns all accessible environment variables as a dictionary.
+
+#### `get_args() -> List[str]`
+
+Returns command-line arguments passed to the sandbox.
+
+### Logging
+
+#### `log_debug(msg)`, `log_info(msg)`, `log_warn(msg)`, `log_error(msg)`
+
+Write structured log messages to stderr with level prefix.
 
 ### `@guest_main`
 

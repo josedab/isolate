@@ -1,15 +1,18 @@
 # Isolate Client SDKs
 
-Client SDKs for interacting with the Isolate sandbox runtime.
+Client SDKs for interacting with the Isolate sandbox runtime over gRPC.
 
 ## Available SDKs
 
-| Language | Directory | Status |
-|----------|-----------|--------|
-| Go | [`go/`](go/) | Stable |
-| TypeScript | [`typescript/`](typescript/) | Stable |
-| Python | [`python/`](python/) | Beta |
-| Java | [`java/`](java/) | Beta |
+| Language | Directory | Status | Description |
+|----------|-----------|--------|-------------|
+| Go | [`go/`](go/) | Stable | gRPC client for remote sandbox management |
+| TypeScript | [`typescript/`](typescript/) | Stable | gRPC client with Zod validation |
+| Python | [`python/`](python/) | Beta | gRPC client (sync + async) |
+| Java | [`java/`](java/) | Planned | Not yet implemented |
+
+> **Note:** For **in-process** Python embedding (no server needed), use
+> [`isolate-python`](../isolate-python/) which provides native PyO3 bindings.
 
 See each SDK's README for installation and usage instructions.
 

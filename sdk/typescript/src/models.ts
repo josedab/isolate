@@ -376,4 +376,18 @@ export interface IsolateClientOptions {
    * See grpc.ChannelOptions for the full set of supported keys.
    */
   channelOptions?: Record<string, string | number>;
+  /**
+   * Maximum number of retry attempts for transient errors (UNAVAILABLE,
+   * DEADLINE_EXCEEDED). Set to 0 to disable retries. Defaults to 3.
+   */
+  maxRetries?: number;
+  /**
+   * Initial backoff delay in milliseconds for retries. Exponential backoff
+   * is applied: delay * 2^attempt. Defaults to 100ms.
+   */
+  retryBackoffMs?: number;
+  /**
+   * API key for authentication. Sent as the `x-api-key` metadata header.
+   */
+  apiKey?: string;
 }

@@ -151,8 +151,14 @@ message ListSandboxesRequest {
   /// Maximum number of results to return. 0 means server default.
   int32 limit = 2;
 
-  /// Offset for pagination. Use with `limit` to page through results.
-  int32 offset = 3;
+  /// [Deprecated] Offset for pagination. Use `page_token` instead.
+  /// Kept for backward compatibility; will be removed in v0.3.
+  int32 offset = 3 [deprecated = true];
+
+  /// Opaque cursor token for cursor-based pagination.
+  /// Pass the `next_page_token` from the previous response to get the next page.
+  /// Omit or leave empty to start from the beginning.
+  string page_token = 4;
 }
 
 /// Response containing a paginated list of sandboxes.
@@ -162,6 +168,10 @@ message ListSandboxesResponse {
 
   /// Total number of sandboxes matching the filter (ignoring limit/offset).
   int32 total = 2;
+
+  /// Opaque cursor token for the next page of results.
+  /// Empty when there are no more results.
+  string next_page_token = 3;
 }
 
 /// Request to stream real-time output from a running sandbox.
