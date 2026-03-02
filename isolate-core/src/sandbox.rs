@@ -61,15 +61,94 @@ use crate::capability::CapabilityEnforcer;
 use crate::config::{ModuleHash, SandboxConfig};
 use crate::engine::{CompiledModule, WasmEngine, WasmInstance};
 use crate::error::{Error, Result};
+use crate::lineage::{ExecutionLog, ExecutionTrace};
 use crate::metrics::SandboxMetrics;
 use crate::ratelimit::SharedRateLimiter;
 use crate::resource::{ResourceMeter, ResourceUsage};
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::Mutex;
 use uuid::Uuid;
+
+/// Lifecycle event types for sandbox hook notifications.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum SandboxEvent {
+    /// Sandbox has been created and is in Ready state.
+    Created {
+        /// Sandbox ID.
+        sandbox_id: SandboxId,
+        /// Cold start duration (compilation + setup).
+        cold_start: Duration,
+    },
+    /// Sandbox execution is starting.
+    RunStarted {
+        /// Sandbox ID.
+        sandbox_id: SandboxId,
+    },
+    /// Sandbox execution completed successfully.
+    RunCompleted {
+        /// Sandbox ID.
+        sandbox_id: SandboxId,
+        /// Execution output.
+        output: Output,
+    },
+    /// Sandbox execution failed with an error.
+    RunFailed {
+        /// Sandbox ID.
+        sandbox_id: SandboxId,
+        /// Error message.
+        error: String,
+    },
+    /// Sandbox has been terminated.
+    Terminated {
+        /// Sandbox ID.
+        sandbox_id: SandboxId,
+        /// Lifetime metrics.
+        metrics: SandboxMetrics,
+    },
+}
+
+/// Trait for receiving sandbox lifecycle events.
+///
+/// Implement this trait to be notified of sandbox state transitions.
+/// All methods have default no-op implementations, so you only need to
+/// override the events you care about.
+///
+/// # Examples
+///
+/// ```
+/// use isolate_core::sandbox::{SandboxHooks, SandboxEvent};
+///
+/// struct LoggingHooks;
+///
+/// impl SandboxHooks for LoggingHooks {
+///     fn on_event(&self, event: &SandboxEvent) {
+///         match event {
+///             SandboxEvent::Created { sandbox_id, cold_start } => {
+///                 println!("Sandbox {} created in {:?}", sandbox_id, cold_start);
+///             }
+///             SandboxEvent::RunCompleted { sandbox_id, output } => {
+///                 println!("Sandbox {} completed with exit code {}", sandbox_id, output.exit_code);
+///             }
+///             _ => {}
+///         }
+///     }
+/// }
+/// ```
+pub trait SandboxHooks: Send + Sync {
+    /// Called for any sandbox lifecycle event.
+    fn on_event(&self, event: &SandboxEvent);
+}
+
+/// A no-op hooks implementation (default).
+struct NoOpHooks;
+impl SandboxHooks for NoOpHooks {
+    fn on_event(&self, _event: &SandboxEvent) {}
+}
 
 /// Unique identifier for a sandbox.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -183,6 +262,278 @@ impl Output {
     pub fn stderr_str(&self) -> String {
         String::from_utf8_lossy(&self.stderr).into_owned()
     }
+
+    /// Parse stdout as JSON lines (newline-delimited JSON).
+    ///
+    /// Returns successfully parsed JSON values, skipping non-JSON lines.
+    /// Useful for structured logging from sandboxes.
+    pub fn structured_stdout(&self) -> Vec<serde_json::Value> {
+        let text = String::from_utf8_lossy(&self.stdout);
+        text.lines().filter_map(|line| serde_json::from_str(line).ok()).collect()
+    }
+
+    /// Parse stderr as JSON lines.
+    pub fn structured_stderr(&self) -> Vec<serde_json::Value> {
+        let text = String::from_utf8_lossy(&self.stderr);
+        text.lines().filter_map(|line| serde_json::from_str(line).ok()).collect()
+    }
+
+    /// Get stdout split into lines.
+    pub fn stdout_lines(&self) -> Vec<String> {
+        let text = String::from_utf8_lossy(&self.stdout);
+        text.lines().map(String::from).collect()
+    }
+
+    /// Parse the entire stdout as a typed JSON value.
+    ///
+    /// Deserializes the full stdout contents as `T` using serde_json.
+    /// Useful when the sandbox produces a single JSON object as output.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isolate_core::Output;
+    /// use isolate_core::resource::ResourceUsage;
+    /// use std::time::Duration;
+    /// use serde::Deserialize;
+    ///
+    /// #[derive(Deserialize, Debug, PartialEq)]
+    /// struct Result { value: i32 }
+    ///
+    /// let output = Output {
+    ///     exit_code: 0,
+    ///     stdout: br#"{"value": 42}"#.to_vec(),
+    ///     stderr: Vec::new(),
+    ///     duration: Duration::ZERO,
+    ///     resource_usage: ResourceUsage::default(),
+    /// };
+    ///
+    /// let parsed: Result = output.parse_stdout_as().unwrap();
+    /// assert_eq!(parsed.value, 42);
+    /// ```
+    pub fn parse_stdout_as<T: serde::de::DeserializeOwned>(
+        &self,
+    ) -> std::result::Result<T, serde_json::Error> {
+        serde_json::from_slice(&self.stdout)
+    }
+
+    /// Parse the entire stderr as a typed JSON value.
+    pub fn parse_stderr_as<T: serde::de::DeserializeOwned>(
+        &self,
+    ) -> std::result::Result<T, serde_json::Error> {
+        serde_json::from_slice(&self.stderr)
+    }
+
+    /// Get the size of stdout in bytes.
+    pub fn stdout_size(&self) -> usize {
+        self.stdout.len()
+    }
+
+    /// Get the size of stderr in bytes.
+    pub fn stderr_size(&self) -> usize {
+        self.stderr.len()
+    }
+
+    /// Get combined stdout and stderr as bytes (stdout first, then stderr).
+    ///
+    /// Useful for capturing all output when the distinction doesn't matter.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isolate_core::Output;
+    /// use isolate_core::resource::ResourceUsage;
+    /// use std::time::Duration;
+    ///
+    /// let output = Output {
+    ///     exit_code: 0,
+    ///     stdout: b"hello ".to_vec(),
+    ///     stderr: b"world".to_vec(),
+    ///     duration: Duration::ZERO,
+    ///     resource_usage: ResourceUsage::default(),
+    /// };
+    ///
+    /// assert_eq!(output.combined_output(), b"hello world");
+    /// ```
+    pub fn combined_output(&self) -> Vec<u8> {
+        let mut combined = Vec::with_capacity(self.stdout.len() + self.stderr.len());
+        combined.extend_from_slice(&self.stdout);
+        combined.extend_from_slice(&self.stderr);
+        combined
+    }
+
+    /// Get combined stdout and stderr as a string (lossy UTF-8 conversion).
+    pub fn combined_output_str(&self) -> String {
+        String::from_utf8_lossy(&self.combined_output()).into_owned()
+    }
+
+    /// Get a truncated preview of stdout, capped at `max_bytes`.
+    ///
+    /// Truncates at a valid UTF-8 boundary to avoid splitting multi-byte
+    /// characters. Appends "..." when truncated.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isolate_core::Output;
+    /// use isolate_core::resource::ResourceUsage;
+    /// use std::time::Duration;
+    ///
+    /// let output = Output {
+    ///     exit_code: 0,
+    ///     stdout: b"Hello, World!".to_vec(),
+    ///     stderr: Vec::new(),
+    ///     duration: Duration::ZERO,
+    ///     resource_usage: ResourceUsage::default(),
+    /// };
+    ///
+    /// assert_eq!(output.truncated_stdout(5), "Hello...");
+    /// assert_eq!(output.truncated_stdout(100), "Hello, World!");
+    /// ```
+    pub fn truncated_stdout(&self, max_bytes: usize) -> String {
+        truncate_utf8_lossy(&self.stdout, max_bytes)
+    }
+
+    /// Get a truncated preview of stderr, capped at `max_bytes`.
+    ///
+    /// Truncates at a valid UTF-8 boundary and appends "..." when truncated.
+    pub fn truncated_stderr(&self, max_bytes: usize) -> String {
+        truncate_utf8_lossy(&self.stderr, max_bytes)
+    }
+
+    /// Get a human-readable one-line summary of this execution.
+    ///
+    /// Format: `exit=N duration=Xms mem=Y fuel=Z`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isolate_core::Output;
+    /// use isolate_core::resource::ResourceUsage;
+    /// use std::time::Duration;
+    ///
+    /// let output = Output {
+    ///     exit_code: 0,
+    ///     stdout: b"hello".to_vec(),
+    ///     stderr: Vec::new(),
+    ///     duration: Duration::from_millis(42),
+    ///     resource_usage: ResourceUsage {
+    ///         wall_time: Duration::from_millis(42),
+    ///         ..Default::default()
+    ///     },
+    /// };
+    /// let summary = output.summary();
+    /// assert!(summary.contains("exit=0"));
+    /// assert!(summary.contains("42.0ms"));
+    /// ```
+    pub fn summary(&self) -> String {
+        format!(
+            "exit={} {} stdout={} stderr={}",
+            self.exit_code,
+            self.resource_usage,
+            crate::resource::format_bytes(self.stdout.len() as u64),
+            crate::resource::format_bytes(self.stderr.len() as u64),
+        )
+    }
+
+    /// Get a structured execution summary.
+    ///
+    /// Returns an [`ExecutionSummary`] with typed fields for programmatic
+    /// access. The summary also implements `Display` for logging.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use isolate_core::Output;
+    /// use isolate_core::resource::ResourceUsage;
+    /// use std::time::Duration;
+    ///
+    /// let output = Output {
+    ///     exit_code: 0,
+    ///     stdout: b"hello".to_vec(),
+    ///     stderr: Vec::new(),
+    ///     duration: Duration::from_millis(42),
+    ///     resource_usage: ResourceUsage {
+    ///         fuel_consumed: 5000,
+    ///         peak_memory: 1024 * 1024,
+    ///         ..Default::default()
+    ///     },
+    /// };
+    ///
+    /// let summary = output.execution_summary();
+    /// assert!(summary.success);
+    /// assert_eq!(summary.exit_code, 0);
+    /// assert_eq!(summary.stdout_bytes, 5);
+    /// println!("{}", summary); // Formatted for logging
+    /// ```
+    pub fn execution_summary(&self) -> ExecutionSummary {
+        ExecutionSummary {
+            success: self.success(),
+            exit_code: self.exit_code,
+            duration: self.duration,
+            fuel_consumed: self.resource_usage.fuel_consumed,
+            peak_memory: self.resource_usage.peak_memory,
+            stdout_bytes: self.stdout.len(),
+            stderr_bytes: self.stderr.len(),
+            bytes_read: self.resource_usage.bytes_read,
+            bytes_written: self.resource_usage.bytes_written,
+        }
+    }
+}
+
+/// Structured summary of a sandbox execution.
+///
+/// Provides typed access to key execution metrics. Implements `Display`
+/// for human-readable logging output.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionSummary {
+    /// Whether the execution succeeded (exit code 0).
+    pub success: bool,
+    /// Process exit code.
+    pub exit_code: i32,
+    /// Wall-clock execution duration.
+    pub duration: Duration,
+    /// Total fuel consumed.
+    pub fuel_consumed: u64,
+    /// Peak memory usage in bytes.
+    pub peak_memory: usize,
+    /// Size of captured stdout in bytes.
+    pub stdout_bytes: usize,
+    /// Size of captured stderr in bytes.
+    pub stderr_bytes: usize,
+    /// Total bytes read during execution.
+    pub bytes_read: u64,
+    /// Total bytes written during execution.
+    pub bytes_written: u64,
+}
+
+impl std::fmt::Display for ExecutionSummary {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status = if self.success { "OK" } else { "FAIL" };
+        write!(
+            f,
+            "[{}] exit={} duration={} fuel={} mem={} stdout={} stderr={}",
+            status,
+            self.exit_code,
+            crate::resource::format_duration(self.duration),
+            self.fuel_consumed,
+            crate::resource::format_bytes(self.peak_memory as u64),
+            crate::resource::format_bytes(self.stdout_bytes as u64),
+            crate::resource::format_bytes(self.stderr_bytes as u64),
+        )
+    }
+}
+
+/// Truncate bytes at a valid UTF-8 boundary and return a string.
+/// Appends "..." if truncation occurred.
+fn truncate_utf8_lossy(bytes: &[u8], max_bytes: usize) -> String {
+    if bytes.len() <= max_bytes {
+        return String::from_utf8_lossy(bytes).into_owned();
+    }
+    let lossy = String::from_utf8_lossy(&bytes[..max_bytes]);
+    // If the last character was replaced, we might have split a multi-byte char
+    let truncated = lossy.trim_end_matches(char::REPLACEMENT_CHARACTER);
+    format!("{}...", truncated)
 }
 
 mod serde_bytes {
@@ -284,6 +635,10 @@ pub struct Sandbox {
     metrics: SandboxMetrics,
     /// Creation time.
     created_at: Instant,
+    /// Lifecycle hooks.
+    hooks: Arc<dyn SandboxHooks>,
+    /// Execution lineage log.
+    execution_log: Arc<std::sync::Mutex<ExecutionLog>>,
 }
 
 impl Sandbox {
@@ -304,6 +659,18 @@ impl Sandbox {
 
         // Compile the module
         let compiled = engine.compile(&config.module)?;
+
+        // Validate config against compiled module and emit warnings
+        let warnings = config.validate_against_module(&compiled);
+        for warning in &warnings {
+            tracing::warn!(
+                sandbox_id = %id,
+                kind = ?warning.kind,
+                suggestion = %warning.suggestion,
+                "Config warning: {}",
+                warning.message
+            );
+        }
 
         // Create capability enforcer
         let enforcer = CapabilityEnforcer::new(config.capabilities.clone(), id.0);
@@ -341,7 +708,17 @@ impl Sandbox {
             rate_limiter,
             metrics,
             created_at: start,
+            hooks: Arc::new(NoOpHooks),
+            execution_log: Arc::new(std::sync::Mutex::new(ExecutionLog::new())),
         })
+    }
+
+    /// Set lifecycle hooks for this sandbox.
+    ///
+    /// Hooks receive notifications for lifecycle events (creation, run
+    /// start/complete/error, termination). Call this after `create()`.
+    pub fn set_hooks(&mut self, hooks: Arc<dyn SandboxHooks>) {
+        self.hooks = hooks;
     }
 
     /// Get the sandbox ID.
@@ -364,6 +741,16 @@ impl Sandbox {
         &self.config
     }
 
+    /// Get user-defined metadata for this sandbox.
+    pub fn metadata(&self) -> &HashMap<String, String> {
+        &self.config.metadata
+    }
+
+    /// Get a specific metadata value by key.
+    pub fn label(&self, key: &str) -> Option<&str> {
+        self.config.metadata.get(key).map(String::as_str)
+    }
+
     /// Get the capability enforcer.
     pub fn enforcer(&self) -> &CapabilityEnforcer {
         &self.enforcer
@@ -382,6 +769,15 @@ impl Sandbox {
     /// Get how long the sandbox has existed.
     pub fn age(&self) -> Duration {
         self.created_at.elapsed()
+    }
+
+    /// Get the execution lineage log.
+    ///
+    /// Contains provenance records for every completed `run()` or
+    /// `run_streaming()` call, including input/output hashes, timing,
+    /// and resource usage.
+    pub fn execution_traces(&self) -> Vec<ExecutionTrace> {
+        self.execution_log.lock().unwrap_or_else(|e| e.into_inner()).traces().to_vec()
     }
 
     /// Run the sandbox with optional stdin input.
@@ -462,8 +858,10 @@ impl Sandbox {
         }
 
         self.state = SandboxState::Running;
+        self.hooks.on_event(&SandboxEvent::RunStarted { sandbox_id: self.id });
 
         let start = Instant::now();
+        let started_at = SystemTime::now();
         self.metrics.record_run_start();
 
         tracing::debug!(sandbox_id = %self.id, "Starting sandbox execution");
@@ -522,16 +920,47 @@ impl Sandbox {
                     "Sandbox execution completed"
                 );
 
-                Ok(Output {
+                let output = Output {
                     exit_code: exec_result.exit_code,
                     stdout: exec_result.stdout,
                     stderr: exec_result.stderr,
                     duration,
                     resource_usage: self.meter.usage(),
-                })
+                };
+
+                self.hooks.on_event(&SandboxEvent::RunCompleted {
+                    sandbox_id: self.id,
+                    output: output.clone(),
+                });
+
+                // Record execution lineage
+                if let Ok(mut log) = self.execution_log.lock() {
+                    log.record(ExecutionTrace::new(
+                        self.id,
+                        self.compiled.hash().clone(),
+                        input,
+                        &output.stdout,
+                        &output.stderr,
+                        output.exit_code,
+                        started_at,
+                        duration,
+                        output.resource_usage.clone(),
+                    ));
+                } else {
+                    tracing::warn!(
+                        sandbox_id = %self.id,
+                        "Failed to record execution lineage: lock poisoned"
+                    );
+                }
+
+                Ok(output)
             }
             Err(e) => {
                 self.metrics.record_run_complete(duration, false);
+                self.hooks.on_event(&SandboxEvent::RunFailed {
+                    sandbox_id: self.id,
+                    error: e.to_string(),
+                });
 
                 tracing::warn!(
                     sandbox_id = %self.id,
@@ -589,6 +1018,12 @@ impl Sandbox {
         args: &[wasmtime::Val],
     ) -> Result<Vec<wasmtime::Val>> {
         self.ensure_state(SandboxState::Ready)?;
+
+        // Enforce rate limit before execution
+        if let Some(ref limiter) = self.rate_limiter {
+            limiter.try_acquire()?;
+        }
+
         self.state = SandboxState::Running;
 
         let start = Instant::now();
@@ -608,15 +1043,31 @@ impl Sandbox {
             expected: "instance initialized".to_string(),
             actual: "instance is None after initialization".to_string(),
         })?;
+
+        // Set up epoch-based timeout for wall time limit
+        const EPOCH_TICK_INTERVAL: Duration = Duration::from_millis(10);
+        if let Some(timeout) = self.config.resources.time.wall_time {
+            let epochs_until_timeout =
+                (timeout.as_millis() / EPOCH_TICK_INTERVAL.as_millis()).max(1) as u64;
+            instance.set_epoch_deadline(epochs_until_timeout);
+            self.engine.ensure_epoch_ticker();
+        }
+
         let result = instance.call(function, args);
 
         let duration = start.elapsed();
         self.state = SandboxState::Ready;
 
+        // Record execution for rate limiting
+        if let Some(ref limiter) = self.rate_limiter {
+            limiter.record_execution();
+        }
+
         tracing::debug!(
             sandbox_id = %self.id,
             function = function,
             duration_ms = duration.as_secs_f64() * 1000.0,
+            success = result.is_ok(),
             "Function call completed"
         );
 
@@ -652,6 +1103,13 @@ impl Sandbox {
     /// # }
     /// ```
     pub async fn terminate(&mut self) -> Result<SandboxMetrics> {
+        if self.state == SandboxState::Running {
+            return Err(Error::InvalidState {
+                expected: "ready or terminated".to_string(),
+                actual: "running (wait for execution to finish before terminating)".to_string(),
+            });
+        }
+
         tracing::info!(sandbox_id = %self.id, "Terminating sandbox");
 
         self.state = SandboxState::Terminated;
@@ -659,12 +1117,17 @@ impl Sandbox {
         // Drop the instance
         *self.instance.lock().await = None;
 
+        self.hooks.on_event(&SandboxEvent::Terminated {
+            sandbox_id: self.id,
+            metrics: self.metrics.clone(),
+        });
+
         Ok(self.metrics.clone())
     }
 
     /// Run the sandbox with real-time streaming output.
     ///
-    /// Returns a receiver that yields [`OutputChunk`]s as they are produced,
+    /// Returns a receiver that yields [`OutputChunk`](crate::engine::OutputChunk)s as they are produced,
     /// plus a join handle that resolves to the final [`Output`].
     ///
     /// Unlike [`run()`](Self::run), which buffers all output until completion,
@@ -732,6 +1195,7 @@ impl Sandbox {
         }
 
         self.state = SandboxState::Running;
+        self.hooks.on_event(&SandboxEvent::RunStarted { sandbox_id: self.id });
 
         let (tx, rx) = tokio::sync::mpsc::channel::<OutputChunk>(buffer_size.max(1));
         let sender = std::sync::Arc::new(tx);
@@ -759,9 +1223,14 @@ impl Sandbox {
         let mut metrics = self.metrics.clone();
         let id = self.id;
         let rate_limiter = self.rate_limiter.clone();
+        let hooks = self.hooks.clone();
+        let module_hash = self.compiled.hash().clone();
+        let input_bytes = input.to_vec();
+        let execution_log = self.execution_log.clone();
 
         let join = tokio::task::spawn_blocking(move || {
             let start = Instant::now();
+            let started_at = SystemTime::now();
             metrics.record_run_start();
 
             let result = instance.run();
@@ -781,16 +1250,47 @@ impl Sandbox {
                         let _ = limiter.record_bandwidth(total_bytes);
                     }
                     tracing::info!(sandbox_id = %id, exit_code = exec_result.exit_code, "Streaming execution completed");
-                    Ok(Output {
+                    let output = Output {
                         exit_code: exec_result.exit_code,
                         stdout: exec_result.stdout,
                         stderr: exec_result.stderr,
                         duration,
                         resource_usage: meter.usage(),
-                    })
+                    };
+
+                    hooks.on_event(&SandboxEvent::RunCompleted {
+                        sandbox_id: id,
+                        output: output.clone(),
+                    });
+
+                    // Record execution lineage
+                    if let Ok(mut log) = execution_log.lock() {
+                        log.record(ExecutionTrace::new(
+                            id,
+                            module_hash,
+                            &input_bytes,
+                            &output.stdout,
+                            &output.stderr,
+                            output.exit_code,
+                            started_at,
+                            duration,
+                            output.resource_usage.clone(),
+                        ));
+                    } else {
+                        tracing::warn!(
+                            sandbox_id = %id,
+                            "Failed to record streaming execution lineage: lock poisoned"
+                        );
+                    }
+
+                    Ok(output)
                 }
                 Err(e) => {
                     metrics.record_run_complete(duration, false);
+                    hooks.on_event(&SandboxEvent::RunFailed {
+                        sandbox_id: id,
+                        error: e.to_string(),
+                    });
                     Err(e)
                 }
             }
@@ -811,6 +1311,113 @@ impl Sandbox {
             });
         }
         Ok(())
+    }
+
+    /// Reset a terminated sandbox back to Ready state without recompilation.
+    ///
+    /// This reuses the cached compiled module and resets the WASI state,
+    /// fuel counters, and resource meters. Much faster than creating a
+    /// new sandbox from scratch.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the sandbox is not in the `Terminated` state.
+    pub async fn reset(&mut self) -> Result<()> {
+        self.ensure_state(SandboxState::Terminated)?;
+
+        // Drop existing instance
+        *self.instance.lock().await = None;
+
+        // Reset resource meter
+        self.meter = ResourceMeter::new(self.config.resources.clone());
+
+        // Reset rate limiter
+        if self.config.rate_limit.is_enabled() {
+            self.rate_limiter = Some(SharedRateLimiter::new(self.config.rate_limit.clone()));
+        }
+
+        self.state = SandboxState::Ready;
+
+        tracing::debug!(sandbox_id = %self.id, "Sandbox reset to Ready");
+        Ok(())
+    }
+
+    /// Run the sandbox with multiple inputs in parallel.
+    ///
+    /// Executes the same WASM module with each input concurrently using
+    /// separate sandbox instances that share the same compiled module.
+    /// Results are returned in the same order as the inputs.
+    ///
+    /// Each execution gets its own resource metering and capability
+    /// enforcement. The original sandbox is terminated after batch
+    /// completion.
+    ///
+    /// # Errors
+    ///
+    /// Returns a Vec of Results — individual executions may fail
+    /// independently. The method itself returns an error only if the
+    /// sandbox is not in the Ready state.
+    pub async fn run_batch(&mut self, inputs: Vec<Vec<u8>>) -> Result<Vec<Result<Output>>> {
+        self.ensure_state(SandboxState::Ready)?;
+        self.state = SandboxState::Running;
+
+        let mut handles = Vec::with_capacity(inputs.len());
+
+        for input in inputs {
+            let engine = self.engine.clone();
+            let compiled = self.compiled.clone();
+            let config = self.config.clone();
+            let enforcer = CapabilityEnforcer::new(config.capabilities.clone(), self.id.0);
+            let meter = ResourceMeter::new(config.resources.clone());
+
+            let handle = tokio::spawn(async move {
+                let start = Instant::now();
+                let input_data = if input.is_empty() { None } else { Some(input) };
+
+                let mut instance = engine.instantiate_with_input(
+                    &compiled,
+                    &config,
+                    enforcer,
+                    meter.clone(),
+                    input_data,
+                )?;
+
+                let result = tokio::task::spawn_blocking(move || instance.run())
+                    .await
+                    .map_err(|e| Error::Execution(e.to_string()))?;
+
+                let duration = start.elapsed();
+
+                match result {
+                    Ok(exec_result) => Ok(Output {
+                        exit_code: exec_result.exit_code,
+                        stdout: exec_result.stdout,
+                        stderr: exec_result.stderr,
+                        duration,
+                        resource_usage: meter.usage(),
+                    }),
+                    Err(e) => Err(e),
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        let mut results = Vec::with_capacity(handles.len());
+        for handle in handles {
+            match handle.await {
+                Ok(result) => results.push(result),
+                Err(e) if e.is_panic() => {
+                    results.push(Err(Error::Execution(format!("sandbox task panicked: {}", e))));
+                }
+                Err(e) => {
+                    results.push(Err(Error::Execution(format!("sandbox task failed: {}", e))));
+                }
+            }
+        }
+
+        self.state = SandboxState::Terminated;
+        Ok(results)
     }
 }
 
@@ -887,5 +1494,355 @@ mod tests {
         let sandbox = Sandbox::create(config).await.unwrap();
 
         assert_eq!(sandbox.state(), SandboxState::Ready);
+    }
+
+    #[test]
+    fn test_structured_stdout_json_lines() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"{\"level\":\"info\",\"msg\":\"hello\"}\nplain text\n{\"level\":\"error\",\"msg\":\"fail\"}\n".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::from_millis(1),
+            resource_usage: ResourceUsage::default(),
+        };
+
+        let structured = output.structured_stdout();
+        assert_eq!(structured.len(), 2);
+        assert_eq!(structured[0]["level"], "info");
+        assert_eq!(structured[1]["level"], "error");
+    }
+
+    #[test]
+    fn test_structured_stdout_empty() {
+        let output = Output {
+            exit_code: 0,
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+            duration: Duration::from_millis(1),
+            resource_usage: ResourceUsage::default(),
+        };
+        assert!(output.structured_stdout().is_empty());
+    }
+
+    #[test]
+    fn test_structured_stdout_no_json() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"just plain text\nanother line\n".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::from_millis(1),
+            resource_usage: ResourceUsage::default(),
+        };
+        assert!(output.structured_stdout().is_empty());
+    }
+
+    #[test]
+    fn test_stdout_lines() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"line1\nline2\nline3".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::from_millis(1),
+            resource_usage: ResourceUsage::default(),
+        };
+        assert_eq!(output.stdout_lines(), vec!["line1", "line2", "line3"]);
+    }
+
+    #[test]
+    fn test_output_failure() {
+        let output = Output {
+            exit_code: 42,
+            stdout: Vec::new(),
+            stderr: b"something went wrong".to_vec(),
+            duration: Duration::from_millis(1),
+            resource_usage: ResourceUsage::default(),
+        };
+        assert!(!output.success());
+        assert_eq!(output.exit_code, 42);
+    }
+
+    #[test]
+    fn test_sandbox_event_variants() {
+        let id = SandboxId::new();
+
+        // Verify all event variants can be constructed
+        let _created =
+            SandboxEvent::Created { sandbox_id: id, cold_start: Duration::from_millis(5) };
+        let _started = SandboxEvent::RunStarted { sandbox_id: id };
+        let _completed = SandboxEvent::RunCompleted {
+            sandbox_id: id,
+            output: Output {
+                exit_code: 0,
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+                duration: Duration::from_millis(10),
+                resource_usage: ResourceUsage::default(),
+            },
+        };
+        let _failed = SandboxEvent::RunFailed { sandbox_id: id, error: "test error".to_string() };
+        let _terminated =
+            SandboxEvent::Terminated { sandbox_id: id, metrics: SandboxMetrics::new(id) };
+    }
+
+    #[test]
+    fn test_hooks_trait_noop() {
+        // NoOpHooks should not panic on any event
+        struct TestHooks;
+        impl SandboxHooks for TestHooks {
+            fn on_event(&self, _event: &SandboxEvent) {}
+        }
+
+        let hooks = TestHooks;
+        hooks.on_event(&SandboxEvent::RunStarted { sandbox_id: SandboxId::new() });
+    }
+
+    use std::sync::atomic::AtomicU32;
+
+    #[test]
+    fn test_hooks_collect_events() {
+        let counter = Arc::new(AtomicU32::new(0));
+
+        struct CountingHooks(Arc<AtomicU32>);
+        impl SandboxHooks for CountingHooks {
+            fn on_event(&self, _event: &SandboxEvent) {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+
+        let hooks: Arc<dyn SandboxHooks> = Arc::new(CountingHooks(counter.clone()));
+        hooks.on_event(&SandboxEvent::RunStarted { sandbox_id: SandboxId::new() });
+        hooks.on_event(&SandboxEvent::RunStarted { sandbox_id: SandboxId::new() });
+        assert_eq!(counter.load(std::sync::atomic::Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn test_parse_stdout_as() {
+        #[derive(serde::Deserialize, Debug, PartialEq)]
+        struct Res {
+            value: i32,
+        }
+
+        let output = Output {
+            exit_code: 0,
+            stdout: br#"{"value": 42}"#.to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+
+        let parsed: Res = output.parse_stdout_as().unwrap();
+        assert_eq!(parsed.value, 42);
+    }
+
+    #[test]
+    fn test_parse_stdout_as_invalid() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"not json".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+
+        let result: std::result::Result<serde_json::Value, _> = output.parse_stdout_as();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_combined_output() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"hello ".to_vec(),
+            stderr: b"world".to_vec(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+        assert_eq!(output.combined_output(), b"hello world");
+        assert_eq!(output.combined_output_str(), "hello world");
+    }
+
+    #[test]
+    fn test_combined_output_empty() {
+        let output = Output {
+            exit_code: 0,
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+        assert!(output.combined_output().is_empty());
+        assert_eq!(output.combined_output_str(), "");
+    }
+
+    #[test]
+    fn test_stdout_stderr_size() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"hello".to_vec(),
+            stderr: b"err".to_vec(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+        assert_eq!(output.stdout_size(), 5);
+        assert_eq!(output.stderr_size(), 3);
+    }
+
+    #[test]
+    fn test_truncated_stdout_within_limit() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"hello".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+        assert_eq!(output.truncated_stdout(100), "hello");
+    }
+
+    #[test]
+    fn test_truncated_stdout_truncates() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"Hello, World!".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+        assert_eq!(output.truncated_stdout(5), "Hello...");
+    }
+
+    #[test]
+    fn test_truncated_stderr_truncates() {
+        let output = Output {
+            exit_code: 1,
+            stdout: Vec::new(),
+            stderr: b"Error: something went wrong here".to_vec(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+        assert_eq!(output.truncated_stderr(5), "Error...");
+    }
+
+    #[test]
+    fn test_truncated_empty() {
+        let output = Output {
+            exit_code: 0,
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+            duration: Duration::ZERO,
+            resource_usage: ResourceUsage::default(),
+        };
+        assert_eq!(output.truncated_stdout(10), "");
+    }
+
+    #[test]
+    fn test_summary() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"hello".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::from_millis(42),
+            resource_usage: ResourceUsage::default(),
+        };
+        let summary = output.summary();
+        assert!(summary.contains("exit=0"));
+        assert!(summary.contains("stdout=5 B"));
+        assert!(summary.contains("stderr=0 B"));
+    }
+
+    #[test]
+    fn test_summary_with_failure() {
+        let output = Output {
+            exit_code: 1,
+            stdout: Vec::new(),
+            stderr: b"error msg".to_vec(),
+            duration: Duration::from_secs(2),
+            resource_usage: ResourceUsage {
+                fuel_consumed: 100_000,
+                peak_memory: 1024 * 1024,
+                ..Default::default()
+            },
+        };
+        let summary = output.summary();
+        assert!(summary.contains("exit=1"));
+        assert!(summary.contains("fuel=100000"));
+    }
+
+    #[test]
+    fn test_execution_summary_success() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"hello".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::from_millis(42),
+            resource_usage: ResourceUsage {
+                fuel_consumed: 5000,
+                peak_memory: 1024 * 1024,
+                ..Default::default()
+            },
+        };
+
+        let summary = output.execution_summary();
+        assert!(summary.success);
+        assert_eq!(summary.exit_code, 0);
+        assert_eq!(summary.duration, Duration::from_millis(42));
+        assert_eq!(summary.fuel_consumed, 5000);
+        assert_eq!(summary.peak_memory, 1024 * 1024);
+        assert_eq!(summary.stdout_bytes, 5);
+        assert_eq!(summary.stderr_bytes, 0);
+    }
+
+    #[test]
+    fn test_execution_summary_failure() {
+        let output = Output {
+            exit_code: 1,
+            stdout: Vec::new(),
+            stderr: b"error".to_vec(),
+            duration: Duration::from_secs(1),
+            resource_usage: ResourceUsage::default(),
+        };
+
+        let summary = output.execution_summary();
+        assert!(!summary.success);
+        assert_eq!(summary.exit_code, 1);
+        assert_eq!(summary.stderr_bytes, 5);
+    }
+
+    #[test]
+    fn test_execution_summary_display() {
+        let output = Output {
+            exit_code: 0,
+            stdout: b"hi".to_vec(),
+            stderr: Vec::new(),
+            duration: Duration::from_millis(100),
+            resource_usage: ResourceUsage {
+                fuel_consumed: 10_000,
+                peak_memory: 2 * 1024 * 1024,
+                ..Default::default()
+            },
+        };
+
+        let summary = output.execution_summary();
+        let display = format!("{}", summary);
+        assert!(display.contains("[OK]"));
+        assert!(display.contains("exit=0"));
+        assert!(display.contains("fuel=10000"));
+        assert!(display.contains("2.0 MB"));
+    }
+
+    #[test]
+    fn test_execution_summary_display_fail() {
+        let output = Output {
+            exit_code: 42,
+            stdout: Vec::new(),
+            stderr: b"crashed".to_vec(),
+            duration: Duration::from_secs(5),
+            resource_usage: ResourceUsage::default(),
+        };
+
+        let summary = output.execution_summary();
+        let display = format!("{}", summary);
+        assert!(display.contains("[FAIL]"));
+        assert!(display.contains("exit=42"));
     }
 }
