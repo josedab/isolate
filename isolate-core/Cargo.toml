@@ -19,7 +19,7 @@ default = []
 ## Warm sandbox pool with predictive autoscaling for reusing pre-compiled modules.
 pool = []
 ## HTTP client and network policy modules for outbound requests from sandboxes.
-networking = ["dep:url"]
+networking = ["dep:url", "dep:reqwest"]
 ## AI agent framework for tool-using sandboxes with structured I/O.
 agent = []
 ## Policy rules engine with audit logging, composition, and a policy language.
@@ -99,6 +99,16 @@ distributed-mesh = []
 gpu-compute = []
 ## Chaos engineering and fault injection for resilience testing.
 chaos-testing = []
+
+# ── Composite profiles (convenience groupings) ──────────────────────────────
+
+## Server profile: core + pool + networking + observability + policy engine.
+## Recommended for running isolate-server in production.
+server = ["pool", "networking", "observability", "policy-engine"]
+## Enterprise profile: server + platform services + billing + deployment + federation.
+enterprise = ["server", "platform", "billing", "deployment", "federation"]
+## AI profile: agent framework + AI execution extras.
+ai = ["agent", "extras"]
 
 # ── Meta features ────────────────────────────────────────────────────────────
 

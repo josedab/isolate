@@ -43,6 +43,7 @@ pub use signature::{ModuleSignature, SignatureMetadata};
 pub use signer::ModuleSigner;
 
 use sha2::{Digest, Sha256};
+use std::collections::{HashMap, HashSet};
 
 /// Compute a SHA-256 hash of module bytes.
 pub fn module_hash(bytes: &[u8]) -> [u8; 32] {
@@ -52,6 +53,71 @@ pub fn module_hash(bytes: &[u8]) -> [u8; 32] {
     let mut hash = [0u8; 32];
     hash.copy_from_slice(&result);
     hash
+}
+
+/// A trust store managing trusted signing keys and revocation.
+///
+/// Supports key rotation by allowing multiple active keys and
+/// tracking revoked key IDs.
+pub struct TrustStore {
+    /// Active trusted verifying keys by key ID.
+    trusted_keys: HashMap<KeyId, VerifyingKey>,
+    /// Revoked key IDs (signatures from these keys are rejected).
+    revoked_keys: HashSet<KeyId>,
+}
+
+impl TrustStore {
+    /// Create an empty trust store.
+    pub fn new() -> Self {
+        Self { trusted_keys: HashMap::new(), revoked_keys: HashSet::new() }
+    }
+
+    /// Add a trusted verifying key.
+    pub fn add_key(&mut self, key: VerifyingKey) {
+        let id = key.key_id();
+        self.trusted_keys.insert(id, key);
+    }
+
+    /// Revoke a key by ID. Future verifications will reject signatures
+    /// from this key even if the key was previously trusted.
+    pub fn revoke_key(&mut self, key_id: &KeyId) {
+        self.trusted_keys.remove(key_id);
+        self.revoked_keys.insert(key_id.clone());
+    }
+
+    /// Check if a key ID is revoked.
+    pub fn is_revoked(&self, key_id: &KeyId) -> bool {
+        self.revoked_keys.contains(key_id)
+    }
+
+    /// Get a trusted key by ID (returns None if revoked or not found).
+    pub fn get_key(&self, key_id: &KeyId) -> Option<&VerifyingKey> {
+        if self.revoked_keys.contains(key_id) {
+            return None;
+        }
+        self.trusted_keys.get(key_id)
+    }
+
+    /// List all active (non-revoked) trusted key IDs.
+    pub fn active_key_ids(&self) -> Vec<KeyId> {
+        self.trusted_keys.keys().cloned().collect()
+    }
+
+    /// Number of active trusted keys.
+    pub fn active_count(&self) -> usize {
+        self.trusted_keys.len()
+    }
+
+    /// Number of revoked keys.
+    pub fn revoked_count(&self) -> usize {
+        self.revoked_keys.len()
+    }
+}
+
+impl Default for TrustStore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]

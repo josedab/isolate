@@ -84,14 +84,14 @@
 //!
 //! | Feature | Module | Status | Description |
 //! |---------|--------|--------|-------------|
-//! | `snapshots` | [`snapshot`] | 🧪 Experimental | Copy-on-write snapshots for warm starts |
-//! | `wasi-preview2` | [`wasi2`] | 🧪 Experimental | WASI Preview 2 (Component Model) support |
-//! | `debug-support` | [`debug`] | 🧪 Experimental | Live debugging and time-travel replay |
-//! | `module-signing` | [`signing`] | 🧪 Experimental | Cryptographic module signing and verification |
-//! | `kubernetes` | [`k8s`] | 🧪 Experimental | Kubernetes operator, CRDs, and Helm charts |
-//! | `otel-telemetry` | [`telemetry`] | 🧪 Experimental | OpenTelemetry tracing integration |
-//! | `distributed-mesh` | [`mesh`] | ⚠️ Simulated | Distributed sandbox clustering (stubs) |
-//! | `gpu-compute` | [`gpu`] | ⚠️ Simulated | GPU acceleration (simulated) |
+//! | `snapshots` | `snapshot` | 🧪 Experimental | Copy-on-write snapshots for warm starts |
+//! | `wasi-preview2` | `wasi2` | 🧪 Experimental | WASI Preview 2 (Component Model) support |
+//! | `debug-support` | `debug` | 🧪 Experimental | Live debugging and time-travel replay |
+//! | `module-signing` | `signing` | 🧪 Experimental | Cryptographic module signing and verification |
+//! | `kubernetes` | `k8s` | 🧪 Experimental | Kubernetes operator, CRDs, and Helm charts |
+//! | `otel-telemetry` | `telemetry` | 🧪 Experimental | OpenTelemetry tracing integration |
+//! | `distributed-mesh` | `mesh` | ⚠️ Simulated | Distributed sandbox clustering (stubs) |
+//! | `gpu-compute` | `gpu` | ⚠️ Simulated | GPU acceleration (simulated) |
 //!
 //! ## Execution Flow
 //!
@@ -179,13 +179,16 @@ pub mod coldstart;
 pub mod config;
 pub mod engine;
 pub mod error;
+pub mod lineage;
 pub mod metrics;
 pub mod profile;
 pub mod ratelimit;
 pub mod resource;
+pub mod retry;
 pub mod sandbox;
 pub mod sandbox_profile;
 pub mod stability;
+pub mod testing;
 pub mod version;
 
 // Optional module groups (enabled via feature flags)
@@ -268,6 +271,7 @@ pub mod benchmark;
 #[cfg(feature = "extras")]
 pub mod carbon;
 #[cfg(feature = "extras")]
+#[doc(hidden)]
 pub mod enclave;
 #[cfg(feature = "extras")]
 pub mod jsrt;
@@ -339,21 +343,28 @@ pub mod k8s;
 pub mod telemetry;
 
 #[cfg(feature = "ai-detection")]
+#[doc(hidden)]
+#[deprecated(note = "AI detection is a stub module — not production-ready")]
 pub mod ai;
 
 #[cfg(feature = "nlp-policies")]
+#[doc(hidden)]
+#[deprecated(note = "NLP policies is a stub module — not production-ready")]
 pub mod nlp;
 
 #[cfg(feature = "hotpatch")]
 #[doc(hidden)]
+#[deprecated(note = "Hot patching is a stub module — not production-ready")]
 pub mod hotpatch;
 
 #[cfg(feature = "distributed-mesh")]
 #[doc(hidden)]
+#[deprecated(note = "Distributed mesh is a stub module — not production-ready")]
 pub mod mesh;
 
 #[cfg(feature = "gpu-compute")]
 #[doc(hidden)]
+#[deprecated(note = "GPU compute is a stub module — not production-ready")]
 pub mod gpu;
 
 #[cfg(feature = "chaos-testing")]
@@ -363,5 +374,5 @@ pub mod chaos;
 pub use config::{SandboxConfig, SandboxConfigBuilder};
 pub use error::{Error, Result};
 pub use profile::LanguageProfile;
-pub use sandbox::{Output, Sandbox, SandboxId, SandboxState};
+pub use sandbox::{ExecutionSummary, Output, Sandbox, SandboxId, SandboxState};
 pub use sandbox_profile::SandboxProfile;
