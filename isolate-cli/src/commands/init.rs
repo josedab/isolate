@@ -131,6 +131,33 @@ dns = false
         println!("  {} Created .isolate.toml", "✓".green());
     }
 
+    // Create config.json (sandbox configuration file)
+    let config_json_path = project_dir.join("config.json");
+    if !config_json_path.exists() || args.force {
+        let config_json_content = serde_json::to_string_pretty(&serde_json::json!({
+            "$schema": "https://raw.githubusercontent.com/josedab/isolate/main/docs/config.schema.json",
+            "capabilities": {
+                "stdout": true,
+                "stderr": true
+            },
+            "resources": {
+                "memory": { "heap_max": "256MB", "stack_max": "1MB" },
+                "cpu": { "fuel": 10000000, "time_limit": "30s" },
+                "io": { "read_limit": "10MB", "write_limit": "1MB" },
+                "timeout": "60s"
+            },
+            "environment": {},
+            "args": [],
+            "entry_point": "_start"
+        }))?;
+
+        fs::write(&config_json_path, config_json_content)?;
+
+        if !quiet {
+            println!("  {} Created config.json (sandbox config)", "✓".green());
+        }
+    }
+
     // Create examples directory with sample WASM modules
     if args.examples {
         let examples_dir = project_dir.join("examples");
@@ -344,5 +371,24 @@ mod tests {
         let config = std::fs::read_to_string(dir.path().join(".isolate.toml")).unwrap();
         // Should contain the tempdir name as project name
         assert!(config.contains("name = "));
+    }
+
+    #[test]
+    fn test_init_creates_config_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let args = InitArgs {
+            path: dir.path().to_path_buf(),
+            name: Some("test-project".to_string()),
+            examples: false,
+            force: false,
+        };
+        init_command(args, true).unwrap();
+        let config_json_path = dir.path().join("config.json");
+        assert!(config_json_path.exists());
+
+        let contents = std::fs::read_to_string(&config_json_path).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&contents).unwrap();
+        assert_eq!(parsed["capabilities"]["stdout"], true);
+        assert_eq!(parsed["entry_point"], "_start");
     }
 }

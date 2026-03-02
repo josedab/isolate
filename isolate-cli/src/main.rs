@@ -79,6 +79,12 @@ enum Commands {
 
     /// Initialize a new Isolate project with example files
     Init(InitArgs),
+
+    /// Inspect a WASM module: list imports, exports, memory requirements
+    Inspect(InspectArgs),
+
+    /// Estimate resource usage for a WASM module via dry run
+    Estimate(EstimateArgs),
 }
 
 #[tokio::main]
@@ -113,6 +119,8 @@ async fn main() -> Result<()> {
         Commands::Completions(args) => completions_command(args),
         Commands::Doctor => doctor_command(cli.quiet).await,
         Commands::Init(args) => init_command(args, cli.quiet),
+        Commands::Inspect(args) => inspect_command(args, cli.format, cli.quiet).await,
+        Commands::Estimate(args) => estimate_command(args, cli.format, cli.quiet).await,
     };
 
     if let Err(e) = &result {
