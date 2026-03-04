@@ -1,0 +1,209 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/josedab/isolate/config.schema.json",
+  "title": "Isolate Sandbox Configuration",
+  "description": "Configuration file for Isolate secure sandbox runtime. Controls capabilities, resource limits, and execution parameters.",
+  "type": "object",
+  "properties": {
+    "capabilities": {
+      "type": "object",
+      "description": "Capabilities granted to the sandbox (default-deny).",
+      "properties": {
+        "stdout": {
+          "type": "boolean",
+          "description": "Allow writing to standard output.",
+          "default": false
+        },
+        "stderr": {
+          "type": "boolean",
+          "description": "Allow writing to standard error.",
+          "default": false
+        },
+        "stdin": {
+          "type": "boolean",
+          "description": "Allow reading from standard input.",
+          "default": false
+        },
+        "filesystem": {
+          "type": "object",
+          "description": "Filesystem access capabilities.",
+          "properties": {
+            "read": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Paths granted read-only access.",
+              "examples": [["/data", "/config"]]
+            },
+            "write": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Paths granted read-write access.",
+              "examples": [["/tmp", "/output"]]
+            },
+            "temp_dir": {
+              "type": "boolean",
+              "description": "Grant temporary directory access.",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "network": {
+          "type": "object",
+          "description": "Network access capabilities.",
+          "properties": {
+            "http_hosts": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Allowed HTTP host patterns. Supports wildcards (e.g. '*.example.com').",
+              "examples": [["api.example.com", "*.trusted.io"]]
+            },
+            "dns": {
+              "type": "boolean",
+              "description": "Allow DNS resolution.",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "env_access": {
+          "type": "object",
+          "description": "Environment variable access.",
+          "properties": {
+            "allowed_vars": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Specific environment variable names the sandbox can read."
+            },
+            "all": {
+              "type": "boolean",
+              "description": "Allow access to all environment variables.",
+              "default": false
+            },
+            "args_access": {
+              "type": "boolean",
+              "description": "Allow access to command-line arguments.",
+              "default": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "time": {
+          "type": "object",
+          "description": "Time-related capabilities.",
+          "properties": {
+            "system_clock": {
+              "type": "boolean",
+              "description": "Allow reading the system clock."
+            },
+            "monotonic_clock": {
+              "type": "boolean",
+              "description": "Allow reading the monotonic clock."
+            },
+            "timers": {
+              "type": "boolean",
+              "description": "Allow creating timers and sleeps."
+            }
+          },
+          "additionalProperties": false
+        },
+        "random": {
+          "type": "object",
+          "description": "Random number generation capabilities.",
+          "properties": {
+            "secure": {
+              "type": "boolean",
+              "description": "Allow cryptographically secure random number generation."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "resources": {
+      "type": "object",
+      "description": "Resource limits for the sandbox.",
+      "properties": {
+        "memory": {
+          "type": "object",
+          "description": "Memory limits.",
+          "properties": {
+            "heap_max": {
+              "type": "string",
+              "description": "Maximum heap memory. Supports KB, MB, GB suffixes.",
+              "examples": ["128MB", "1GB"],
+              "pattern": "^\\d+\\s*(KB|MB|GB|B|kb|mb|gb|b)?$"
+            },
+            "stack_max": {
+              "type": "string",
+              "description": "Maximum stack size. Supports KB, MB, GB suffixes.",
+              "examples": ["1MB", "512KB"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "cpu": {
+          "type": "object",
+          "description": "CPU limits.",
+          "properties": {
+            "fuel": {
+              "type": "integer",
+              "description": "Fuel limit for WASM instruction metering. Each instruction consumes ~1 fuel unit.",
+              "minimum": 0,
+              "examples": [1000000, 10000000]
+            },
+            "time_limit": {
+              "type": "string",
+              "description": "CPU time limit. Supports ms, s, m, h suffixes.",
+              "examples": ["30s", "5m"],
+              "pattern": "^\\d+\\s*(ms|s|m|h)?$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "io": {
+          "type": "object",
+          "description": "I/O limits.",
+          "properties": {
+            "read_limit": {
+              "type": "string",
+              "description": "Maximum bytes readable. Supports KB, MB, GB suffixes.",
+              "examples": ["10MB"]
+            },
+            "write_limit": {
+              "type": "string",
+              "description": "Maximum bytes writable. Supports KB, MB, GB suffixes.",
+              "examples": ["1MB"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Wall-clock timeout. Supports ms, s, m, h suffixes.",
+          "examples": ["60s", "5m", "1h"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "description": "Environment variables to inject into the sandbox.",
+      "additionalProperties": { "type": "string" },
+      "examples": [{ "LOG_LEVEL": "info", "API_KEY": "secret" }]
+    },
+    "args": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Command-line arguments passed to the WASM module.",
+      "examples": [["--verbose", "--output", "json"]]
+    },
+    "entry_point": {
+      "type": "string",
+      "description": "Name of the exported WASM function to call. Defaults to '_start' for WASI modules.",
+      "default": "_start"
+    }
+  },
+  "additionalProperties": false
+}

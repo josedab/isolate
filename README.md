@@ -13,9 +13,9 @@ A lightweight, secure sandbox runtime written in Rust for executing untrusted WA
 
 ## Features
 
-| Production Ready | Experimental |
-|:-----------------|:-------------|
-| Core sandbox, capabilities, resource limits, metrics, pool, networking, policy engine | Snapshots, WASI Preview2, GPU, distributed mesh, hot-patching, enclave, chaos testing |
+| Production Ready | Preview (API only) | Experimental |
+|:-----------------|:-------------------|:-------------|
+| Core sandbox, capabilities, resource limits, metrics, pool, networking, policy engine | Platform services, billing, deployment, observability, agent, federation | Snapshots, WASI Preview2, Kubernetes, chaos testing |
 
 ### Feature Flag Maturity
 
@@ -26,28 +26,30 @@ Enable optional modules with `cargo add isolate-core --features <flag>`:
 | *(default)* | ✅ Stable | Core sandbox, capabilities, resource limits, metrics |
 | `pool` | ✅ Stable | Warm sandbox pool with predictive autoscaling |
 | `networking` | ✅ Stable | HTTP client and network policy enforcement |
-| `agent` | ✅ Stable | AI agent framework for tool-using sandboxes |
-| `policy-engine` | ✅ Stable | Policy rules, audit logging, composition |
-| `platform` | ✅ Stable | Admin, storage, workflow, marketplace, hosting, infra |
-| `observability` | ✅ Stable | Dashboard, distributed tracing, WASM analytics |
-| `billing` | ✅ Stable | Multi-tenant billing and cloud cost tracking |
-| `deployment` | ✅ Stable | Auto-scaling, registries, hot reload |
-| `federation` | ✅ Stable | Federated registry with geo-replication |
-| `extras` | ✅ Stable | AI sandbox, carbon tracking, JS runtime, and more |
+| `policy-engine` | ✅ Stable | Core policy rules, audit logging, composition |
+| `agent` | 👁️ Preview | AI agent framework (in-memory, no real LLM provider) |
+| `platform` | 👁️ Preview | Admin, storage, workflow, hosting, infra (in-memory backends) |
+| `observability` | 👁️ Preview | Dashboard, tracing, analytics (config generation, no real export) |
+| `billing` | 👁️ Preview | Billing and cost tracking (in-memory, no payment provider) |
+| `deployment` | 👁️ Preview | Auto-scaling, registries, hot reload (in-memory) |
+| `federation` | 👁️ Preview | Federated registry (in-memory gossip, no real network) |
+| `extras` | 👁️ Preview | AI sandbox, carbon tracking, JS runtime (in-memory simulations) |
 | `snapshots` | 🧪 Experimental | Copy-on-write snapshot/restore |
 | `wasi-preview2` | 🧪 Experimental | WASI Component Model support |
 | `kubernetes` | 🧪 Experimental | K8s operator and CRD support |
 | `otel-telemetry` | 🧪 Experimental | OpenTelemetry distributed tracing |
 | `debug-support` | 🧪 Experimental | Live debugging and time-travel replay |
-| `module-signing` | 🧪 Experimental | Cryptographic module signing |
-| `gpu-compute` | ⚠️ Simulated | GPU acceleration (not real hardware) |
-| `distributed-mesh` | ⚠️ Simulated | Multi-node clustering (network stubs only) |
-| `hotpatch` | ⚠️ Simulated | Hot code patching (simulated only) |
+| `module-signing` | 🧪 Experimental | Cryptographic module signing (Ed25519) |
 | `chaos-testing` | 🧪 Experimental | Fault injection for resilience testing |
+| `gpu-compute` | ⚠️ Stub | GPU acceleration (simulated, not real hardware) |
+| `distributed-mesh` | ⚠️ Stub | Multi-node clustering (network stubs only) |
+| `hotpatch` | ⚠️ Stub | Hot code patching (simulated only) |
 | `full` | — | Meta-feature: enables everything above |
 
-> Features marked ⚠️ **Simulated** are included for API design feedback only.
-> Do not rely on them for production workloads.
+> Features marked 👁️ **Preview** have designed APIs backed by in-memory simulations.
+> Evaluate them for API feedback but do not rely on them for production.
+>
+> Features marked ⚠️ **Stub** are scaffolding only. Do not use.
 
 - **Fast Cold Start**: <5ms sandbox creation (vs 125ms+ for microVMs)
 - **Memory Safety**: Rust implementation eliminates runtime vulnerabilities

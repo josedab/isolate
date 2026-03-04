@@ -1,5 +1,8 @@
 # isolate-python
 
+> **🔌 In-Process Embedding** — These are native Python bindings (via PyO3) that run Isolate directly in your Python process with no server needed.
+> For a **remote gRPC client** that connects to an Isolate server, see [`sdk/python/`](../sdk/python/) instead.
+
 [![PyPI](https://img.shields.io/pypi/v/isolate-sandbox.svg)](https://pypi.org/project/isolate-sandbox/)
 [![License](https://img.shields.io/pypi/l/isolate-sandbox.svg)](../LICENSE-MIT)
 [![Python](https://img.shields.io/pypi/pyversions/isolate-sandbox.svg)](https://pypi.org/project/isolate-sandbox/)

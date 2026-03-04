@@ -1,5 +1,8 @@
 # Isolate Python SDK
 
+> **📡 Remote gRPC Client** — This SDK connects to a running Isolate gRPC server over the network.
+> For **in-process embedding** (no server needed), see [`isolate-python`](../../isolate-python/) which provides native Python bindings via PyO3.
+
 Python client library for the [Isolate](https://github.com/josedab/isolate) gRPC sandbox service.
 
 ## Requirements

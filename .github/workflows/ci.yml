@@ -374,6 +374,46 @@ jobs:
           command: cargo bench --workspace --all-features
         if: ${{ secrets.BENCHER_API_TOKEN != '' }}
 
+  # Benchmark comparison on PRs (alerts on regressions >10%)
+  bench-pr:
+    name: Benchmark PR Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-bench-pr-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bench-pr-
+            ${{ runner.os }}-cargo-
+
+      - name: Run PR benchmarks with Bencher
+        uses: bencherdev/bencher@main
+        with:
+          project: isolate
+          token: ${{ secrets.BENCHER_API_TOKEN }}
+          branch: ${{ github.head_ref }}
+          start-point: main
+          start-point-reset: true
+          testbed: ubuntu-latest
+          adapter: rust_criterion
+          threshold-measure: latency
+          threshold-test: percentage
+          threshold-upper-boundary: 0.10
+          err: true
+          command: cargo bench --package isolate-core -- --noplot
+        if: ${{ secrets.BENCHER_API_TOKEN != '' }}
+
   # Final status check for branch protection
   ci-success:
     name: CI Success
