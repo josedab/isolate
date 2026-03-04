@@ -487,6 +487,11 @@ impl SandboxConfigBuilder {
     /// assert_eq!(merged.env.get("EXTRA").unwrap(), "value");
     /// ```
     pub fn merge_from(mut self, overlay: &SandboxConfig) -> Self {
+        // Module: replace if overlay has a different module
+        if self.module.as_ref().map(|m| m.hash()) != Some(overlay.module.hash()) {
+            self.module = Some(overlay.module.clone());
+        }
+
         // Capabilities: union
         for cap in overlay.capabilities.iter() {
             self.capabilities.grant(cap.clone());
@@ -1043,9 +1048,10 @@ impl SandboxConfigBuilder {
         }
 
         // Validate entry point is non-empty
-        if self.entry_point.is_empty() {
+        if self.entry_point.trim().is_empty() {
             return Err(Error::InvalidConfig(
-                "entry_point must not be empty (default is '_start')".to_string(),
+                "entry_point must not be empty or whitespace-only (default is '_start')"
+                    .to_string(),
             ));
         }
 
@@ -1543,7 +1549,9 @@ pub fn parse_size(s: &str) -> std::result::Result<usize, ConfigFileError> {
     };
     let num: usize =
         num_str.trim().parse().map_err(|_| ConfigFileError::InvalidSize(s.to_string()))?;
-    Ok(num * multiplier)
+    num.checked_mul(multiplier).ok_or_else(|| {
+        ConfigFileError::InvalidSize(format!("{s} exceeds maximum representable size"))
+    })
 }
 
 /// Parse a human-readable duration string.
@@ -1575,7 +1583,10 @@ pub fn parse_duration(s: &str) -> std::result::Result<Duration, ConfigFileError>
     };
     let num: u64 =
         num_str.trim().parse().map_err(|_| ConfigFileError::InvalidDuration(s.to_string()))?;
-    Ok(Duration::from_millis(num * factor))
+    let millis = num.checked_mul(factor).ok_or_else(|| {
+        ConfigFileError::InvalidDuration(format!("{s} exceeds maximum representable duration"))
+    })?;
+    Ok(Duration::from_millis(millis))
 }
 
 #[cfg(test)]
@@ -1826,6 +1837,15 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_size_overflow() {
+        // On 64-bit systems usize is 64 bits, so we need truly huge values
+        let huge = format!("{}GB", usize::MAX);
+        assert!(parse_size(&huge).is_err(), "should reject overflow");
+        // Zero is fine
+        assert_eq!(parse_size("0GB").unwrap(), 0);
+    }
+
+    #[test]
     fn test_parse_duration_variants() {
         assert_eq!(parse_duration("30s").unwrap(), Duration::from_secs(30));
         assert_eq!(parse_duration("5m").unwrap(), Duration::from_secs(300));
@@ -1833,6 +1853,12 @@ mod tests {
         assert_eq!(parse_duration("100ms").unwrap(), Duration::from_millis(100));
         assert_eq!(parse_duration("10").unwrap(), Duration::from_secs(10));
         assert!(parse_duration("abc").is_err());
+    }
+
+    #[test]
+    fn test_parse_duration_overflow() {
+        let huge = format!("{}h", u64::MAX);
+        assert!(parse_duration(&huge).is_err(), "should reject overflow");
     }
 
     #[test]
