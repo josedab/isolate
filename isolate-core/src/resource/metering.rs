@@ -112,21 +112,47 @@ impl ResourceUsage {
     pub fn utilization(&self, limits: &ResourceLimits) -> ResourceUtilization {
         ResourceUtilization {
             memory: if limits.memory.heap_max > 0 {
-                Some(self.peak_memory as f64 / limits.memory.heap_max as f64)
+                Some((self.peak_memory as f64 / limits.memory.heap_max as f64).min(1.0))
             } else {
                 None
             },
-            fuel: limits.cpu.fuel.map(|limit| self.fuel_consumed as f64 / limit as f64),
-            cpu_time: limits
-                .cpu
-                .cpu_time
-                .map(|limit| self.cpu_time.as_secs_f64() / limit.as_secs_f64()),
-            wall_time: limits
-                .time
-                .wall_time
-                .map(|limit| self.wall_time.as_secs_f64() / limit.as_secs_f64()),
-            io_read: limits.io.read_bytes.map(|limit| self.bytes_read as f64 / limit as f64),
-            io_write: limits.io.write_bytes.map(|limit| self.bytes_written as f64 / limit as f64),
+            fuel: limits.cpu.fuel.and_then(|limit| {
+                if limit > 0 {
+                    Some((self.fuel_consumed as f64 / limit as f64).min(1.0))
+                } else {
+                    None
+                }
+            }),
+            cpu_time: limits.cpu.cpu_time.and_then(|limit| {
+                let secs = limit.as_secs_f64();
+                if secs > 0.0 {
+                    Some((self.cpu_time.as_secs_f64() / secs).min(1.0))
+                } else {
+                    None
+                }
+            }),
+            wall_time: limits.time.wall_time.and_then(|limit| {
+                let secs = limit.as_secs_f64();
+                if secs > 0.0 {
+                    Some((self.wall_time.as_secs_f64() / secs).min(1.0))
+                } else {
+                    None
+                }
+            }),
+            io_read: limits.io.read_bytes.and_then(|limit| {
+                if limit > 0 {
+                    Some((self.bytes_read as f64 / limit as f64).min(1.0))
+                } else {
+                    None
+                }
+            }),
+            io_write: limits.io.write_bytes.and_then(|limit| {
+                if limit > 0 {
+                    Some((self.bytes_written as f64 / limit as f64).min(1.0))
+                } else {
+                    None
+                }
+            }),
         }
     }
 }
@@ -935,5 +961,83 @@ mod tests {
         assert_eq!(format_duration(Duration::from_millis(500)), "500.0ms");
         assert_eq!(format_duration(Duration::from_secs(1)), "1.00s");
         assert_eq!(format_duration(Duration::from_secs(60)), "60.00s");
+    }
+
+    #[test]
+    fn test_utilization_zero_fuel_limit() {
+        let limits = ResourceLimits {
+            cpu: super::super::CpuLimits {
+                fuel: Some(0),
+                cpu_time: Some(Duration::ZERO),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let usage = ResourceUsage {
+            fuel_consumed: 100,
+            cpu_time: Duration::from_secs(1),
+            ..Default::default()
+        };
+        let util = usage.utilization(&limits);
+        // Zero limits should return None, not NaN/Inf
+        assert!(util.fuel.is_none());
+        assert!(util.cpu_time.is_none());
+    }
+
+    #[test]
+    fn test_utilization_over_consumption_clamped() {
+        let limits = ResourceLimits {
+            memory: super::super::MemoryLimits { heap_max: 1024, ..Default::default() },
+            cpu: super::super::CpuLimits { fuel: Some(100), ..Default::default() },
+            ..Default::default()
+        };
+        let usage = ResourceUsage {
+            peak_memory: 2048,  // 200% of limit
+            fuel_consumed: 200, // 200% of limit
+            ..Default::default()
+        };
+        let util = usage.utilization(&limits);
+        // Should be clamped to 1.0, not 2.0
+        assert_eq!(util.memory.unwrap(), 1.0);
+        assert_eq!(util.fuel.unwrap(), 1.0);
+    }
+
+    #[test]
+    fn test_utilization_zero_memory_limit() {
+        let limits = ResourceLimits {
+            memory: super::super::MemoryLimits { heap_max: 0, ..Default::default() },
+            ..Default::default()
+        };
+        let usage = ResourceUsage { peak_memory: 1024, ..Default::default() };
+        let util = usage.utilization(&limits);
+        assert!(util.memory.is_none());
+    }
+
+    #[test]
+    fn test_utilization_zero_io_limits() {
+        let limits = ResourceLimits {
+            io: super::super::IoLimits { read_bytes: Some(0), write_bytes: Some(0), iops: None },
+            ..Default::default()
+        };
+        let usage = ResourceUsage { bytes_read: 100, bytes_written: 50, ..Default::default() };
+        let util = usage.utilization(&limits);
+        assert!(util.io_read.is_none());
+        assert!(util.io_write.is_none());
+    }
+
+    #[test]
+    fn test_output_display() {
+        let output = crate::sandbox::Output {
+            exit_code: 0,
+            stdout: b"hello".to_vec(),
+            stderr: vec![],
+            duration: Duration::from_millis(42),
+            resource_usage: ResourceUsage { fuel_consumed: 1000, ..Default::default() },
+        };
+        let display = format!("{}", output);
+        assert!(display.contains("exit=0"));
+        assert!(display.contains("stdout=5B"));
+        assert!(display.contains("stderr=0B"));
+        assert!(display.contains("fuel=1000"));
     }
 }
