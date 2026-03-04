@@ -113,14 +113,17 @@ impl PrecompileCache {
             .serialize()
             .map_err(|e| Error::Engine(format!("Failed to serialize compiled module: {}", e)))?;
 
-        // Write hash file for integrity verification
+        // Write module to disk FIRST, then hash as a commit marker.
+        // If the process crashes after writing the module but before the hash,
+        // the orphaned module file is harmless (no hash = won't be loaded).
+        // The reverse (hash before module) would cause load() to find the hash
+        // and attempt to deserialize a missing or partial module file.
+        let path = self.module_path(&hash)?;
+        std::fs::write(&path, &serialized)?;
+
         let hash_path = self.hash_path(&hash)?;
         let digest = Sha256::digest(&serialized);
         std::fs::write(&hash_path, hex::encode(digest))?;
-
-        // Write to disk
-        let path = self.module_path(&hash)?;
-        std::fs::write(&path, &serialized)?;
 
         // Track in memory cache
         self.memory_cache
@@ -145,25 +148,25 @@ impl PrecompileCache {
             return Ok(None);
         }
 
-        // Load pre-compiled bytes from disk
+        // Read pre-compiled bytes from disk ONCE — used for both
+        // integrity verification and deserialization, eliminating the
+        // TOCTOU window where the file could change between steps.
         let bytes = std::fs::read(&path)?;
 
-        // Verify integrity before deserializing
+        // Verify integrity against stored hash
         let hash_path = self.hash_path(hash)?;
-        if let Ok(expected_hex) = std::fs::read_to_string(&hash_path) {
-            let actual = hex::encode(Sha256::digest(&bytes));
-            if actual != expected_hex.trim() {
-                return Err(Error::Engine("Module cache integrity check failed".to_string()));
-            }
-        } else {
-            return Err(Error::Engine(
-                "Module cache hash file missing — cannot verify integrity".to_string(),
-            ));
+        let expected_hex = std::fs::read_to_string(&hash_path).map_err(|_| {
+            Error::Engine("Module cache hash file missing — cannot verify integrity".to_string())
+        })?;
+        let actual = hex::encode(Sha256::digest(&bytes));
+        if actual != expected_hex.trim() {
+            return Err(Error::Engine("Module cache integrity check failed".to_string()));
         }
 
         // SAFETY: Deserializing a module requires that the bytes are a valid
         // serialized Wasmtime module and have not been tampered with. Integrity
-        // is verified via SHA-256 hash check above.
+        // is verified via SHA-256 hash above, and we use the SAME byte buffer
+        // (no re-read from disk) to prevent TOCTOU attacks.
         let module = unsafe {
             Module::deserialize(engine.engine(), &bytes)
                 .map_err(|e| Error::Engine(format!("Failed to deserialize module: {}", e)))?
