@@ -115,8 +115,8 @@ impl CompiledModule {
                 return Some(MemoryRequirements {
                     initial_pages: mem_ty.minimum(),
                     maximum_pages: mem_ty.maximum(),
-                    initial_bytes: mem_ty.minimum() * 65536,
-                    maximum_bytes: mem_ty.maximum().map(|m| m * 65536),
+                    initial_bytes: mem_ty.minimum().saturating_mul(65536),
+                    maximum_bytes: mem_ty.maximum().map(|m| m.saturating_mul(65536)),
                 });
             }
         }
@@ -469,22 +469,27 @@ impl WasmEngine {
             Error::Compilation(format!("{} error: {}", phase, detail))
         })?;
 
-        // Evict LRU entry when cache is full
-        if self.module_cache.len() >= self.config.max_cached_modules {
-            if let Some(oldest_key) = self
-                .module_cache
-                .iter()
-                .min_by_key(|entry| entry.value().access_seq)
-                .map(|entry| entry.key().clone())
-            {
-                tracing::debug!(evicted_hash = %oldest_key, "module cache full — evicting LRU entry");
-                self.module_cache.remove(&oldest_key);
-            }
-        }
-
         let seq = self.access_counter.fetch_add(1, Ordering::Relaxed);
         self.module_cache
             .insert(hash.clone(), CachedEntry { module: module.clone(), access_seq: seq });
+
+        // Evict LRU entries until within capacity. Using a while loop instead
+        // of a single check handles the case where multiple concurrent compilers
+        // insert simultaneously, pushing the cache over the limit.
+        while self.module_cache.len() > self.config.max_cached_modules {
+            if let Some(oldest_key) = self
+                .module_cache
+                .iter()
+                .filter(|e| e.key() != &hash) // don't evict the entry we just inserted
+                .min_by_key(|entry| entry.value().access_seq)
+                .map(|entry| entry.key().clone())
+            {
+                tracing::debug!(evicted_hash = %oldest_key, "module cache over capacity — evicting LRU entry");
+                self.module_cache.remove(&oldest_key);
+            } else {
+                break;
+            }
+        }
 
         Ok(CompiledModule { module, hash })
     }
@@ -602,11 +607,9 @@ pub struct CacheStats {
     pub max_modules: usize,
 }
 
-impl Default for WasmEngine {
-    fn default() -> Self {
-        Self::new().expect("Failed to create default WASM engine")
-    }
-}
+// WasmEngine intentionally does not implement Default because engine
+// creation is fallible (allocates resources, configures Wasmtime).
+// Use `WasmEngine::new()` or `WasmEngine::with_config()` instead.
 
 /// State held by the WASM store.
 pub struct SandboxWasiState {
