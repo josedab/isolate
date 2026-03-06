@@ -31,6 +31,10 @@ pub struct TenantUsage {
     pub total_bytes_read: u64,
     pub total_bytes_written: u64,
     pub peak_memory_bytes: u64,
+    /// Accumulated memory usage in byte-seconds across all executions.
+    /// Each execution contributes `peak_memory_bytes × wall_time_seconds`.
+    #[serde(default)]
+    pub total_memory_byte_seconds: u64,
     pub first_execution_epoch_ms: u64,
     pub last_execution_epoch_ms: u64,
 }
@@ -45,6 +49,7 @@ impl TenantUsage {
             total_bytes_read: 0,
             total_bytes_written: 0,
             peak_memory_bytes: 0,
+            total_memory_byte_seconds: 0,
             first_execution_epoch_ms: 0,
             last_execution_epoch_ms: 0,
         }
@@ -72,10 +77,36 @@ impl TenantUsageTracker {
         bytes_read: u64,
         bytes_written: u64,
     ) {
+        self.record_execution_with_memory(
+            tenant_id,
+            wall_time,
+            fuel_consumed,
+            bytes_read,
+            bytes_written,
+            0,
+        );
+    }
+
+    /// Record a sandbox execution with memory usage for accurate billing.
+    ///
+    /// `peak_memory_bytes` is the peak memory used during this execution.
+    /// Memory cost is calculated as `peak_memory_bytes × wall_time_seconds` (byte-seconds).
+    pub fn record_execution_with_memory(
+        &self,
+        tenant_id: &TenantId,
+        wall_time: std::time::Duration,
+        fuel_consumed: u64,
+        bytes_read: u64,
+        bytes_written: u64,
+        peak_memory_bytes: u64,
+    ) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
+
+        let wall_time_ms = wall_time.as_millis() as u64;
+        let memory_byte_seconds = (peak_memory_bytes as u128 * wall_time_ms as u128 / 1000) as u64;
 
         let mut entry = self
             .tenants
@@ -84,10 +115,14 @@ impl TenantUsageTracker {
 
         let usage = entry.value_mut();
         usage.execution_count += 1;
-        usage.total_wall_time_ms += wall_time.as_millis() as u64;
+        usage.total_wall_time_ms += wall_time_ms;
         usage.total_fuel_consumed += fuel_consumed;
         usage.total_bytes_read += bytes_read;
         usage.total_bytes_written += bytes_written;
+        usage.total_memory_byte_seconds += memory_byte_seconds;
+        if peak_memory_bytes > usage.peak_memory_bytes {
+            usage.peak_memory_bytes = peak_memory_bytes;
+        }
         usage.last_execution_epoch_ms = now;
         if usage.first_execution_epoch_ms == 0 {
             usage.first_execution_epoch_ms = now;
@@ -208,5 +243,47 @@ mod tests {
     fn test_missing_tenant_returns_none() {
         let tracker = TenantUsageTracker::new();
         assert!(tracker.get_usage(&TenantId::new("nope")).is_none());
+    }
+
+    #[test]
+    fn test_memory_byte_seconds_tracking() {
+        let tracker = TenantUsageTracker::new();
+        let tid = TenantId::new("mem-track");
+        // 128MB for 2 seconds = 128*1024*1024 * 2 byte-seconds
+        let mem = 128 * 1024 * 1024;
+        tracker.record_execution_with_memory(&tid, Duration::from_secs(2), 0, 0, 0, mem);
+
+        let usage = tracker.get_usage(&tid).unwrap();
+        assert_eq!(usage.total_memory_byte_seconds, mem * 2);
+        assert_eq!(usage.peak_memory_bytes, mem);
+    }
+
+    #[test]
+    fn test_memory_byte_seconds_accumulation() {
+        let tracker = TenantUsageTracker::new();
+        let tid = TenantId::new("mem-accum");
+        // Execution 1: 64MB for 1 second
+        tracker.record_execution_with_memory(
+            &tid,
+            Duration::from_secs(1),
+            0,
+            0,
+            0,
+            64 * 1024 * 1024,
+        );
+        // Execution 2: 128MB for 2 seconds
+        tracker.record_execution_with_memory(
+            &tid,
+            Duration::from_secs(2),
+            0,
+            0,
+            0,
+            128 * 1024 * 1024,
+        );
+
+        let usage = tracker.get_usage(&tid).unwrap();
+        let expected = 64 * 1024 * 1024 * 1 + 128 * 1024 * 1024 * 2;
+        assert_eq!(usage.total_memory_byte_seconds, expected);
+        assert_eq!(usage.peak_memory_bytes, 128 * 1024 * 1024); // keeps max
     }
 }

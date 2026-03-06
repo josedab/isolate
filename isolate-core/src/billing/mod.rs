@@ -24,7 +24,7 @@ mod tenant;
 
 pub use cost::{CostCalculator, PricingTier, UnitPricing};
 pub use meter::{BillingEvent, BillingMeter, SharedBillingMeter};
-pub use report::{UsageReport, UsageReportBuilder, UsageSummary};
+pub use report::{Invoice, InvoiceLineItem, UsageReport, UsageReportBuilder, UsageSummary};
 pub use tenant::{TenantId, TenantUsage, TenantUsageTracker};
 
 #[cfg(test)]

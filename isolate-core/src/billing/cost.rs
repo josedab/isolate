@@ -94,7 +94,16 @@ impl CostCalculator {
         let p = &self.pricing;
 
         let fuel_cost = (usage.total_fuel_consumed as f64 / 1_000_000.0) * p.cost_per_million_fuel;
-        let memory_cost = 0.0; // memory-seconds require runtime integration
+
+        // Memory cost from accumulated byte-seconds. Falls back to
+        // peak_memory × total_wall_time when per-execution tracking is unavailable.
+        let memory_gb_seconds = if usage.total_memory_byte_seconds > 0 {
+            usage.total_memory_byte_seconds as f64 / (1024.0 * 1024.0 * 1024.0)
+        } else {
+            (usage.peak_memory_bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+                * (usage.total_wall_time_ms as f64 / 1000.0)
+        };
+        let memory_cost = memory_gb_seconds * p.cost_per_gb_second;
         let read_cost =
             (usage.total_bytes_read as f64 / (1024.0 * 1024.0 * 1024.0)) * p.cost_per_gb_read;
         let write_cost =
@@ -140,6 +149,7 @@ mod tests {
             total_bytes_read: 1024 * 1024 * 1024,   // 1 GB
             total_bytes_written: 512 * 1024 * 1024, // 0.5 GB
             peak_memory_bytes: 128 * 1024 * 1024,
+            total_memory_byte_seconds: 128 * 1024 * 1024 * 3600, // 128MB for 1 hour
             first_execution_epoch_ms: 0,
             last_execution_epoch_ms: 0,
         }
@@ -151,6 +161,7 @@ mod tests {
         let cost = calc.calculate(&sample_usage());
 
         assert!(cost.fuel_cost > 0.0);
+        assert!(cost.memory_cost > 0.0, "memory cost should be calculated from byte-seconds");
         assert!(cost.read_cost > 0.0);
         assert!(cost.write_cost > 0.0);
         assert!(cost.execution_cost > 0.0);
@@ -183,11 +194,13 @@ mod tests {
             total_bytes_read: 0,
             total_bytes_written: 0,
             peak_memory_bytes: 0,
+            total_memory_byte_seconds: 0,
             first_execution_epoch_ms: 0,
             last_execution_epoch_ms: 0,
         };
         let cost = calc.calculate(&usage);
         assert_eq!(cost.total_cost, 0.0);
+        assert_eq!(cost.memory_cost, 0.0);
     }
 
     #[test]
@@ -199,5 +212,47 @@ mod tests {
         }]);
         let cost = calc.calculate(&sample_usage());
         assert_eq!(cost.discount_pct, 50.0);
+    }
+
+    #[test]
+    fn test_memory_cost_from_byte_seconds() {
+        let calc = CostCalculator::new(UnitPricing::default());
+        // 1 GB for 1 second = 1 GB-second
+        let usage = TenantUsage {
+            tenant_id: TenantId::new("mem"),
+            execution_count: 1,
+            total_wall_time_ms: 1000,
+            total_fuel_consumed: 0,
+            total_bytes_read: 0,
+            total_bytes_written: 0,
+            peak_memory_bytes: 1024 * 1024 * 1024,
+            total_memory_byte_seconds: 1024 * 1024 * 1024, // 1 GB × 1 second
+            first_execution_epoch_ms: 0,
+            last_execution_epoch_ms: 0,
+        };
+        let cost = calc.calculate(&usage);
+        let expected_memory_cost = UnitPricing::default().cost_per_gb_second;
+        assert!((cost.memory_cost - expected_memory_cost).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_memory_cost_fallback_from_peak() {
+        let calc = CostCalculator::new(UnitPricing::default());
+        // When total_memory_byte_seconds is 0, fall back to peak × wall_time
+        let usage = TenantUsage {
+            tenant_id: TenantId::new("fallback"),
+            execution_count: 1,
+            total_wall_time_ms: 1000,
+            total_fuel_consumed: 0,
+            total_bytes_read: 0,
+            total_bytes_written: 0,
+            peak_memory_bytes: 1024 * 1024 * 1024, // 1 GB peak
+            total_memory_byte_seconds: 0,          // no per-execution tracking
+            first_execution_epoch_ms: 0,
+            last_execution_epoch_ms: 0,
+        };
+        let cost = calc.calculate(&usage);
+        let expected = UnitPricing::default().cost_per_gb_second;
+        assert!((cost.memory_cost - expected).abs() < 1e-10);
     }
 }
