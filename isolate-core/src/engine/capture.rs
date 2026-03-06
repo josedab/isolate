@@ -18,6 +18,9 @@ use wasmtime_wasi::{
 /// A buffer that captures output written to it.
 pub type CaptureBuffer = Arc<RwLock<Vec<u8>>>;
 
+/// Default maximum capture buffer size (64 MiB).
+const DEFAULT_MAX_CAPTURE_BYTES: usize = 64 * 1024 * 1024;
+
 /// Creates a new capture buffer.
 pub fn new_capture_buffer() -> CaptureBuffer {
     Arc::new(RwLock::new(Vec::new()))
@@ -27,21 +30,32 @@ pub fn new_capture_buffer() -> CaptureBuffer {
 ///
 /// This implements `StdoutStream` and can be used with `WasiCtxBuilder::stdout()`
 /// or `WasiCtxBuilder::stderr()` to capture WASM output.
+///
+/// A default maximum buffer size of 64 MiB is enforced to prevent host OOM.
+/// Use [`CaptureStream::with_max_size`] to override.
 #[derive(Clone)]
 pub struct CaptureStream {
     buffer: CaptureBuffer,
     meter: Option<ResourceMeter>,
+    max_buffer_size: usize,
 }
 
 impl CaptureStream {
     /// Create a new capture stream with the given buffer.
     pub fn new(buffer: CaptureBuffer) -> Self {
-        Self { buffer, meter: None }
+        Self { buffer, meter: None, max_buffer_size: DEFAULT_MAX_CAPTURE_BYTES }
     }
 
     /// Create a new capture stream with metering.
     pub fn with_meter(buffer: CaptureBuffer, meter: ResourceMeter) -> Self {
-        Self { buffer, meter: Some(meter) }
+        Self { buffer, meter: Some(meter), max_buffer_size: DEFAULT_MAX_CAPTURE_BYTES }
+    }
+
+    /// Set a custom maximum buffer size in bytes.
+    #[allow(dead_code)]
+    pub fn with_max_size(mut self, max_bytes: usize) -> Self {
+        self.max_buffer_size = max_bytes;
+        self
     }
 
     /// Get the captured bytes.
@@ -52,7 +66,11 @@ impl CaptureStream {
 
 impl StdoutStream for CaptureStream {
     fn stream(&self) -> Box<dyn HostOutputStream> {
-        Box::new(CaptureOutputStream::new(self.buffer.clone(), self.meter.clone()))
+        Box::new(CaptureOutputStream::new(
+            self.buffer.clone(),
+            self.meter.clone(),
+            self.max_buffer_size,
+        ))
     }
 
     fn isatty(&self) -> bool {
@@ -64,11 +82,12 @@ impl StdoutStream for CaptureStream {
 struct CaptureOutputStream {
     buffer: CaptureBuffer,
     meter: Option<ResourceMeter>,
+    max_buffer_size: usize,
 }
 
 impl CaptureOutputStream {
-    fn new(buffer: CaptureBuffer, meter: Option<ResourceMeter>) -> Self {
-        Self { buffer, meter }
+    fn new(buffer: CaptureBuffer, meter: Option<ResourceMeter>, max_buffer_size: usize) -> Self {
+        Self { buffer, meter, max_buffer_size }
     }
 }
 
@@ -80,7 +99,11 @@ impl HostOutputStream for CaptureOutputStream {
                 return Err(wasmtime_wasi::StreamError::Closed);
             }
         }
-        self.buffer.write().extend_from_slice(&bytes);
+        let mut buf = self.buffer.write();
+        if buf.len().saturating_add(bytes.len()) > self.max_buffer_size {
+            return Err(wasmtime_wasi::StreamError::Closed);
+        }
+        buf.extend_from_slice(&bytes);
         Ok(())
     }
 
@@ -90,8 +113,8 @@ impl HostOutputStream for CaptureOutputStream {
     }
 
     fn check_write(&mut self) -> StreamResult<usize> {
-        // Always ready to accept writes
-        Ok(usize::MAX)
+        let current = self.buffer.read().len();
+        Ok(self.max_buffer_size.saturating_sub(current))
     }
 }
 
