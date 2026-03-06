@@ -429,6 +429,66 @@ impl HostFunctionCapability {
     }
 }
 
+impl std::str::FromStr for Capability {
+    type Err = String;
+
+    /// Parse a capability from its string representation.
+    ///
+    /// Supports the same format produced by `Display`/`description()`:
+    /// - `stdio:stdout`, `stdio:stderr`, `stdio:stdin`
+    /// - `fs:read:/path`, `fs:readwrite:/path`, `fs:tempdir`
+    /// - `net:http:host1,host2`, `net:dns`, `net:dns:resolver`
+    /// - `time:system`, `time:monotonic`, `time:timer`
+    /// - `random:secure`, `random:seeded:N`
+    /// - `env:all`, `env:var:NAME`
+    /// - `hostfn:name`, `hostfn:ns:*`
+    ///
+    /// ```
+    /// use isolate_core::capability::Capability;
+    ///
+    /// let cap: Capability = "stdio:stdout".parse().unwrap();
+    /// assert_eq!(cap, Capability::stdout());
+    ///
+    /// let cap: Capability = "fs:read:/data".parse().unwrap();
+    /// assert_eq!(cap, Capability::filesystem_read("/data"));
+    /// ```
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        let parts: Vec<&str> = s.splitn(3, ':').collect();
+        match parts.as_slice() {
+            ["stdio", "stdout"] => Ok(Self::stdout()),
+            ["stdio", "stderr"] => Ok(Self::stderr()),
+            ["stdio", "stdin"] => Ok(Self::stdin()),
+            ["fs", "read", path] => Ok(Self::filesystem_read(*path)),
+            ["fs", "readwrite", path] => Ok(Self::filesystem_write(*path)),
+            ["fs", "tempdir"] => Ok(Self::Filesystem(FilesystemCapability::TempDir)),
+            ["net", "http", hosts] => {
+                let host_list: Vec<String> = hosts.split(',').map(|h| h.trim().to_string()).collect();
+                Ok(Self::http_client(host_list))
+            }
+            ["net", "dns"] => Ok(Self::dns_resolve()),
+            ["time", "system"] => Ok(Self::system_clock()),
+            ["time", "monotonic"] => Ok(Self::Time(TimeCapability::MonotonicClock)),
+            ["time", "timers"] => Ok(Self::Time(TimeCapability::Timers)),
+            ["random", "secure"] => Ok(Self::secure_random()),
+            ["random", "seeded", seed] => {
+                let seed_val: u64 = seed.parse().map_err(|_| format!("invalid seed: {seed}"))?;
+                Ok(Self::Random(RandomCapability::Seeded(seed_val)))
+            }
+            ["env", "all"] => Ok(Self::env_all()),
+            ["env", "var", name] => Ok(Self::env_var(*name)),
+            ["hostfn", rest] => {
+                if let Some(ns) = rest.strip_suffix(":*") {
+                    Ok(Self::HostFunction(HostFunctionCapability::Namespace(ns.to_string())))
+                } else {
+                    Ok(Self::HostFunction(HostFunctionCapability::Named(rest.to_string())))
+                }
+            }
+            _ => Err(format!("unknown capability: '{s}' (expected format like 'stdio:stdout', 'fs:read:/path', 'net:http:host')")),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -494,5 +554,41 @@ mod tests {
             Capability::http_client(vec!["api.example.com"]).to_string(),
             "net:http:api.example.com"
         );
+    }
+
+    #[test]
+    fn test_capability_from_str_roundtrip() {
+        let cases = vec![
+            Capability::stdout(),
+            Capability::stderr(),
+            Capability::stdin(),
+            Capability::filesystem_read("/data"),
+            Capability::filesystem_write("/tmp"),
+            Capability::system_clock(),
+            Capability::secure_random(),
+            Capability::env_all(),
+            Capability::env_var("API_KEY"),
+            Capability::dns_resolve(),
+        ];
+
+        for cap in cases {
+            let s = cap.to_string();
+            let parsed: Capability =
+                s.parse().unwrap_or_else(|e| panic!("failed to parse '{s}': {e}"));
+            assert_eq!(parsed, cap, "roundtrip failed for '{s}'");
+        }
+    }
+
+    #[test]
+    fn test_capability_from_str_http() {
+        let cap: Capability = "net:http:api.example.com,cdn.example.com".parse().unwrap();
+        assert_eq!(cap, Capability::http_client(vec!["api.example.com", "cdn.example.com"]));
+    }
+
+    #[test]
+    fn test_capability_from_str_invalid() {
+        assert!("".parse::<Capability>().is_err());
+        assert!("bogus".parse::<Capability>().is_err());
+        assert!("stdio:bogus".parse::<Capability>().is_err());
     }
 }

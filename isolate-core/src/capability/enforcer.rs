@@ -386,7 +386,7 @@ impl CapabilityEnforcer {
     }
 
     /// Reject paths containing traversal components (`..`) and symlinks
-    /// that escape allowed directories.
+    /// that escape their parent directory.
     fn validate_path(path: &Path) -> Result<()> {
         for component in path.components() {
             if matches!(component, std::path::Component::ParentDir) {
@@ -394,22 +394,22 @@ impl CapabilityEnforcer {
             }
         }
 
-        // If the path exists on the host, check for symlinks that might
-        // escape the intended directory. This catches attacks like:
-        //   /data/link -> /etc/passwd
+        // If the path exists on the host, verify that symlink resolution
+        // doesn't escape the path's own parent directory. This catches:
+        //   /data/link -> /etc/passwd  (canonical /etc/passwd not under /data)
         if path.exists() {
             if let Ok(canonical) = path.canonicalize() {
-                // Check that the canonical path still starts with the same
-                // root as the original path. This prevents symlink escapes.
-                if let Some(first_component) = path.components().next() {
-                    let original_root = std::path::PathBuf::from(first_component.as_os_str());
-                    if path.is_absolute() && !canonical.starts_with(&original_root) {
-                        tracing::warn!(
-                            path = %path.display(),
-                            resolved = %canonical.display(),
-                            "Symlink escape detected: resolved path outside original root"
-                        );
-                        return Err(Error::FilesystemAccessDenied { path: path.to_path_buf() });
+                if let Some(parent) = path.parent() {
+                    if let Ok(canonical_parent) = parent.canonicalize() {
+                        if !canonical.starts_with(&canonical_parent) {
+                            tracing::warn!(
+                                path = %path.display(),
+                                resolved = %canonical.display(),
+                                parent = %canonical_parent.display(),
+                                "Symlink escape detected: resolved path outside parent directory"
+                            );
+                            return Err(Error::FilesystemAccessDenied { path: path.to_path_buf() });
+                        }
                     }
                 }
             }
