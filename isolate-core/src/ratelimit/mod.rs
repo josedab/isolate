@@ -92,17 +92,22 @@ impl RateLimiter {
     }
 
     /// Try to acquire a permit for one request. Returns error if rate limited.
+    ///
+    /// Quota is checked BEFORE consuming a bucket token to prevent token loss
+    /// when the quota would reject anyway.
     pub fn try_acquire(&self) -> Result<()> {
+        // Check quota first (non-destructive check) — prevents wasting
+        // bucket tokens on requests that will be rejected by quota.
+        if let Some(ref quota) = self.quota {
+            quota.check_execution()?;
+        }
+
         if let Some(ref bucket) = self.bucket {
             if !bucket.try_acquire(1) {
                 return Err(Error::Execution(
                     "Rate limit exceeded: too many requests per second".to_string(),
                 ));
             }
-        }
-
-        if let Some(ref quota) = self.quota {
-            quota.check_execution()?;
         }
 
         Ok(())
