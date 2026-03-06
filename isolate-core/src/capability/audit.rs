@@ -268,13 +268,24 @@ pub struct AuditFilter {
     pub limit: Option<usize>,
 }
 
+/// Default maximum audit file size before rotation (10 MiB).
+const DEFAULT_MAX_AUDIT_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
+/// Maximum number of rotated audit files to keep.
+const MAX_ROTATED_FILES: usize = 5;
+
 /// File-backed audit backend that appends JSON lines to a file.
 ///
 /// Each event is written as a single JSON line (newline-delimited JSON).
 /// This format is easy to parse, grep, and ingest into log aggregators.
+///
+/// Files are rotated when they exceed `max_file_size` (default 10 MiB).
+/// Up to 5 rotated files are kept (`.1` through `.5`).
 pub struct FileAuditBackend {
     path: std::path::PathBuf,
     writer: std::sync::Mutex<Option<std::io::BufWriter<std::fs::File>>>,
+    max_file_size: u64,
+    bytes_written: std::sync::atomic::AtomicU64,
 }
 
 impl FileAuditBackend {
@@ -284,18 +295,67 @@ impl FileAuditBackend {
     /// cannot be opened.
     pub fn new(path: impl Into<std::path::PathBuf>) -> Option<Self> {
         let path = path.into();
+        let existing_size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let file = std::fs::OpenOptions::new().create(true).append(true).open(&path).ok()?;
-        Some(Self { path, writer: std::sync::Mutex::new(Some(std::io::BufWriter::new(file))) })
+        Some(Self {
+            path,
+            writer: std::sync::Mutex::new(Some(std::io::BufWriter::new(file))),
+            max_file_size: DEFAULT_MAX_AUDIT_FILE_SIZE,
+            bytes_written: std::sync::atomic::AtomicU64::new(existing_size),
+        })
+    }
+
+    /// Set a custom maximum file size before rotation.
+    #[allow(dead_code)]
+    pub fn with_max_file_size(mut self, max_bytes: u64) -> Self {
+        self.max_file_size = max_bytes;
+        self
+    }
+
+    fn rotate_if_needed(&self) {
+        let size = self.bytes_written.load(Ordering::Relaxed);
+        if size < self.max_file_size {
+            return;
+        }
+
+        if let Ok(mut guard) = self.writer.lock() {
+            // Flush and drop current writer
+            if let Some(ref mut w) = *guard {
+                use std::io::Write;
+                let _ = w.flush();
+            }
+            *guard = None;
+
+            // Rotate: .5 → delete, .4 → .5, .3 → .4, ..., current → .1
+            for i in (1..MAX_ROTATED_FILES).rev() {
+                let from = self.path.with_extension(format!("jsonl.{}", i));
+                let to = self.path.with_extension(format!("jsonl.{}", i + 1));
+                let _ = std::fs::rename(&from, &to);
+            }
+            let rotated = self.path.with_extension("jsonl.1");
+            let _ = std::fs::rename(&self.path, &rotated);
+
+            // Open new file
+            if let Ok(file) = std::fs::OpenOptions::new().create(true).append(true).open(&self.path)
+            {
+                *guard = Some(std::io::BufWriter::new(file));
+                self.bytes_written.store(0, Ordering::Relaxed);
+            }
+        }
     }
 }
 
 impl AuditBackend for FileAuditBackend {
     fn write(&self, event: &AuditEvent) {
+        self.rotate_if_needed();
+
         use std::io::Write;
         if let Ok(mut guard) = self.writer.lock() {
             if let Some(ref mut writer) = *guard {
                 if let Ok(json) = serde_json::to_string(event) {
+                    let line_len = json.len() as u64 + 1; // +1 for newline
                     let _ = writeln!(writer, "{}", json);
+                    self.bytes_written.fetch_add(line_len, Ordering::Relaxed);
                 }
             }
         }
@@ -576,5 +636,49 @@ mod tests {
 
         log.clear();
         assert!(log.is_empty());
+    }
+
+    #[test]
+    fn test_file_audit_backend_rotation() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audit.jsonl");
+
+        // Use a very small max size to trigger rotation quickly
+        let backend = FileAuditBackend::new(&path).unwrap().with_max_file_size(200);
+        let sandbox_id = Uuid::new_v4();
+
+        // Write enough events to trigger rotation
+        for i in 0..20 {
+            let event =
+                AuditEvent::used(sandbox_id, Capability::stdout(), Some(format!("event-{i}")));
+            backend.write(&event);
+        }
+        backend.flush();
+
+        // The main file should exist and be small (post-rotation)
+        assert!(path.exists());
+        let main_size = std::fs::metadata(&path).unwrap().len();
+        assert!(main_size < 5000, "main file should be small after rotation, got {main_size}");
+
+        // At least one rotated file should exist
+        let rotated = path.with_extension("jsonl.1");
+        assert!(rotated.exists(), "rotated file .1 should exist");
+    }
+
+    #[test]
+    fn test_file_audit_backend_write_query_basic() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test_audit.jsonl");
+
+        let backend = FileAuditBackend::new(&path).unwrap();
+        let sandbox_id = Uuid::new_v4();
+
+        backend.write(&AuditEvent::used(sandbox_id, Capability::stdout(), None));
+        backend.write(&AuditEvent::denied(sandbox_id, Capability::stdin(), None));
+        backend.flush();
+
+        let filter = AuditFilter { sandbox_id: Some(sandbox_id), ..AuditFilter::default() };
+        let results = backend.query(&filter);
+        assert_eq!(results.len(), 2);
     }
 }
