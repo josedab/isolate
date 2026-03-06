@@ -130,6 +130,9 @@ impl ExecutionLog {
 /// Each trace is appended as a single JSON line, making the file appendable
 /// and streamable. Suitable for audit trails and post-hoc analysis.
 ///
+/// The file handle is held open and protected by a Mutex to prevent
+/// concurrent writes from interleaving partial JSON lines.
+///
 /// # Examples
 ///
 /// ```no_run
@@ -142,6 +145,7 @@ impl ExecutionLog {
 pub struct PersistentExecutionLog {
     inner: ExecutionLog,
     path: std::path::PathBuf,
+    writer: std::sync::Mutex<std::io::BufWriter<std::fs::File>>,
 }
 
 impl PersistentExecutionLog {
@@ -153,17 +157,29 @@ impl PersistentExecutionLog {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        Ok(Self { inner: ExecutionLog::new(), path })
+        let file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
+        Ok(Self {
+            inner: ExecutionLog::new(),
+            path,
+            writer: std::sync::Mutex::new(std::io::BufWriter::new(file)),
+        })
     }
 
     /// Record a trace to both memory and the file on disk.
     ///
-    /// The trace is serialized as a single JSON line and appended to the file.
+    /// The trace is serialized as a single JSON line and appended atomically
+    /// (protected by a Mutex to prevent interleaving under concurrent access).
     pub fn record(&mut self, trace: ExecutionTrace) -> std::result::Result<(), std::io::Error> {
         use std::io::Write;
         let line = serde_json::to_string(&trace).map_err(std::io::Error::other)?;
-        let mut file = std::fs::OpenOptions::new().create(true).append(true).open(&self.path)?;
-        writeln!(file, "{}", line)?;
+        // Lock the writer to ensure the full line is written atomically
+        let mut writer = self
+            .writer
+            .lock()
+            .map_err(|_| std::io::Error::other("lineage writer lock poisoned"))?;
+        writeln!(writer, "{}", line)?;
+        writer.flush()?;
+        drop(writer);
         self.inner.record(trace);
         Ok(())
     }
