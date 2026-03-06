@@ -57,7 +57,15 @@ impl PoolManager {
                     if !eng.should_evaluate() {
                         continue;
                     }
-                    let current_counts = HashMap::new();
+                    // Collect current warm instance counts from the pool
+                    let current_counts: HashMap<String, usize> = match pool.lock() {
+                        Ok(p) => p
+                            .list_modules()
+                            .iter()
+                            .map(|name| (name.to_string(), p.warm_count(name)))
+                            .collect(),
+                        Err(_) => continue,
+                    };
                     eng.evaluate(&current_counts)
                 };
 
@@ -91,10 +99,11 @@ impl PoolManager {
 mod tests {
     use super::*;
     use crate::pool::prewarm::PreWarmConfig;
+    use crate::pool::warm::WarmPoolConfig;
 
     #[test]
     fn test_pool_manager_creation() {
-        let pool = WarmPool::new();
+        let pool = WarmPool::new(WarmPoolConfig::default());
         let engine = PreWarmEngine::new(PreWarmConfig::default());
         let manager = PoolManager::new(pool, engine);
         assert!(manager.pool().lock().is_ok());
@@ -102,7 +111,7 @@ mod tests {
 
     #[test]
     fn test_record_request() {
-        let pool = WarmPool::new();
+        let pool = WarmPool::new(WarmPoolConfig::default());
         let engine = PreWarmEngine::new(PreWarmConfig::default());
         let manager = PoolManager::new(pool, engine);
         manager.record_request("test-module");

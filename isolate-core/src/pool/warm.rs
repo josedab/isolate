@@ -99,6 +99,13 @@ pub enum WarmPoolError {
     AlreadyPreloaded(String),
     /// Compilation failed.
     CompilationFailed(String),
+    /// Total memory limit would be exceeded.
+    MemoryLimitReached {
+        /// Current total estimated memory usage.
+        current: usize,
+        /// The configured maximum.
+        limit: usize,
+    },
 }
 
 impl std::fmt::Display for WarmPoolError {
@@ -111,6 +118,9 @@ impl std::fmt::Display for WarmPoolError {
             }
             Self::AlreadyPreloaded(name) => write!(f, "module '{}' already preloaded", name),
             Self::CompilationFailed(e) => write!(f, "compilation failed: {}", e),
+            Self::MemoryLimitReached { current, limit } => {
+                write!(f, "pool memory limit reached: current {}B, limit {}B", current, limit)
+            }
         }
     }
 }
@@ -219,7 +229,36 @@ impl WarmPool {
 
         let memory_per_instance = 64 * 1024; // 64KB estimated per warm instance
 
-        for _ in 0..to_create {
+        // Enforce total memory limit
+        let projected_memory = self.stats.estimated_memory + (to_create * memory_per_instance);
+        if projected_memory > self.config.max_total_memory {
+            let headroom = self.config.max_total_memory.saturating_sub(self.stats.estimated_memory);
+            let affordable = headroom / memory_per_instance.max(1);
+            if affordable == 0 {
+                return Err(WarmPoolError::MemoryLimitReached {
+                    current: self.stats.estimated_memory,
+                    limit: self.config.max_total_memory,
+                });
+            }
+            // Create only as many as we can afford
+            return self.warm_up_n(name, affordable, memory_per_instance);
+        }
+
+        self.warm_up_n(name, to_create, memory_per_instance)
+    }
+
+    fn warm_up_n(
+        &mut self,
+        name: &str,
+        count: usize,
+        memory_per_instance: usize,
+    ) -> Result<usize, WarmPoolError> {
+        let entry = self
+            .modules
+            .get_mut(name)
+            .ok_or_else(|| WarmPoolError::ModuleNotFound(name.to_string()))?;
+
+        for _ in 0..count {
             let instance = WarmInstance {
                 module_name: name.to_string(),
                 module_hash: entry.info.hash.clone(),
@@ -232,7 +271,7 @@ impl WarmPool {
         }
 
         self.update_stats();
-        Ok(to_create)
+        Ok(count)
     }
 
     /// Acquire a warm instance for immediate use.
@@ -556,5 +595,44 @@ mod tests {
         // "rare" should be evicted (fewer instantiations)
         assert!(pool.module_info("rare").is_none());
         assert!(pool.module_info("popular").is_some());
+    }
+
+    #[test]
+    fn test_max_total_memory_enforced() {
+        // 64KB per instance × max 2 instances = 128KB fits under 256KB limit
+        let config = WarmPoolConfig {
+            max_total_memory: 256 * 1024, // 256KB
+            max_instances_per_module: 100,
+            ..Default::default()
+        };
+        let mut pool = WarmPool::new(config);
+        pool.preload("mod1", FAKE_WASM).unwrap();
+
+        // First batch: 2 instances (128KB) — should succeed
+        let created = pool.warm_up("mod1", 2).unwrap();
+        assert_eq!(created, 2);
+
+        // Second batch: try 10 more — should be capped by memory
+        let created = pool.warm_up("mod1", 10).unwrap();
+        assert!(created <= 2, "should be capped by memory limit, got {created}");
+    }
+
+    #[test]
+    fn test_max_total_memory_returns_error_when_full() {
+        // Set limit so tight that even 1 instance won't fit after initial fill
+        let config = WarmPoolConfig {
+            max_total_memory: 64 * 1024, // 64KB — room for exactly 1 instance
+            max_instances_per_module: 100,
+            ..Default::default()
+        };
+        let mut pool = WarmPool::new(config);
+        pool.preload("mod1", FAKE_WASM).unwrap();
+
+        let created = pool.warm_up("mod1", 1).unwrap();
+        assert_eq!(created, 1);
+
+        // Now pool is at limit — next warm_up should fail
+        let result = pool.warm_up("mod1", 1);
+        assert!(matches!(result, Err(WarmPoolError::MemoryLimitReached { .. })));
     }
 }
