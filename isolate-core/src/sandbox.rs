@@ -247,6 +247,20 @@ pub struct Output {
     pub resource_usage: ResourceUsage,
 }
 
+impl std::fmt::Display for Output {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "exit={}, stdout={}B, stderr={}B, duration={:.1}ms, fuel={}",
+            self.exit_code,
+            self.stdout.len(),
+            self.stderr.len(),
+            self.duration.as_secs_f64() * 1000.0,
+            self.resource_usage.fuel_consumed,
+        )
+    }
+}
+
 impl Output {
     /// Check if the execution was successful (exit code 0).
     pub fn success(&self) -> bool {
@@ -1331,10 +1345,12 @@ impl Sandbox {
         // Reset resource meter
         self.meter = ResourceMeter::new(self.config.resources.clone());
 
-        // Reset rate limiter
-        if self.config.rate_limit.is_enabled() {
-            self.rate_limiter = Some(SharedRateLimiter::new(self.config.rate_limit.clone()));
-        }
+        // Reset rate limiter: rebuild if enabled, drop if disabled
+        self.rate_limiter = if self.config.rate_limit.is_enabled() {
+            Some(SharedRateLimiter::new(self.config.rate_limit.clone()))
+        } else {
+            None
+        };
 
         self.state = SandboxState::Ready;
 
@@ -1359,6 +1375,11 @@ impl Sandbox {
     /// sandbox is not in the Ready state.
     pub async fn run_batch(&mut self, inputs: Vec<Vec<u8>>) -> Result<Vec<Result<Output>>> {
         self.ensure_state(SandboxState::Ready)?;
+
+        if inputs.is_empty() {
+            return Ok(Vec::new());
+        }
+
         self.state = SandboxState::Running;
 
         let mut handles = Vec::with_capacity(inputs.len());
