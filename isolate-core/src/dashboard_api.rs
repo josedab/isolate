@@ -257,17 +257,14 @@ impl DashboardRouter {
             })
             .collect();
 
-        let level = if active_alerts.iter().any(|_| true) {
-            // Check if any critical alerts exist
+        let level = if !active_alerts.is_empty() {
             let has_critical = events
                 .iter()
                 .any(|e| matches!(e, DashboardEvent::Alert { level: AlertLevel::Critical, .. }));
             if has_critical {
                 AlertLevel::Critical
-            } else if !active_alerts.is_empty() {
-                AlertLevel::Warning
             } else {
-                AlertLevel::Info
+                AlertLevel::Warning
             }
         } else {
             AlertLevel::Info
@@ -278,19 +275,41 @@ impl DashboardRouter {
     }
 
     /// Simple request dispatcher — matches path to handler.
+    ///
+    /// Supports query parameters (e.g., `?limit=50`) and path parameters
+    /// (e.g., `/api/v1/sandboxes/{id}`).
     pub fn dispatch(&self, method: HttpMethod, path: &str) -> String {
-        match (method, path) {
+        let (path_part, query_string) = path.split_once('?').unwrap_or((path, ""));
+        let params = QueryParams::parse(query_string);
+
+        match (method, path_part) {
             (HttpMethod::Get, "/api/v1/overview") => self.handle_overview(),
             (HttpMethod::Get, "/api/v1/sandboxes") => self.handle_list_sandboxes(),
-            (HttpMethod::Get, "/api/v1/events") => self.handle_events(None),
+            (HttpMethod::Get, "/api/v1/events") => self.handle_events(params.get_usize("limit")),
             (HttpMethod::Get, "/api/v1/resources") => self.handle_resources(),
             (HttpMethod::Get, "/api/v1/resources/heatmap") => self.handle_resource_heatmap(),
-            (HttpMethod::Get, "/api/v1/history") => self.handle_execution_history(None),
+            (HttpMethod::Get, "/api/v1/history") => {
+                self.handle_execution_history(params.get_usize("limit"))
+            }
             (HttpMethod::Get, "/api/v1/health") => self.handle_health(),
             (HttpMethod::Get, "/api/v1/alerts") => self.handle_alerts(),
             (HttpMethod::Get, "/api/v1/ws/events") => self.handle_ws_info(),
-            _ => serde_json::to_string(&ApiResponse::<()>::error(format!("Not found: {}", path)))
-                .unwrap_or_default(),
+            (HttpMethod::Get, p) if p.starts_with("/api/v1/sandboxes/") => {
+                let id_str = &p["/api/v1/sandboxes/".len()..];
+                match id_str.parse::<uuid::Uuid>() {
+                    Ok(uuid) => self.handle_get_sandbox(&SandboxId(uuid)),
+                    Err(_) => serde_json::to_string(&ApiResponse::<()>::error(format!(
+                        "Invalid sandbox ID: {}",
+                        id_str
+                    )))
+                    .unwrap_or_default(),
+                }
+            }
+            _ => serde_json::to_string(&ApiResponse::<()>::error(format!(
+                "Not found: {}",
+                path_part
+            )))
+            .unwrap_or_default(),
         }
     }
 
@@ -475,6 +494,31 @@ pub struct HeatmapCell {
 pub struct ResourceHeatmapResponse {
     /// Heatmap cells, one per sandbox.
     pub cells: Vec<HeatmapCell>,
+}
+
+/// Simple query string parser for dashboard API dispatch.
+struct QueryParams {
+    params: Vec<(String, String)>,
+}
+
+impl QueryParams {
+    /// Parse a query string like "limit=50&offset=10".
+    fn parse(query: &str) -> Self {
+        let params = query
+            .split('&')
+            .filter(|s| !s.is_empty())
+            .filter_map(|pair| {
+                let (k, v) = pair.split_once('=')?;
+                Some((k.to_string(), v.to_string()))
+            })
+            .collect();
+        Self { params }
+    }
+
+    /// Get a parameter value as usize.
+    fn get_usize(&self, key: &str) -> Option<usize> {
+        self.params.iter().find(|(k, _)| k == key).and_then(|(_, v)| v.parse().ok())
+    }
 }
 
 #[cfg(test)]
@@ -665,5 +709,62 @@ mod tests {
 
         let json = router.dispatch(HttpMethod::Get, "/api/v1/resources/heatmap");
         assert!(json.contains("cells"));
+    }
+
+    #[test]
+    fn test_dispatch_sandbox_by_id() {
+        let state = Arc::new(DashboardState::new(100));
+        let id = SandboxId::new();
+        state.register_sandbox(id, "hash123".to_string());
+
+        let router = DashboardRouter::new(state);
+        let path = format!("/api/v1/sandboxes/{}", id);
+        let json = router.dispatch(HttpMethod::Get, &path);
+        let resp: ApiResponse<SandboxSummary> = serde_json::from_str(&json).unwrap();
+        assert!(resp.ok);
+        assert_eq!(resp.data.unwrap().module_hash, "hash123");
+    }
+
+    #[test]
+    fn test_dispatch_sandbox_by_id_not_found() {
+        let router = setup_router();
+        let id = SandboxId::new();
+        let path = format!("/api/v1/sandboxes/{}", id);
+        let json = router.dispatch(HttpMethod::Get, &path);
+        let resp: ApiResponse<()> = serde_json::from_str(&json).unwrap();
+        assert!(!resp.ok);
+        assert!(resp.error.unwrap().contains("not found"));
+    }
+
+    #[test]
+    fn test_dispatch_sandbox_invalid_id() {
+        let router = setup_router();
+        let json = router.dispatch(HttpMethod::Get, "/api/v1/sandboxes/not-a-uuid");
+        let resp: ApiResponse<()> = serde_json::from_str(&json).unwrap();
+        assert!(!resp.ok);
+        assert!(resp.error.unwrap().contains("Invalid sandbox ID"));
+    }
+
+    #[test]
+    fn test_dispatch_with_query_params() {
+        let state = Arc::new(DashboardState::new(100));
+        let id = SandboxId::new();
+        state.register_sandbox(id, "hash".to_string());
+
+        let router = DashboardRouter::new(state);
+        let json = router.dispatch(HttpMethod::Get, "/api/v1/events?limit=5");
+        let resp: ApiResponse<EventsResponse> = serde_json::from_str(&json).unwrap();
+        assert!(resp.ok);
+    }
+
+    #[test]
+    fn test_query_params_parsing() {
+        let params = QueryParams::parse("limit=50&offset=10");
+        assert_eq!(params.get_usize("limit"), Some(50));
+        assert_eq!(params.get_usize("offset"), Some(10));
+        assert_eq!(params.get_usize("missing"), None);
+
+        let empty = QueryParams::parse("");
+        assert_eq!(empty.get_usize("limit"), None);
     }
 }
