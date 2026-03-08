@@ -12,7 +12,7 @@ Check with `error.is_resource_limit()`.
 
 ### `FuelExhausted`
 
-**Message:** `CPU fuel exhausted (limit: {limit} units)`
+**Message:** `CPU fuel exhausted (limit: {limit} units, consumed: {consumed} units)`
 
 **Cause:** The WASM module consumed more CPU instructions than the configured fuel limit.
 
@@ -24,8 +24,8 @@ Check with `error.is_resource_limit()`.
 **Example:**
 ```rust
 match sandbox.run(&[]).await {
-    Err(Error::FuelExhausted { limit }) => {
-        eprintln!("Module used all {} fuel units", limit);
+    Err(Error::FuelExhausted { limit, consumed }) => {
+        eprintln!("Module consumed {} of {} fuel units", consumed, limit);
     }
     _ => {}
 }
@@ -33,7 +33,7 @@ match sandbox.run(&[]).await {
 
 ### `MemoryLimitExceeded`
 
-**Message:** `Memory limit exceeded (limit: {limit} bytes, requested: {requested} bytes)`
+**Message:** `Memory limit exceeded (limit: {limit} bytes, requested: {requested} bytes, current usage: {current_usage} bytes)`
 
 **Cause:** The WASM module attempted to allocate more memory than allowed.
 
@@ -226,6 +226,76 @@ A terminated sandbox cannot be run again.
 **Cause:** An HTTP request failed.
 
 **Fix:** Check network connectivity, URL correctness, and that `--cap-http` includes the target host.
+
+## Sandbox Lifecycle Errors
+
+### `Create`
+
+**Message:** `Failed to create sandbox: {details}`
+
+**Cause:** Sandbox creation failed during compilation, instantiation, or WASI setup.
+
+**Fix:** Check that the WASM module is valid, resource limits are reasonable, and all required capabilities are granted. Use `isolate validate module.wasm` to diagnose module issues.
+
+### `Snapshot`
+
+**Message:** `Snapshot error: {details}`
+
+**Cause:** A snapshot operation (save, restore, or clone) failed.
+
+**Fix:** Check disk space and permissions for the snapshot storage directory. Ensure the snapshot format is compatible with the current Isolate version.
+
+### `SnapshotNotFound`
+
+**Message:** `Snapshot not found: {id}`
+
+**Cause:** The requested snapshot ID does not exist in the snapshot store.
+
+**Fix:** List available snapshots with `isolate snapshot list`. Snapshots may have been evicted due to TTL or capacity limits.
+
+## Platform Service Errors
+
+These errors are returned by feature-gated platform modules (billing, policy, gateway, etc.).
+
+### `RateLimited`
+
+**Message:** `Rate limit exceeded: {details}`
+
+**Cause:** Too many requests in a short time window.
+
+**Fix:** Wait for the rate limit window to reset, or increase the rate limit configuration.
+
+### `PolicyViolation`
+
+**Message:** `Policy violation: {details}`
+
+**Cause:** The operation was rejected by a configured policy rule.
+
+**Fix:** Review your policy configuration. Use `isolate analyze module.wasm` to understand what capabilities the module needs.
+
+### `KvStore`
+
+**Message:** `KV store error: {details}`
+
+**Cause:** An error occurred in the sandbox key-value store (read, write, or quota exceeded).
+
+**Fix:** Check that the KV store is configured and the key size/value size limits are not exceeded.
+
+### `Gateway`
+
+**Message:** `Gateway error: {details}`
+
+**Cause:** An error occurred in the API gateway (routing, namespace resolution, or quota enforcement).
+
+**Fix:** Check gateway configuration and namespace quotas.
+
+### `Orchestrator`
+
+**Message:** `Orchestrator error: {details}`
+
+**Cause:** An error occurred during multi-tenant orchestration (admission control, scheduling, or pipeline execution).
+
+**Fix:** Check tenant quotas and cluster capacity.
 
 ## Using Error Methods
 

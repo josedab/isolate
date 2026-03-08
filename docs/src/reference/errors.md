@@ -8,12 +8,13 @@ Comprehensive guide to handling errors in Isolate.
 
 ```rust
 // CPU fuel exhausted
-Error::FuelExhausted { limit: 1_000_000 }
+Error::FuelExhausted { limit: 1_000_000, consumed: 1_000_001 }
 
 // Memory allocation failed
 Error::MemoryLimitExceeded {
     limit: 134_217_728,     // 128MB
     requested: 268_435_456,  // 256MB
+    current_usage: 130_000_000,
 }
 
 // Execution timeout
@@ -116,12 +117,12 @@ match sandbox.run(&input).await {
         // Consider increasing timeout or optimizing module
     }
 
-    Err(Error::FuelExhausted { limit }) => {
-        eprintln!("CPU limit exceeded: {} fuel", limit);
+    Err(Error::FuelExhausted { limit, consumed }) => {
+        eprintln!("CPU limit exceeded: consumed {} of {} fuel", consumed, limit);
         // Consider increasing fuel or optimizing module
     }
 
-    Err(Error::MemoryLimitExceeded { limit, requested }) => {
+    Err(Error::MemoryLimitExceeded { limit, requested, current_usage }) => {
         eprintln!("Memory limit: requested {} of {} bytes", requested, limit);
         // Consider increasing memory limit
     }

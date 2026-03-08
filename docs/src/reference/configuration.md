@@ -69,12 +69,11 @@ SandboxConfig::builder()
 
     // Network
     .capability(Capability::http_client(vec!["api.example.com".into()]))
-    .capability(Capability::tcp_connect(vec!["db:5432".into()]))
-    .capability(Capability::dns_lookup())
+    .capability(Capability::dns_resolve())
 
     // System
-    .capability(Capability::clock())
-    .capability(Capability::random())
+    .capability(Capability::system_clock())
+    .capability(Capability::secure_random())
 
     // Environment
     .capability(Capability::env_var("API_KEY"))
@@ -159,7 +158,7 @@ let config = SandboxConfig::builder()
     .capability(Capability::stdout())
     .capability(Capability::stderr())
     .capability(Capability::filesystem_read("/data"))
-    .capability(Capability::clock())
+    .capability(Capability::system_clock())
 
     // Environment
     .env("CONFIG_PATH", "/data/config.json")

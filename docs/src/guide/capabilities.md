@@ -72,7 +72,7 @@ let config = SandboxConfig::builder()
 |------------|-------------|
 | `http_client(hosts)` | HTTP client access to specific hosts |
 | `tcp_connect(addrs)` | TCP connections to specific addresses |
-| `dns_lookup()` | DNS resolution |
+| `dns_resolve()` | DNS resolution |
 
 ```rust
 // HTTP access to specific APIs
@@ -81,22 +81,21 @@ let config = SandboxConfig::builder()
     "cdn.example.com".to_string(),
 ]))
 
-// TCP to specific addresses
-.capability(Capability::tcp_connect(vec![
-    "database.internal:5432".to_string(),
-]))
+// DNS resolution
+.capability(Capability::dns_resolve())
 ```
 
 ### System
 
 | Capability | Description |
 |------------|-------------|
-| `clock()` | Access to system time |
-| `random()` | Cryptographic random numbers |
+| `system_clock()` | Access to system time |
+| `monotonic_clock()` | Monotonic clock for durations |
+| `secure_random()` | Cryptographic random numbers |
 
 ```rust
-.capability(Capability::clock())   // For timestamps
-.capability(Capability::random())  // For crypto operations
+.capability(Capability::system_clock())   // For timestamps
+.capability(Capability::secure_random())  // For crypto operations
 ```
 
 ## Capability Enforcement

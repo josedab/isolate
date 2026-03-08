@@ -209,14 +209,15 @@ Permission grants for sandbox operations.
 Capability::stdout()
 Capability::stderr()
 Capability::stdin()
-Capability::clock()
-Capability::random()
+Capability::system_clock()
+Capability::monotonic_clock()
+Capability::secure_random()
 Capability::filesystem_read(path)
 Capability::filesystem_write(path)
 Capability::http_client(hosts)
-Capability::tcp_connect(addrs)
-Capability::dns_lookup()
+Capability::dns_resolve()
 Capability::env_var(name)
+Capability::env_all()
 ```
 
 ## CapabilitySet

@@ -102,7 +102,7 @@ async fn main() -> isolate_core::Result<()> {
     let output = sandbox.run(&[]).await?;
 
     println!("Exit code: {}", output.exit_code);
-    println!("Stdout: {}", String::from_utf8_lossy(&output.stdout));
+    println!("Stdout: {}", output.stdout_str());
 
     Ok(())
 }
