@@ -1,6 +1,7 @@
 use super::function::{InvocationRequest, InvocationResponse, ServerlessFunction};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::time::Instant;
 
 /// Runtime handler that bridges HTTP requests to sandbox execution.
 pub struct RuntimeHandler {
@@ -49,25 +50,27 @@ impl RuntimeHandler {
         }
         self.total_invocations += 1;
 
-        // Simulate sandbox execution: serialize payload as the sandbox input,
-        // produce a response based on function config.
-        let duration_ms = 1; // simulated fast execution
-        self.total_duration_ms += duration_ms;
-        if duration_ms > self.max_duration_ms {
-            self.max_duration_ms = duration_ms;
-        }
+        let start = Instant::now();
 
         let mut response_headers = HashMap::new();
         response_headers.insert("content-type".to_string(), "application/json".to_string());
         response_headers.insert("x-function-name".to_string(), function.name.clone());
 
+        let body = serde_json::json!({
+            "result": "ok",
+            "function": function.name,
+            "payload": request.payload,
+        });
+
+        let duration_ms = start.elapsed().as_millis().max(1) as u64;
+        self.total_duration_ms += duration_ms;
+        if duration_ms > self.max_duration_ms {
+            self.max_duration_ms = duration_ms;
+        }
+
         Ok(InvocationResponse {
             status_code: 200,
-            body: serde_json::json!({
-                "result": "ok",
-                "function": function.name,
-                "payload": request.payload,
-            }),
+            body,
             headers: response_headers,
             duration_ms,
             request_id: request.request_id,

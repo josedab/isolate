@@ -256,9 +256,10 @@ pub fn module_classifications() -> Vec<ModuleClassification> {
         ModuleClassification {
             name: "billing",
             tier: StabilityTier::Preview,
-            description: "Multi-tenant billing (in-memory, no payment provider)",
+            description:
+                "Multi-tenant billing with memory-seconds tracking (in-memory, no payment provider)",
             feature_flag: Some("billing"),
-            test_count: 15,
+            test_count: 24,
             has_real_implementation: false,
         },
         ModuleClassification {
@@ -496,9 +497,9 @@ pub fn module_classifications() -> Vec<ModuleClassification> {
         ModuleClassification {
             name: "dashboard_api",
             tier: StabilityTier::Preview,
-            description: "Dashboard REST API (handler stubs)",
+            description: "Dashboard REST API with routing, query params, and handlers",
             feature_flag: Some("observability"),
-            test_count: 8,
+            test_count: 19,
             has_real_implementation: false,
         },
         ModuleClassification {
@@ -609,10 +610,10 @@ pub fn module_classifications() -> Vec<ModuleClassification> {
         ModuleClassification {
             name: "wasi2",
             tier: StabilityTier::Experimental,
-            description: "WASI Preview2 component model",
+            description: "WASI Preview2 component model (detection works, execution partial)",
             feature_flag: Some("wasi-preview2"),
             test_count: 63,
-            has_real_implementation: true,
+            has_real_implementation: false,
         },
         ModuleClassification {
             name: "snapshot",
@@ -633,7 +634,7 @@ pub fn module_classifications() -> Vec<ModuleClassification> {
         ModuleClassification {
             name: "signing",
             tier: StabilityTier::Experimental,
-            description: "Cryptographic module signing (Ed25519)",
+            description: "Cryptographic module signing (HMAC-SHA256; Ed25519 stubbed)",
             feature_flag: Some("module-signing"),
             test_count: 10,
             has_real_implementation: true,
@@ -641,26 +642,26 @@ pub fn module_classifications() -> Vec<ModuleClassification> {
         ModuleClassification {
             name: "k8s",
             tier: StabilityTier::Experimental,
-            description: "Kubernetes operator and CRDs",
+            description: "Kubernetes CRD definitions and operator types (no K8s API client)",
             feature_flag: Some("kubernetes"),
             test_count: 30,
-            has_real_implementation: true,
+            has_real_implementation: false,
         },
         ModuleClassification {
             name: "telemetry",
             tier: StabilityTier::Experimental,
-            description: "OpenTelemetry distributed tracing",
+            description: "OpenTelemetry tracing (event model only, no eBPF probes)",
             feature_flag: Some("otel-telemetry"),
             test_count: 5,
-            has_real_implementation: true,
+            has_real_implementation: false,
         },
         ModuleClassification {
             name: "chaos",
             tier: StabilityTier::Experimental,
-            description: "Chaos engineering and fault injection",
+            description: "Chaos engineering DSL and fault injection (simulated execution)",
             feature_flag: Some("chaos-testing"),
             test_count: 11,
-            has_real_implementation: true,
+            has_real_implementation: false,
         },
         ModuleClassification {
             name: "predict",
@@ -729,11 +730,11 @@ pub fn module_classifications() -> Vec<ModuleClassification> {
         },
         ModuleClassification {
             name: "nlp",
-            tier: StabilityTier::Stub,
-            description: "Natural language policy parsing (prototype)",
+            tier: StabilityTier::Experimental,
+            description: "Natural language policy parsing with keyword extraction",
             feature_flag: Some("nlp-policies"),
-            test_count: 16,
-            has_real_implementation: false,
+            test_count: 18,
+            has_real_implementation: true,
         },
     ]
 }
@@ -917,7 +918,6 @@ mod tests {
         assert_eq!(get_tier("gpu"), Some(StabilityTier::Stub));
         assert_eq!(get_tier("hotpatch"), Some(StabilityTier::Stub));
         assert_eq!(get_tier("mesh"), Some(StabilityTier::Stub));
-        assert_eq!(get_tier("nlp"), Some(StabilityTier::Stub));
     }
 
     #[test]

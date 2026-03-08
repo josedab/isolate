@@ -178,14 +178,14 @@ impl PredictiveScaler {
             return ScalingAction::Maintain;
         }
 
-        if prediction.cpu_usage > self.config.scale_up_threshold * 100.0 {
+        if prediction.cpu_usage >= self.config.scale_up_threshold * 100.0 {
             let needed = prediction.recommended_pool_size.saturating_sub(self.current_pool_size);
             if needed > 0 {
                 return ScalingAction::ScaleUp(needed.min(10));
             }
         }
 
-        if prediction.cpu_usage < self.config.scale_down_threshold * 100.0 {
+        if prediction.cpu_usage <= self.config.scale_down_threshold * 100.0 {
             let excess = self.current_pool_size.saturating_sub(prediction.recommended_pool_size);
             if excess > 0 && self.current_pool_size > self.config.min_pool_size {
                 return ScalingAction::ScaleDown(excess.min(5));

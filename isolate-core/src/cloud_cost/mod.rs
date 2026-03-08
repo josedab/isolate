@@ -27,7 +27,7 @@ mod tests {
 
     #[test]
     fn test_end_to_end_routing() {
-        let mut tracker = PricingTracker::new();
+        let tracker = PricingTracker::new();
         tracker.update_price("aws", "us-east-1", 0.0050); // $0.005/exec
         tracker.update_price("gcp", "us-central1", 0.0045); // cheaper
 
