@@ -1417,3 +1417,119 @@ async fn test_import_capability_warns_on_missing_random() {
         warnings
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Capability denial and resource limit edge-case tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+async fn test_fuel_exhaustion_error_type() {
+    let config = SandboxConfig::builder()
+        .module(CPU_INTENSIVE_WASM)
+        .expect("valid module")
+        .fuel(500)
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+    let err = sandbox.run(&[]).await.unwrap_err();
+    // With very low fuel, the module should fail. The error may be FuelExhausted
+    // or a generic Execution error depending on how wasmtime reports it.
+    assert!(
+        err.is_resource_limit()
+            || format!("{err:?}").contains("fuel")
+            || format!("{err:?}").contains("executing"),
+        "Expected resource or execution error from fuel exhaustion, got: {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_timeout_error_type() {
+    let config = SandboxConfig::builder()
+        .module(INFINITE_LOOP_WASM)
+        .expect("valid module")
+        .fuel(100_000_000)
+        .cpu_time_limit(Duration::from_millis(200))
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+    let result = sandbox.run(&[]).await;
+    // Should either timeout or exhaust fuel (both are acceptable)
+    assert!(result.is_err(), "Expected error from timeout or fuel exhaustion");
+}
+
+#[tokio::test]
+async fn test_whitespace_entry_point_rejected() {
+    let result = SandboxConfig::builder()
+        .module(RUNNABLE_WASM)
+        .expect("valid module")
+        .entry_point("   ")
+        .build();
+
+    assert!(result.is_err(), "Whitespace-only entry point should be rejected");
+    let err = result.unwrap_err();
+    assert!(err.is_config_error(), "Expected config error, got: {err:?}");
+}
+
+#[tokio::test]
+async fn test_sandbox_rerun_after_fuel_exhaustion() {
+    let config = SandboxConfig::builder()
+        .module(CPU_INTENSIVE_WASM)
+        .expect("valid module")
+        .fuel(500)
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+    let first = sandbox.run(&[]).await;
+    assert!(first.is_err(), "First run should fail from fuel exhaustion");
+
+    // Second run on same sandbox should also work (new store created)
+    let second = sandbox.run(&[]).await;
+    assert!(second.is_err(), "Second run should also fail from fuel exhaustion");
+}
+
+#[tokio::test]
+async fn test_output_display_impl() {
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .capability(Capability::stdout())
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+    let output = sandbox.run(&[]).await.expect("execution");
+
+    let display = format!("{}", output);
+    assert!(display.contains("exit=0"), "Display should show exit code: {display}");
+    assert!(display.contains("stdout="), "Display should show stdout size: {display}");
+    assert!(display.contains("fuel="), "Display should show fuel: {display}");
+}
+
+#[tokio::test]
+async fn test_zero_fuel_config_rejected() {
+    let result =
+        SandboxConfig::builder().module(RUNNABLE_WASM).expect("valid module").fuel(0).build();
+
+    assert!(result.is_err(), "Zero fuel should be rejected");
+}
+
+#[tokio::test]
+async fn test_default_deny_no_capabilities() {
+    // Run hello.wasm without any capabilities
+    let config = SandboxConfig::builder()
+        .module(HELLO_WASM)
+        .expect("valid module")
+        .fuel(1_000_000)
+        .build()
+        .expect("valid config");
+
+    let mut sandbox = Sandbox::create(config).await.expect("creation");
+    let output = sandbox.run(&[]).await.expect("should still execute");
+    // Module completes but stdout is empty (default deny)
+    assert!(output.stdout.is_empty(), "stdout should be empty without capability");
+    assert_eq!(output.exit_code, 0);
+}
