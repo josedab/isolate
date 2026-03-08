@@ -240,18 +240,16 @@ impl Sandbox {
         let exit_code = match entry.call(&mut store, ()) {
             Ok(()) => 0,
             Err(e) => {
-                let msg = e.to_string();
-                if msg.contains("wasi:snapshot-preview1") && msg.contains("exit") {
-                    // Parse exit code from WASI proc_exit trap
-                    if let Some(exit) = e.downcast_ref::<wasmtime_wasi::I32Exit>() {
-                        exit.0
-                    } else {
-                        1
-                    }
-                } else if msg.contains("fuel") {
-                    return Err(Error::FuelExhausted(self.config.fuel.unwrap_or(0)));
+                // Try I32Exit first — WASI proc_exit produces this trap
+                if let Some(exit) = e.downcast_ref::<wasmtime_wasi::I32Exit>() {
+                    exit.0
                 } else {
-                    return Err(Error::Execution(msg));
+                    let msg = e.to_string();
+                    if msg.contains("fuel") {
+                        return Err(Error::FuelExhausted(self.config.fuel.unwrap_or(0)));
+                    } else {
+                        return Err(Error::Execution(msg));
+                    }
                 }
             }
         };
@@ -263,6 +261,9 @@ impl Sandbox {
         } else {
             0
         };
+
+        // Drop the store so the WASI context releases stdout/stderr pipes
+        drop(store);
 
         // Collect output
         let stdout: Vec<u8> = stdout_pipe.try_into_inner().unwrap_or_default().into();
@@ -393,5 +394,84 @@ mod tests {
         assert!(output.success());
         assert_eq!(output.stdout_str(), "");
         assert_eq!(output.stderr_str(), "");
+    }
+
+    // ---- Integration tests using real WASM fixtures ----
+
+    /// Minimal WASM that exits cleanly (proc_exit(0)).
+    const MINIMAL_WASM: &[u8] = include_bytes!("../../isolate-core/tests/fixtures/minimal.wasm");
+    /// WASM that writes "Hello from WASM!\n" to stdout.
+    const HELLO_WASM: &[u8] = include_bytes!("../../isolate-core/tests/fixtures/hello.wasm");
+    /// WASM that exits with code 42.
+    const EXIT_42_WASM: &[u8] = include_bytes!("../../isolate-core/tests/fixtures/exit_42.wasm");
+
+    #[test]
+    fn test_run_minimal_wasm() {
+        let config = SandboxConfig::new(MINIMAL_WASM).fuel(1_000_000);
+        let mut sandbox = Sandbox::create(config).expect("should compile minimal.wasm");
+        let output = sandbox.run(&[]).expect("should run successfully");
+        assert_eq!(output.exit_code, 0);
+    }
+
+    #[test]
+    fn test_run_hello_wasm_captures_stdout() {
+        let config = SandboxConfig::new(HELLO_WASM).fuel(1_000_000);
+        let mut sandbox = Sandbox::create(config).expect("should compile hello.wasm");
+        let output = sandbox.run(&[]).expect("should run successfully");
+        assert_eq!(output.exit_code, 0);
+        assert_eq!(output.stdout_str().trim(), "Hello from WASM!");
+    }
+
+    #[test]
+    fn test_run_exit_42_wasm() {
+        let config = SandboxConfig::new(EXIT_42_WASM).fuel(1_000_000);
+        let mut sandbox = Sandbox::create(config).expect("should compile exit_42.wasm");
+        let output = sandbox.run(&[]).expect("should run successfully");
+        assert_eq!(output.exit_code, 42);
+    }
+
+    #[test]
+    fn test_fuel_tracking() {
+        let config = SandboxConfig::new(MINIMAL_WASM).fuel(1_000_000);
+        let mut sandbox = Sandbox::create(config).expect("should compile");
+        let output = sandbox.run(&[]).expect("should run");
+        assert!(output.fuel_consumed > 0, "should consume some fuel");
+        assert!(output.fuel_consumed < 1_000_000, "should not exhaust all fuel");
+    }
+
+    #[test]
+    fn test_duration_is_measured() {
+        let config = SandboxConfig::new(HELLO_WASM).fuel(1_000_000);
+        let mut sandbox = Sandbox::create(config).expect("should compile");
+        let output = sandbox.run(&[]).expect("should run");
+        // Duration should be non-zero (even if very fast)
+        assert!(output.duration.as_nanos() > 0);
+    }
+
+    #[test]
+    fn test_multiple_runs_on_same_sandbox() {
+        let config = SandboxConfig::new(MINIMAL_WASM).fuel(1_000_000);
+        let mut sandbox = Sandbox::create(config).expect("should compile");
+        let out1 = sandbox.run(&[]).expect("first run");
+        let out2 = sandbox.run(&[]).expect("second run");
+        assert_eq!(out1.exit_code, 0);
+        assert_eq!(out2.exit_code, 0);
+    }
+
+    #[test]
+    fn test_module_hash_for_real_wasm() {
+        let config = SandboxConfig::new(HELLO_WASM);
+        let sandbox = Sandbox::create(config).expect("should compile");
+        let hash = sandbox.module_hash();
+        assert_eq!(hash.len(), 64); // SHA-256 hex = 64 chars
+    }
+
+    #[test]
+    fn test_stdout_disabled() {
+        let config = SandboxConfig::new(HELLO_WASM).fuel(1_000_000).allow_stdout(false);
+        let mut sandbox = Sandbox::create(config).expect("should compile");
+        let output = sandbox.run(&[]).expect("should run");
+        assert_eq!(output.exit_code, 0);
+        assert!(output.stdout.is_empty(), "stdout should be empty when disabled");
     }
 }
