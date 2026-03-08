@@ -90,7 +90,10 @@ pub async fn benchmark_command(args: BenchmarkArgs, quiet: bool) -> Result<()> {
     for _ in 0..args.iterations {
         let start = std::time::Instant::now();
         let config = SandboxConfig::builder().module(&wasm_bytes)?.build()?;
-        let _sandbox = Sandbox::create(config).await?;
+        let mut sandbox = Sandbox::create(config).await?;
+        if args.include_run {
+            let _ = sandbox.run(&[]).await;
+        }
         durations.push(start.elapsed());
         if let Some(pb) = &bench_pb {
             pb.inc(1);

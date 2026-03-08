@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use colored::*;
 use comfy_table::{presets::UTF8_FULL_CONDENSED, Attribute, Cell, Color, Table};
+use isolate_core::engine::WasmEngine;
 use isolate_core::SandboxConfig;
 use std::path::PathBuf;
 
@@ -75,6 +76,66 @@ pub fn info_command(args: InfoArgs, quiet: bool) -> Result<()> {
     }
 
     println!("{}", table);
+
+    // Show exports/imports if requested (requires compiling the module)
+    if args.exports || args.imports {
+        if let Ok(engine) = WasmEngine::new() {
+            if let Ok(wasm_module) = isolate_core::config::WasmModule::from_bytes(wasm_bytes) {
+                if let Ok(compiled) = engine.compile(&wasm_module) {
+                    if args.exports {
+                        let exports = compiled.exported_functions();
+                        println!("\n{}", "Exports".cyan().bold());
+                        if exports.is_empty() {
+                            println!("  {}", "(none)".dimmed());
+                        } else {
+                            let mut etable = Table::new();
+                            etable.load_preset(UTF8_FULL_CONDENSED);
+                            etable.set_header(vec![
+                                Cell::new("Name").add_attribute(Attribute::Bold),
+                                Cell::new("Kind").add_attribute(Attribute::Bold),
+                            ]);
+                            for export in &exports {
+                                etable.add_row(vec![
+                                    Cell::new(&export.name).fg(Color::Green),
+                                    Cell::new(format!("{:?}", export.kind)),
+                                ]);
+                            }
+                            println!("{}", etable);
+                        }
+                    }
+
+                    if args.imports {
+                        let imports = compiled.required_imports();
+                        println!("\n{}", "Imports".cyan().bold());
+                        if imports.is_empty() {
+                            println!("  {}", "(none)".dimmed());
+                        } else {
+                            let mut itable = Table::new();
+                            itable.load_preset(UTF8_FULL_CONDENSED);
+                            itable.set_header(vec![
+                                Cell::new("Module").add_attribute(Attribute::Bold),
+                                Cell::new("Name").add_attribute(Attribute::Bold),
+                                Cell::new("Kind").add_attribute(Attribute::Bold),
+                            ]);
+                            for import in &imports {
+                                let is_wasi = import.module.starts_with("wasi_snapshot_preview1");
+                                itable.add_row(vec![
+                                    Cell::new(&import.module).fg(if is_wasi {
+                                        Color::Cyan
+                                    } else {
+                                        Color::Yellow
+                                    }),
+                                    Cell::new(&import.name),
+                                    Cell::new(format!("{:?}", import.kind)),
+                                ]);
+                            }
+                            println!("{}", itable);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Ok(())
 }
