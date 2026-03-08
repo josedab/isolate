@@ -418,7 +418,7 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [check, test, fmt, clippy, doc, msrv, docker, website]
+    needs: [check, test, fmt, clippy, doc, msrv, docker, website, coverage, python]
     if: always()
     steps:
       - name: Check all jobs passed
@@ -430,7 +430,9 @@ jobs:
              [[ "${{ needs.doc.result }}" != "success" ]] || \
              [[ "${{ needs.msrv.result }}" != "success" ]] || \
              [[ "${{ needs.docker.result }}" != "success" ]] || \
-             [[ "${{ needs.website.result }}" != "success" ]]; then
+             [[ "${{ needs.website.result }}" != "success" ]] || \
+             [[ "${{ needs.coverage.result }}" != "success" ]] || \
+             [[ "${{ needs.python.result }}" != "success" ]]; then
             echo "One or more jobs failed"
             exit 1
           fi

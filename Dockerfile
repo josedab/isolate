@@ -26,8 +26,11 @@ RUN mkdir -p isolate-core/src isolate-server/src isolate-cli/src isolate-python/
 # Copy proto files
 COPY proto/ proto/
 
-# Build dependencies only (this layer is cached)
-RUN cargo build --release --package isolate-server 2>/dev/null || true
+# Build dependencies only (this layer is cached).
+# The dummy source files above let cargo resolve and compile dependencies
+# without the real source. Errors here are expected (link may fail with
+# dummy sources) so we allow failure for the cache layer only.
+RUN cargo build --release --package isolate-server 2>&1 || true
 
 # Now copy the actual source code
 COPY isolate-core/src isolate-core/src
@@ -40,9 +43,9 @@ RUN touch isolate-core/src/lib.rs isolate-server/src/main.rs && \
 # Runtime stage - minimal image
 FROM debian:bookworm-slim AS runtime
 
-# Install CA certificates for HTTPS and create non-root user
+# Install CA certificates for HTTPS, curl for health checks, and create non-root user
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/* && \
     useradd -r -s /bin/false -u 1000 isolate
 
@@ -60,9 +63,9 @@ USER isolate
 # Expose gRPC port
 EXPOSE 50051
 
-# Health check
+# Health check via HTTP health endpoint (port 8080 by default)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD timeout 5 bash -c '</dev/tcp/localhost/50051' || exit 1
+    CMD curl -sf http://localhost:8080/healthz || exit 1
 
 # Default environment variables
 ENV RUST_LOG=info
