@@ -3,9 +3,9 @@
 use crate::proto::{
     self, isolate_service_server::IsolateService, CreateSandboxRequest, CreateSandboxResponse,
     GetMetricsRequest, GetMetricsResponse, GetSandboxRequest, GetSandboxResponse,
-    ListSandboxesRequest, ListSandboxesResponse, OutputChunk, RunSandboxRequest,
-    RunSandboxResponse, SandboxInfo, SandboxMetrics as ProtoSandboxMetrics, StreamOutputRequest,
-    TerminateSandboxRequest, TerminateSandboxResponse,
+    IsolateErrorDetail, ListSandboxesRequest, ListSandboxesResponse, OutputChunk,
+    RunSandboxRequest, RunSandboxResponse, SandboxInfo, SandboxMetrics as ProtoSandboxMetrics,
+    StreamOutputRequest, TerminateSandboxRequest, TerminateSandboxResponse,
 };
 
 use isolate_core::dashboard::DashboardState;
@@ -15,6 +15,8 @@ use isolate_core::{
 };
 
 use dashmap::DashMap;
+use prost::Message;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,6 +27,56 @@ use tracing::{instrument, Span};
 /// Generate a unique request ID for tracing.
 fn generate_request_id() -> String {
     uuid::Uuid::new_v4().to_string()
+}
+
+/// Build a tonic Status with attached IsolateErrorDetail for machine-readable errors.
+fn status_with_detail(
+    code: tonic::Code,
+    message: impl Into<String>,
+    error_code: impl Into<String>,
+    suggestion: impl Into<String>,
+    context: HashMap<String, String>,
+) -> Status {
+    let msg: String = message.into();
+    let detail = IsolateErrorDetail {
+        error_code: error_code.into(),
+        suggestion: suggestion.into(),
+        context,
+    };
+    let mut buf = prost::bytes::BytesMut::new();
+    if detail.encode(&mut buf).is_ok() {
+        Status::with_details(code, &msg, buf.freeze())
+    } else {
+        Status::new(code, msg)
+    }
+}
+
+/// Validate that a sandbox_id is non-empty.
+#[allow(clippy::result_large_err)]
+fn validate_sandbox_id(sandbox_id: &str) -> Result<(), Status> {
+    if sandbox_id.is_empty() {
+        return Err(status_with_detail(
+            tonic::Code::InvalidArgument,
+            "sandbox_id must not be empty",
+            "EMPTY_SANDBOX_ID",
+            "Provide the sandbox_id returned from CreateSandbox.",
+            HashMap::new(),
+        ));
+    }
+    Ok(())
+}
+
+/// Build a not-found Status for a missing sandbox.
+fn sandbox_not_found(sandbox_id: &str) -> Status {
+    let mut ctx = HashMap::new();
+    ctx.insert("sandbox_id".to_string(), sandbox_id.to_string());
+    status_with_detail(
+        tonic::Code::NotFound,
+        "Sandbox not found",
+        "SANDBOX_NOT_FOUND",
+        "The sandbox may have been terminated or never existed. Use ListSandboxes to see active sandboxes.",
+        ctx,
+    )
 }
 
 /// Extract or generate a request ID from gRPC metadata.
@@ -63,11 +115,21 @@ pub struct IsolateServiceImpl {
 }
 
 impl IsolateServiceImpl {
-    /// Create a new service.
+    /// Create a new service with default rate limiting (100 req/s, 200 burst).
+    #[allow(dead_code)]
     pub fn new(max_sandboxes: usize) -> Self {
+        Self::with_rate_limit(max_sandboxes, 100, 200)
+    }
+
+    /// Create a new service with explicit rate limit configuration.
+    pub fn with_rate_limit(
+        max_sandboxes: usize,
+        requests_per_second: u32,
+        burst_size: u32,
+    ) -> Self {
         let rate_config = RateLimitConfig {
-            requests_per_second: Some(100),
-            burst_size: Some(200),
+            requests_per_second: Some(requests_per_second),
+            burst_size: Some(burst_size),
             ..Default::default()
         };
         Self {
@@ -171,25 +233,41 @@ impl IsolateService for IsolateServiceImpl {
 
         // Request validation
         if req.module.is_empty() {
-            return Err(Status::invalid_argument("WASM module cannot be empty"));
+            return Err(status_with_detail(
+                tonic::Code::InvalidArgument,
+                "WASM module cannot be empty",
+                "EMPTY_MODULE",
+                "Provide a valid WASM module binary in the 'module' field.",
+                HashMap::new(),
+            ));
         }
 
         self.total_requests.fetch_add(1, Ordering::Relaxed);
 
         // Rate limit check
         if let Err(_e) = self.rate_limiter.try_acquire() {
-            return Err(Status::resource_exhausted(
-                "Rate limit exceeded. Retry after a short backoff (e.g., 1 second).",
+            return Err(status_with_detail(
+                tonic::Code::ResourceExhausted,
+                "Rate limit exceeded",
+                "RATE_LIMITED",
+                "Retry after a short backoff (e.g., 1 second).",
+                HashMap::new(),
             ));
         }
 
         // Acquire semaphore permit
-        let _permit = self
-            .semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|_| Status::resource_exhausted("Maximum sandbox limit reached"))?;
+        let _permit = self.semaphore.clone().acquire_owned().await.map_err(|_| {
+            status_with_detail(
+                tonic::Code::ResourceExhausted,
+                "Maximum sandbox limit reached",
+                "MAX_SANDBOXES",
+                format!(
+                    "Server is at the {} sandbox limit. Wait for running sandboxes to finish.",
+                    self.max_sandboxes
+                ),
+                HashMap::new(),
+            )
+        })?;
 
         let start = std::time::Instant::now();
 
@@ -292,12 +370,14 @@ impl IsolateService for IsolateServiceImpl {
         let request_id = extract_request_id(&request);
         let req = request.into_inner();
 
+        validate_sandbox_id(&req.sandbox_id)?;
+
         tracing::info!(request_id = %request_id, sandbox_id = %req.sandbox_id, "RunSandbox request");
 
         let sandbox = self
             .sandboxes
             .get(&req.sandbox_id)
-            .ok_or_else(|| Status::not_found("Sandbox not found"))?
+            .ok_or_else(|| sandbox_not_found(&req.sandbox_id))?
             .clone();
 
         let mut guard = sandbox.lock().await;
@@ -377,10 +457,12 @@ impl IsolateService for IsolateServiceImpl {
     ) -> Result<Response<GetSandboxResponse>, Status> {
         let req = request.into_inner();
 
+        validate_sandbox_id(&req.sandbox_id)?;
+
         let sandbox = self
             .sandboxes
             .get(&req.sandbox_id)
-            .ok_or_else(|| Status::not_found("Sandbox not found"))?;
+            .ok_or_else(|| sandbox_not_found(&req.sandbox_id))?;
 
         let guard = sandbox.lock().await;
         let info = Self::sandbox_to_info(&guard);
@@ -413,10 +495,12 @@ impl IsolateService for IsolateServiceImpl {
     ) -> Result<Response<TerminateSandboxResponse>, Status> {
         let req = request.into_inner();
 
+        validate_sandbox_id(&req.sandbox_id)?;
+
         let sandbox = self
             .sandboxes
             .remove(&req.sandbox_id)
-            .ok_or_else(|| Status::not_found("Sandbox not found"))?;
+            .ok_or_else(|| sandbox_not_found(&req.sandbox_id))?;
 
         let mut guard = sandbox.1.lock().await;
         let sandbox_uuid = guard.id();
@@ -486,8 +570,12 @@ impl IsolateService for IsolateServiceImpl {
 
         // Apply pagination — support both cursor-based and legacy offset
         let offset = if !req.page_token.is_empty() {
-            // Decode cursor (base64-encoded offset for simplicity)
-            req.page_token.parse::<usize>().unwrap_or(0)
+            req.page_token.parse::<usize>().map_err(|_| {
+                Status::invalid_argument(format!(
+                    "invalid page_token '{}': expected numeric cursor",
+                    req.page_token
+                ))
+            })?
         } else {
             #[allow(deprecated)]
             let o = req.offset;
@@ -533,10 +621,12 @@ impl IsolateService for IsolateServiceImpl {
     ) -> Result<Response<Self::StreamOutputStream>, Status> {
         let req = request.into_inner();
 
+        validate_sandbox_id(&req.sandbox_id)?;
+
         let sandbox = self
             .sandboxes
             .get(&req.sandbox_id)
-            .ok_or_else(|| Status::not_found("Sandbox not found"))?
+            .ok_or_else(|| sandbox_not_found(&req.sandbox_id))?
             .clone();
 
         let follow_stdout = req.follow_stdout;

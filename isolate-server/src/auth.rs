@@ -50,33 +50,48 @@ impl Role {
 /// API-key based gRPC interceptor with optional RBAC.
 #[derive(Clone)]
 pub struct AuthInterceptor {
-    /// Map of API key → role. If empty, all requests are allowed.
+    /// Map of API key → role. If empty, auth is disabled with a warning logged at startup.
     api_keys: HashMap<String, Role>,
     /// Whether RBAC is enabled. When false, any valid key gets Admin.
     rbac_enabled: bool,
+    /// Whether auth is explicitly disabled (no keys configured).
+    auth_disabled: bool,
 }
 
 impl AuthInterceptor {
     /// Create a new interceptor with a single API key (no RBAC).
+    ///
+    /// When `api_key` is None, authentication is disabled — all requests
+    /// are allowed. This is intentional for development but should never
+    /// be used in production.
     pub fn new(api_key: Option<String>) -> Self {
         let mut api_keys = HashMap::new();
+        let auth_disabled = api_key.is_none();
         if let Some(key) = api_key {
             api_keys.insert(key, Role::Admin);
         }
-        Self { api_keys, rbac_enabled: false }
+        Self { api_keys, rbac_enabled: false, auth_disabled }
     }
 
     /// Create an interceptor with multiple keys mapped to roles (RBAC enabled).
     #[allow(dead_code)]
     pub fn with_rbac(api_keys: HashMap<String, Role>) -> Self {
         let rbac_enabled = !api_keys.is_empty();
-        Self { api_keys, rbac_enabled }
+        Self { api_keys, rbac_enabled, auth_disabled: false }
+    }
+
+    /// Returns true if authentication is disabled (no keys configured).
+    #[allow(dead_code)]
+    pub fn is_auth_disabled(&self) -> bool {
+        self.auth_disabled
     }
 }
 
 impl Interceptor for AuthInterceptor {
     fn call(&mut self, req: Request<()>) -> Result<Request<()>, Status> {
-        if self.api_keys.is_empty() {
+        // When auth is explicitly disabled (no keys configured), allow all.
+        // This is intentional for development; in production, configure keys.
+        if self.auth_disabled {
             return Ok(req);
         }
 
@@ -97,14 +112,21 @@ impl Interceptor for AuthInterceptor {
             return Err(Status::unauthenticated("invalid API key"));
         };
 
-        // RBAC check: extract method from request URI
+        // RBAC check: extract method from request metadata
         if self.rbac_enabled {
             let method = req.metadata().get("x-method").and_then(|v| v.to_str().ok());
-            if let Some(method) = method {
-                if !role.can_access(method) {
-                    return Err(Status::permission_denied(format!(
-                        "{role:?} role cannot access {method}"
-                    )));
+            match method {
+                Some(method) => {
+                    if !role.can_access(method) {
+                        return Err(Status::permission_denied(format!(
+                            "{role:?} role cannot access {method}"
+                        )));
+                    }
+                }
+                None => {
+                    return Err(Status::permission_denied(
+                        "x-method header required when RBAC is enabled",
+                    ));
                 }
             }
         }
@@ -194,5 +216,36 @@ mod tests {
         assert!(!Role::Viewer.can_access("CreateSandbox"));
         assert!(Role::Viewer.can_access("ListSandboxes"));
         assert!(Role::Viewer.can_access("GetMetrics"));
+    }
+
+    #[test]
+    fn test_rbac_missing_method_header_rejected() {
+        let mut keys = HashMap::new();
+        keys.insert("key".to_string(), Role::Admin);
+        let mut interceptor = AuthInterceptor::with_rbac(keys);
+
+        let mut req = Request::new(());
+        req.metadata_mut().insert("x-api-key", "key".parse().unwrap());
+        // No x-method header
+        let err = interceptor.call(req).unwrap_err();
+        assert_eq!(err.code(), tonic::Code::PermissionDenied);
+    }
+
+    #[test]
+    fn test_auth_disabled_flag() {
+        let interceptor = AuthInterceptor::new(None);
+        assert!(interceptor.is_auth_disabled());
+
+        let interceptor = AuthInterceptor::new(Some("key".into()));
+        assert!(!interceptor.is_auth_disabled());
+    }
+
+    #[test]
+    fn test_with_rbac_empty_keys_rejects() {
+        let mut interceptor = AuthInterceptor::with_rbac(HashMap::new());
+        let req = Request::new(());
+        // Empty RBAC keys means no valid key exists — auth not disabled, so reject
+        let err = interceptor.call(req).unwrap_err();
+        assert_eq!(err.code(), tonic::Code::Unauthenticated);
     }
 }

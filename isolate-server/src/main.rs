@@ -166,6 +166,14 @@ struct Args {
     /// API key for gRPC authentication (if unset, all requests allowed)
     #[arg(long, env = "ISOLATE_API_KEY")]
     api_key: Option<String>,
+
+    /// Rate limit: maximum requests per second (default: 100)
+    #[arg(long, default_value = "100", env = "ISOLATE_RATE_LIMIT")]
+    rate_limit: u32,
+
+    /// Rate limit: burst capacity (default: 200)
+    #[arg(long, default_value = "200", env = "ISOLATE_RATE_BURST")]
+    rate_burst: u32,
 }
 
 /// HTTP health check and dashboard API handler.
@@ -183,7 +191,7 @@ async fn health_handler(
             .body(Full::new(Bytes::from(r#"{"status":"healthy"}"#)))
             .expect("static health response"),
         "/readyz" | "/ready" => {
-            if service_healthy.load(std::sync::atomic::Ordering::Relaxed) {
+            if service_healthy.load(std::sync::atomic::Ordering::Acquire) {
                 Response::builder()
                     .status(StatusCode::OK)
                     .header("Content-Type", "application/json")
@@ -199,7 +207,7 @@ async fn health_handler(
         }
         // Deep readiness check — same as /readyz but with engine verification info
         "/readyz/deep" => {
-            let healthy = service_healthy.load(std::sync::atomic::Ordering::Relaxed);
+            let healthy = service_healthy.load(std::sync::atomic::Ordering::Acquire);
             let sandboxes = dashboard.overview();
             let status = if healthy { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
             let json = serde_json::json!({
@@ -333,7 +341,7 @@ async fn health_handler(
                 .expect("v1 events response")
         }
         "/api/v1/health" => {
-            let healthy = service_healthy.load(std::sync::atomic::Ordering::Relaxed);
+            let healthy = service_healthy.load(std::sync::atomic::Ordering::Acquire);
             let status_code =
                 if healthy { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
             let json = format!(r#"{{"healthy":{healthy}}}"#);
@@ -500,7 +508,13 @@ async fn main() -> anyhow::Result<()> {
     health_reporter.set_serving::<IsolateServiceServer<IsolateServiceImpl>>().await;
 
     // Create the service
-    let service = IsolateServiceImpl::new(args.max_sandboxes);
+    let service =
+        IsolateServiceImpl::with_rate_limit(args.max_sandboxes, args.rate_limit, args.rate_burst);
+    tracing::info!(
+        rate_limit = args.rate_limit,
+        rate_burst = args.rate_burst,
+        "Rate limiter configured"
+    );
     let dashboard = service.dashboard();
 
     // Start HTTP health server if enabled
@@ -544,12 +558,15 @@ async fn main() -> anyhow::Result<()> {
     let svc = tonic::service::interceptor::InterceptedService::new(svc, interceptor);
 
     let shutdown_timeout = Duration::from_secs(args.shutdown_timeout);
+    let shutdown_healthy = service_healthy.clone();
 
     builder
         .add_service(health_service)
         .add_service(svc)
         .serve_with_shutdown(args.addr, async move {
             shutdown_signal().await;
+            // Mark service as unhealthy so load balancers stop routing
+            shutdown_healthy.store(false, std::sync::atomic::Ordering::Release);
             tracing::info!(
                 timeout_secs = shutdown_timeout.as_secs(),
                 "Shutdown signal received, draining in-flight requests..."
