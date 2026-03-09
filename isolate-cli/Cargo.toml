@@ -52,7 +52,7 @@ notify = "6"
 notify-debouncer-mini = "0.4"
 
 # Signal handling
-ctrlc = "3.4"
+ctrlc = "3.5"
 
 [dev-dependencies]
 tempfile = { workspace = true }
