@@ -33,7 +33,7 @@ authors = ["Isolate Contributors"]
 [workspace.dependencies]
 # Core dependencies
 wasmtime = "27"
-wasmtime-wasi = "27"
+wasmtime-wasi = "41"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
