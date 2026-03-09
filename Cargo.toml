@@ -32,7 +32,7 @@ authors = ["Isolate Contributors"]
 
 [workspace.dependencies]
 # Core dependencies
-wasmtime = "27"
+wasmtime = "41"
 wasmtime-wasi = "27"
 
 # Async runtime
